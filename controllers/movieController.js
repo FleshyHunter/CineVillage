@@ -22,6 +22,7 @@ async function getAllMovies(req, res) {
 }
 
 // Get single movie by ID (for movieDetail.ejs)
+
 // async function getMovieDetail(req, res) {
 //   await initDBIfNecessary();
 
@@ -47,7 +48,7 @@ async function getMoviebyId(movieId) {
     }
 
     const collectionMovie = getCollectionMovie()
-    
+
     return collectionMovie.findOne({
         _id: ObjectId.createFromHexString(movieId)
     });
