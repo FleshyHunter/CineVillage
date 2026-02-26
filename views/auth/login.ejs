@@ -1,0 +1,46 @@
+<html>
+  <%- include('../layouts/header') %>
+  <div class="container" style="max-width: 400px; margin-top: 80px;">
+    <div class="card" style="padding: 30px;">
+      <h2 style="text-align: center; margin-bottom: 20px;">Admin Login</h2>
+
+      <!-- Display error message if present -->
+      <% if (typeof error !=='undefined' ) { %>
+        <div class="alert" style="color: #dc2626; text-align: center; margin-bottom: 15px;">
+          <%= error %>
+        </div>
+        <% } %>
+
+          <form action="/auth/login" method="POST">
+            <div style="margin-bottom: 15px;">
+              <label for="email">Email</label>
+              <input type="text" id="email" name="email" required
+                style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #94a3b8;">
+            </div>
+
+            <div style="margin-bottom: 20px;">
+              <label for="password">Password</label>
+              <input type="password" id="password" name="password" required
+                style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #94a3b8;">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+          </form>
+
+          <p style="text-align: center; margin-top: 15px;">
+            Forgot your password? <a href="/auth/reset" style="color: #2563eb;">Reset here</a>
+          </p>
+    </div>
+  </div>
+
+  <script>
+  <% if (typeof error !== 'undefined') { %>
+      alert("<%= error %>");
+  <% } %>
+  </script>
+
+
+
+  <%- include('../layouts/footer') %>
+
+</html>

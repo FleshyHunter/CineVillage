@@ -1,0 +1,142 @@
+<%- include('../layouts/header') %>
+
+  <div class="container" style="max-width: 600px; margin-top: 80px;">
+    <div class="card">
+      <h2 style="text-align: center; margin-bottom: 25px;">
+        <%= isEdit ? 'Edit Movie' : 'Create Movie' %>
+      </h2>
+
+      <form action="<%= isEdit ? '/movies/edit/' + movie._id : '/movies/create' %>" method="POST"
+        enctype="multipart/form-data">
+
+
+        <div class="form-group" style="text-align: center; margin-bottom: 20px;">
+          <label for="picture" style="cursor: pointer;">
+            <img id="placeholderImg"
+              src="<%= isEdit && movie.pictureUrl ? movie.pictureUrl : '/images/cameraplaceholder.jpg' %>"
+              alt="Upload movie image"
+              style="width: 150px; height: 220px; object-fit: cover; border-radius: 6px; border: 2px dashed #94a3b8;">
+          </label>
+          <input type="file" id="picture" name="picture" accept="image/*" style="display: none;">
+        </div>
+
+        <div class="form-group">
+          <label for="name">Movie Name *</label>
+          <input type="text" id="name" name="name" class="form-control" value="<%= movie ? movie.name : '' %>" required>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="4"
+            class="form-control"><%= movie ? movie.description : '' %></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="duration">Duration (minutes)</label>
+          <input type="number" id="duration" name="duration" class="form-control"
+            value="<%= movie ? movie.duration : '' %>">
+        </div>
+
+        <div class="form-group">
+          <label for="rating">Rating</label>
+          <input type="text" id="rating" name="rating" class="form-control" value="<%= movie ? movie.rating : '' %>">
+        </div>
+
+        <div class="form-group">
+          <label for="producer">Producer</label>
+          <input type="text" id="producer" name="producer" class="form-control"
+            value="<%= movie ? movie.producer : '' %>">
+        </div>
+
+        <div class="form-group">
+          <label for="ageRestriction">Age Restriction</label>
+          <select id="ageRestriction" name="ageRestriction" class="form-control">
+            <option value="">Select restriction</option>
+            <option value="G" <%=movie && movie.ageRestriction==='G' ? 'selected' : '' %>>G</option>
+            <option value="PG" <%=movie && movie.ageRestriction==='PG' ? 'selected' : '' %>>PG</option>
+            <option value="PG13" <%=movie && movie.ageRestriction==='PG13' ? 'selected' : '' %>>PG13</option>
+            <option value="NC16" <%=movie && movie.ageRestriction==='NC16' ? 'selected' : '' %>>NC16</option>
+            <option value="M18" <%=movie && movie.ageRestriction==='M18' ? 'selected' : '' %>>M18</option>
+            <option value="R21" <%=movie && movie.ageRestriction==='R21' ? 'selected' : '' %>>R21</option>
+          </select>
+        </div>
+
+        <!-- Genre -->
+        <div class="form-group">
+          <label for="genre">Genre</label>
+          <input type="text" id="genre" name="genre" class="form-control"
+            value="<%= movie && Array.isArray(movie.genre) ? movie.genre.join(', ') : (movie ? movie.genre : '') %>"
+            placeholder="e.g. Action, Thriller">
+        </div>
+
+        <!-- Cast -->
+        <div class="form-group">
+          <label for="cast">Cast</label>
+          <input type="text" id="cast" name="cast" class="form-control"
+            value="<%= movie && Array.isArray(movie.cast) ? movie.cast.join(', ') : (movie ? movie.cast : '') %>"
+            placeholder="e.g. Tom Cruise, Zendaya">
+        </div>
+
+        <!-- Language -->
+        <div class="form-group">
+          <label for="language">Language</label>
+          <select id="language" name="language" class="form-control">
+            <option value="">Select language</option>
+            <option value="English" <%=movie && movie.language==='English' ? 'selected' : '' %>>English</option>
+            <option value="Mandarin" <%=movie && movie.language==='Mandarin' ? 'selected' : '' %>>Mandarin</option>
+          </select>
+        </div>
+
+        <!-- Subtitle -->
+        <div class="form-group">
+          <label for="subtitle">Subtitle</label>
+          <select id="subtitle" name="subtitle" class="form-control">
+            <option value="">Select subtitle</option>
+            <option value="English" <%=movie && movie.subtitle==='English' ? 'selected' : '' %>>English</option>
+            <option value="Mandarin" <%=movie && movie.subtitle==='Mandarin' ? 'selected' : '' %>>Mandarin</option>
+          </select>
+        </div>
+
+        <!-- Release Date -->
+        <div class="form-group">
+          <label for="releaseDate">Release Date</label>
+          <input type="date" id="releaseDate" name="releaseDate" class="form-control"
+            value="<%= movie && movie.releaseDate ? new Date(movie.releaseDate).toISOString().split('T')[0] : '' %>">
+        </div>
+
+        <!-- Status -->
+        <div class="form-group">
+          <label for="status">Status</label>
+          <select id="status" name="status" class="form-control">
+            <option value="">Select status</option>
+            <option value="Coming Soon" <%=movie && movie.status==='Coming Soon' ? 'selected' : '' %>>Coming Soon
+            </option>
+            <option value="Showing" <%=movie && movie.status==='Showing' ? 'selected' : '' %>>Showing</option>
+            <option value="Discontinued" <%=movie && movie.status==='Discontinued' ? 'selected' : '' %>>Discontinued
+            </option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 mt-3">
+          <%= isEdit ? 'Update Movie' : 'Create Movie' %>
+        </button>
+
+        <a href="/movies" class="btn btn-primary" style="margin-bottom: 15px;">&larr; Back to Movies</a>
+
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const pictureInput = document.getElementById('picture');
+    const placeholderImg = document.getElementById('placeholderImg');
+
+    pictureInput.addEventListener('change', () => {
+      const file = pictureInput.files[0];
+      if (file) {
+        placeholderImg.src = URL.createObjectURL(file);
+      }
+    });
+  </script>
+
+  <%- include('../layouts/footer') %>

@@ -1,0 +1,22 @@
+<div class="app-layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h2 class="sidebar-title">CineVillage</h2>
+    <a href="/movies">Movies</a>
+    <a href="/movies/create">Add Movie</a>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/other-page">Other</a>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <%- include('../layouts/header') %>
+
+    <div class="container">
+      <!-- Page content will go here -->
+      <%- body %>
+    </div>
+
+    <%- include('../layouts/footer') %>
+  </div>
+</div>

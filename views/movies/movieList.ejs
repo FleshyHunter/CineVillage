@@ -1,0 +1,30 @@
+<%- include('../layouts/header') %>
+
+    <div class="container">
+        <h2 style="margin-bottom: 20px;">Movies</h2>
+        <div style="text-align: right; margin-bottom: 20px;">
+            <a href="/movies/create" class="btn btn-primary">
+                + Create New Movie
+            </a>
+        </div>
+        <div class="movies-grid">
+            <% movies.forEach(movie=> { %>
+                <a href="/movies/<%= movie._id %>" class="movie-card-link">
+                    <div class="movie-card card">
+                        <img src="<%= movie.pictureUrl || '/images/placeholder.jpg' %>" alt="<%= movie.name %>"
+                            class="movie-card-img">
+                        <div class="movie-card-content">
+                            <div class="movie-name">
+                                <%= movie.name %>
+                            </div>
+                            <div class="movie-duration">
+                                <%= movie.duration %> min
+                            </div>
+                        </div>
+                    </div>
+                </a>
+                <% }) %>
+        </div>
+    </div>
+
+    <%- include('../layouts/footer') %>

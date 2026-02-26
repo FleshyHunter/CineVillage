@@ -1,0 +1,145 @@
+/* === Global Reset === */
+
+
+:root {
+  --bg-main: #0f172a;          /* dark background for body */
+  --bg-card: #1e293b;          /* card background */
+  --sidebar-blue: #1b365d;     /* deep cinema blue for sidebar */
+  --accent: #1b365d;           /* replace all accent with sidebar blue */
+  --accent-hover: #153054;     /* slightly darker on hover */
+  --text-main: #f8fafc;        /* white text */
+  --text-muted: #94a3b8;       /* grey text for secondary info */
+}
+
+/* === App layout: sidebar + main content === */
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 5;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  padding: 20px;
+}
+
+/* Sidebar layout */
+.sidebar {
+  flex: 1;                     /* 1 part of the 1:5 ratio */
+  background-color: var(--sidebar-blue);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+/* Sidebar links */
+.sidebar a {
+  color: var(--text-main);
+  text-decoration: none;
+  margin: 15px 0;
+  font-weight: 500;
+}
+
+.sidebar a:hover {
+  color: var(--accent-hover);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+
+/* === Body === */
+body {
+  background-color: var(--bg-main) !important;
+  color: var(--text-main) !important;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+}
+
+/* === Containers === */
+.container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 40px auto;
+}
+
+/* === Navbar === */
+.navbar {
+  background-color: var(--bg-card);
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.navbar a {
+  color: var(--text-main);
+  text-decoration: none;
+  margin-left: 20px;
+}
+
+.navbar a:hover {
+  color: var(--accent);
+}
+
+/* === Headings === */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-main);
+  margin-bottom: 16px;
+}
+
+/* === Links === */
+a {
+  color: var(--accent) !important;
+}
+
+a:hover {
+  color: var(--accent-hover) !important;
+}
+
+/* === Movie Grid === */
+.movies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
+  gap: 20px;
+}
+
+/* === Cards (override Bootstrap cards) === */
+.card {
+  background-color: var(--bg-card) !important;
+  color: var(--text-main) !important;
+  border-radius: 8px;
+}
+
+/* === Forms (override Bootstrap forms) === */
+.form-control {
+  background-color: var(--bg-main) !important;
+  color: var(--text-main) !important;
+  border-color: #334155 !important;
+}
+
+.form-control:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3) !important;
+}
+
+/* === Buttons (override Bootstrap buttons if needed) === */
+.btn {
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover) !important;
+}
