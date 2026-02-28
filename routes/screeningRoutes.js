@@ -7,24 +7,18 @@ const {
   updateScreening, 
   deleteScreening, 
   getHallSchedule,
-  getHallsForScreenings,
   getHallSchedulePage,
   getMovieScreenings,
-  getScreeningsByDate,
   updateScreeningStatuses
 } = require("../controllers/screeningController");
 const { initDBIfNecessary, getCollectionScreening, getCollectionMovie, getCollectionHall } = require("../config/database");
 const { ObjectId } = require("mongodb");
 
-// View by Hall routes
-router.get("/by-hall", getHallsForScreenings);
+// View by Hall schedule (individual hall)
 router.get("/hall/:hallId", getHallSchedulePage);
 
 // View by Movie routes
 router.get("/movie/:movieId", getMovieScreenings);
-
-// View by Date route
-router.get("/by-date", getScreeningsByDate);
 
 // API endpoint for date screenings (AJAX)
 router.get("/api/date-screenings", async (req, res) => {

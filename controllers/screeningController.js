@@ -650,85 +650,6 @@ async function getMovieScreenings(req, res) {
   }
 }
 
-// View by Date - Get all movies with screenings for selected date
-async function getScreeningsByDate(req, res) {
-  try {
-    const selectedDate = req.query.date || new Date().toISOString().split('T')[0];
-    
-    await initDBIfNecessary();
-    
-    // Auto-update statuses before fetching
-    await updateScreeningStatuses();
-    
-    const collectionScreening = getCollectionScreening();
-    const collectionMovie = getCollectionMovie();
-    const collectionHall = getCollectionHall();
-    
-    // Parse selected date
-    const [year, month, day] = selectedDate.split('-').map(Number);
-    const startOfDay = new Date(year, month - 1, day, 0, 0, 0);
-    const endOfDay = new Date(year, month - 1, day, 23, 59, 59);
-    
-    // Get all screenings for this date
-    const screenings = await collectionScreening.find({
-      startDateTime: { $gte: startOfDay, $lte: endOfDay },
-      status: { $in: ['scheduled', 'ongoing'] }
-    }).toArray();
-    
-    // Get unique movie IDs
-    const movieIds = [...new Set(screenings.map(s => s.movieId.toString()))];
-    const movies = await collectionMovie.find({
-      _id: { $in: movieIds.map(id => new ObjectId(id)) }
-    }).toArray();
-    
-    // Get all halls
-    const halls = await collectionHall.find({ status: 'Available' }).toArray();
-    const hallMap = {};
-    halls.forEach(h => {
-      hallMap[h._id.toString()] = { name: h.name, type: h.type };
-    });
-    
-    // Group screenings by movie and hall type
-    const moviesWithScreenings = movies.map(movie => {
-      const movieScreenings = screenings.filter(s => s.movieId.toString() === movie._id.toString());
-      
-      // Group by hall type
-      const byHallType = {};
-      movieScreenings.forEach(screening => {
-        const hallInfo = hallMap[screening.hallId.toString()];
-        if (hallInfo) {
-          if (!byHallType[hallInfo.type]) {
-            byHallType[hallInfo.type] = [];
-          }
-          byHallType[hallInfo.type].push({
-            time: screening.startDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
-            hallName: hallInfo.name
-          });
-        }
-      });
-      
-      // Sort times for each hall type
-      Object.keys(byHallType).forEach(type => {
-        byHallType[type].sort((a, b) => a.time.localeCompare(b.time));
-      });
-      
-      return {
-        ...movie,
-        screeningsByHallType: byHallType
-      };
-    });
-    
-    res.render("screenings/viewByDate", { 
-      movies: moviesWithScreenings,
-      selectedDate,
-      title: 'View by Date'
-    });
-  } catch (error) {
-    console.error('Error fetching screenings by date:', error);
-    res.status(500).send("Error fetching screenings");
-  }
-}
-
 module.exports = {
   createScreening,
   getAllScreenings,
@@ -736,9 +657,7 @@ module.exports = {
   updateScreening,
   deleteScreening,
   getHallSchedule,
-  getHallsForScreenings,
   getHallSchedulePage,
   getMovieScreenings,
-  getScreeningsByDate,
   updateScreeningStatuses,
 }

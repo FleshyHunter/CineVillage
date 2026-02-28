@@ -22,7 +22,7 @@
         </button>
     </div>
     
-    <!-- Create Button and Movie Filters -->
+    <!-- Search and Filter Controls -->
     <div class="search-filter-bar">
         <div class="search-controls">
             <!-- Movie filter buttons - only visible when Movie tab is active -->
@@ -62,7 +62,58 @@
                     </select>
                 </div>
             </div>
+
+            <!-- All view filters - only visible when All tab is active -->
+            <div id="allFilters" style="display: <%= activeView === 'all' ? 'flex' : 'none' %>; gap: 12px; align-items: center;">
+                <!-- Search Bar -->
+                <div class="search-box">
+                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                    <input 
+                        type="text" 
+                        id="allSearchInput" 
+                        class="search-input" 
+                        placeholder="Search movies..."
+                    >
+                </div>
+
+                <!-- Date Filter -->
+                <div class="filter-dropdown">
+                    <input 
+                        type="date" 
+                        id="allDateFilter" 
+                        class="filter-select"
+                        min="<%= new Date().toISOString().split('T')[0] %>"
+                        max="<%= new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0] %>"
+                        placeholder="Select date"
+                    >
+                </div>
+
+                <!-- Hall Filter -->
+                <div class="filter-dropdown">
+                    <select id="allHallFilter" class="filter-select">
+                        <option value="">All Halls</option>
+                        <% if (halls && halls.length > 0) { %>
+                            <% halls.forEach(hall => { %>
+                                <option value="<%= hall.name %>"><%= hall.name %></option>
+                            <% }); %>
+                        <% } %>
+                    </select>
+                </div>
+
+                <!-- Sort By -->
+                <div class="filter-dropdown">
+                    <select id="allSortFilter" class="filter-select">
+                        <option value="none">Sort By</option>
+                        <option value="earliest">Earliest First</option>
+                        <option value="latest">Latest First</option>
+                    </select>
+                </div>
+            </div>
         </div>
+        
+        <!-- Create Button -->
         <div class="create-button-wrapper">
             <a href="/screenings/create" class="btn btn-primary">
                 + Create New Screening
@@ -73,13 +124,13 @@
     <!-- ALL VIEW: Table of all screenings -->
     <div id="allView" class="view-section" style="display: <%= activeView === 'all' ? 'block' : 'none' %>;">
         <% if (screenings && screenings.length > 0) { %>
-            <div class="table-responsive" style="margin-top: 24px;">
-                <table class="table" style="color: var(--text-main);">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover">
                     <thead>
-                        <tr style="border-bottom: 2px solid var(--text-muted);">
+                        <tr>
                             <th>Date</th>
                             <th>Time</th>
-                            <th>Movie</th>
+                            <th>Name</th>
                             <th>Hall</th>
                             <th>Price</th>
                             <th>Status</th>
@@ -88,7 +139,7 @@
                     </thead>
                     <tbody>
                         <% screenings.forEach(screening => { %>
-                            <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+                            <tr>
                                 <td>
                                     <% if (screening.startDateTime) { %>
                                         <%= new Date(screening.startDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) %>
@@ -133,9 +184,6 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="/screenings/<%= screening._id %>" class="btn btn-sm btn-secondary" style="margin-right: 8px;">
-                                        View
-                                    </a>
                                     <a href="/screenings/edit/<%= screening._id %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
                                         Edit
                                     </a>
@@ -421,6 +469,7 @@
     const dateSelector = document.getElementById('dateSelector');
     const movieFilterButtons = document.getElementById('movieFilterButtons');
     const movieSearchSort = document.getElementById('movieSearchSort');
+    const allFilters = document.getElementById('allFilters');
 
     // Tab switching
     filterBtns.forEach(btn => {
@@ -433,6 +482,11 @@
             }
             if (movieSearchSort) {
                 movieSearchSort.style.display = view === 'movie' ? 'flex' : 'none';
+            }
+            
+            // Show/hide all view filters based on view
+            if (allFilters) {
+                allFilters.style.display = view === 'all' ? 'flex' : 'none';
             }
             
             // Update active button
@@ -517,6 +571,138 @@
         // Display
         movieCards.forEach(card => card.style.display = 'none');
         filteredCards.forEach(card => card.style.display = 'block');
+    }
+
+    // All View: Search and Filter functionality
+    const allSearchInput = document.getElementById('allSearchInput');
+    const allDateFilter = document.getElementById('allDateFilter');
+    const allHallFilter = document.getElementById('allHallFilter');
+    const allSortFilter = document.getElementById('allSortFilter');
+    const allTableRows = Array.from(document.querySelectorAll('#allView tbody tr'));
+
+    function applyAllFilters() {
+        const searchTerm = allSearchInput ? allSearchInput.value.toLowerCase() : '';
+        const selectedDate = allDateFilter ? allDateFilter.value : '';
+        const selectedHall = allHallFilter ? allHallFilter.value : '';
+        const sortValue = allSortFilter ? allSortFilter.value : 'none';
+
+        allTableRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 6) {
+                row.style.display = '';
+                return;
+            }
+
+            const dateText = cells[0].textContent.trim(); // Date column (e.g., "28 Feb 2026")
+            const movieName = cells[2].textContent.trim().toLowerCase(); // Name column
+            const hallName = cells[3].textContent.trim(); // Hall column
+
+            // Search filter (movie name)
+            const searchMatch = !searchTerm || movieName.includes(searchTerm);
+
+            // Date filter - convert both to comparable format
+            let dateMatch = true;
+            if (selectedDate) {
+                // Parse the displayed date (e.g., "28 Feb 2026")
+                const dateParts = dateText.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
+                if (dateParts) {
+                    const months = {
+                        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+                        'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+                        'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+                    };
+                    const day = dateParts[1].padStart(2, '0');
+                    const month = months[dateParts[2]];
+                    const year = dateParts[3];
+                    const rowDateString = `${year}-${month}-${day}`;
+                    dateMatch = rowDateString === selectedDate;
+                } else {
+                    dateMatch = false;
+                }
+            }
+
+            // Hall filter
+            const hallMatch = !selectedHall || hallName === selectedHall;
+
+            // Store match result in row dataset
+            if (searchMatch && dateMatch && hallMatch) {
+                row.dataset.visible = 'true';
+            } else {
+                row.dataset.visible = 'false';
+                row.style.display = 'none';
+            }
+        });
+
+        // Sort visible rows
+        if (sortValue !== 'none') {
+            const tbody = document.querySelector('#allView tbody');
+            const visibleRows = allTableRows.filter(row => row.dataset.visible === 'true');
+            
+            visibleRows.sort((a, b) => {
+                const timeA = a.querySelectorAll('td')[1].textContent.trim().split(' - ')[0]; // Get start time
+                const timeB = b.querySelectorAll('td')[1].textContent.trim().split(' - ')[0];
+                const dateA = a.querySelectorAll('td')[0].textContent.trim();
+                const dateB = b.querySelectorAll('td')[0].textContent.trim();
+                
+                // Parse dates for comparison
+                const parseDateStr = (dateStr) => {
+                    const parts = dateStr.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
+                    if (parts) {
+                        const months = {
+                            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3,
+                            'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7,
+                            'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+                        };
+                        return new Date(parts[3], months[parts[2]], parts[1]);
+                    }
+                    return new Date(0);
+                };
+                
+                const fullDateA = parseDateStr(dateA);
+                const fullDateB = parseDateStr(dateB);
+                
+                // Add time to date
+                if (timeA !== 'N/A') {
+                    const [hours, minutes] = timeA.split(':');
+                    fullDateA.setHours(parseInt(hours), parseInt(minutes));
+                }
+                if (timeB !== 'N/A') {
+                    const [hours, minutes] = timeB.split(':');
+                    fullDateB.setHours(parseInt(hours), parseInt(minutes));
+                }
+                
+                if (sortValue === 'earliest') {
+                    return fullDateA - fullDateB;
+                } else if (sortValue === 'latest') {
+                    return fullDateB - fullDateA;
+                }
+                return 0;
+            });
+            
+            // Reorder rows in DOM
+            visibleRows.forEach(row => tbody.appendChild(row));
+        }
+
+        // Show all visible rows
+        allTableRows.forEach(row => {
+            if (row.dataset.visible === 'true') {
+                row.style.display = '';
+            }
+        });
+    }
+
+    // Attach event listeners for All view filters
+    if (allSearchInput) {
+        allSearchInput.addEventListener('input', applyAllFilters);
+    }
+    if (allDateFilter) {
+        allDateFilter.addEventListener('change', applyAllFilters);
+    }
+    if (allHallFilter) {
+        allHallFilter.addEventListener('change', applyAllFilters);
+    }
+    if (allSortFilter) {
+        allSortFilter.addEventListener('change', applyAllFilters);
     }
 </script>
 

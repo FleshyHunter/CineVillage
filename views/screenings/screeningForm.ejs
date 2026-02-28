@@ -276,14 +276,19 @@
       return `${String(hours).padStart(2, '0')}:${String(roundedMinutes).padStart(2, '0')}`;
     }
 
-    // Validate time input to 5-minute increments
-    startTimeInput.addEventListener('change', function() {
+    // Validate time input to 5-minute increments (only when user finishes editing)
+    startTimeInput.addEventListener('blur', function() {
       if (this.value) {
         const rounded = roundToNearestFiveMin(this.value);
         if (rounded !== this.value) {
           this.value = rounded;
         }
       }
+      updateEndTime();
+    });
+    
+    // Update end time when time changes
+    startTimeInput.addEventListener('change', function() {
       updateEndTime();
     });
 
