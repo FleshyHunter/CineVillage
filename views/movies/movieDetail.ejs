@@ -102,7 +102,7 @@
 
   <!-- Delete Form (separate, below) -->
   <div class="text-center mt-30">
-    <form action="/movies/delete/<%= movie._id %>" method="POST" style="display: inline-block;"
+    <form action="/movies/delete/<%= movie._id %>" method="POST" class="inline-block"
       onsubmit="return confirm('Are you sure you want to delete this movie?');">
       <button type="submit" class="btn btn-danger"><i class="bi bi-trash3"></i> Delete Movie</button>
     </form>

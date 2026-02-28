@@ -1,7 +1,7 @@
 <%- include('../layouts/header') %>
 
   <div class="container">
-    <h2 style="margin-bottom: 30px;"><%= isEdit ? 'Edit Movie' : 'Create Movie' %></h2>
+    <h2 class="mb-30"><%= isEdit ? 'Edit Movie' : 'Create Movie' %></h2>
 
     <div class="movie-detail-container">
       <form action="<%= isEdit ? '/movies/edit/' + movie._id : '/movies/create' %>" method="POST"
@@ -24,7 +24,14 @@
           
           <!-- Movie Name -->
           <div class="form-group">
-            <label for="name" class="form-label">Movie Name * <span style="font-size: 10px; font-weight: 400;">(max 50 characters)</span></label>
+            <div class="label-row">
+              <label for="name" class="form-label">Movie Name * <span style="font-size: 10px; font-weight: 400;">(max 50 characters)</span></label>
+              <% if (typeof error !== 'undefined' && error) { %>
+                <span class="error-inline">
+                  <i class="bi bi-exclamation-triangle" style="font-size: 13px;"></i> <%= error %>
+                </span>
+              <% } %>
+            </div>
             <input type="text" id="name" name="name" class="form-control" value="<%= movie ? movie.name : '' %>" required maxlength="50">
           </div>
 

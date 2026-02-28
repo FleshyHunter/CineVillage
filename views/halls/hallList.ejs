@@ -1,7 +1,7 @@
 <%- include('../layouts/header') %>
 
     <div class="container">
-        <h2 style="margin-bottom: 20px;">Halls</h2>
+        <h2 class="page-title">Halls</h2>
         
         <!-- Filter Buttons -->
         <div class="movie-filters">
@@ -55,7 +55,7 @@
                    data-capacity="<%= hall.capacity || 0 %>">
                     <div class="movie-card card">
                         <div class="movie-card-img-wrapper">
-                            <img src="<%= hall.pictureUrl || '/images/placeholder.jpg' %>" alt="<%= hall.name %>"
+                            <img src="<%='/images/hallPlaceHolder.jpg' %>" alt="<%= hall.name %>"
                                 class="movie-card-img">
                             <!-- Hall type badge overlay -->
                             <% if (hall.type) { %>
@@ -228,9 +228,6 @@
             }
 
             function applyFiltersAndSort() {
-                // Hide all cards first
-                hallCards.forEach(card => card.style.display = 'none');
-
                 // Get filtered cards
                 let filteredCards = getFilteredCards();
 
@@ -242,14 +239,23 @@
                 const endIndex = startIndex + itemsPerPage;
                 const paginatedCards = filteredCards.slice(startIndex, endIndex);
 
-                // Show only paginated cards
-                paginatedCards.forEach(card => card.style.display = 'block');
+                // Hide all cards first
+                hallCards.forEach(card => card.style.display = 'none');
+
+                // Get the grid container
+                const hallsGrid = document.querySelector('.movies-grid');
+
+                // Reorder cards in the DOM based on sorted array
+                paginatedCards.forEach(card => {
+                    hallsGrid.appendChild(card);
+                    card.style.display = 'block';
+                });
 
                 // Update pagination controls
                 updatePagination(filteredCards.length);
 
                 // Scroll to top of hall grid
-                document.querySelector('.movies-grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                hallsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
             // Initial load

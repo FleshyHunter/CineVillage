@@ -2,7 +2,7 @@
 <link rel="stylesheet" href="/css/hall.css">
 
   <div class="container">
-    <h2 style="margin-bottom: 30px;"><%= isEdit ? 'Edit Hall' : 'Create Hall' %></h2>
+    <h2 class="mb-30"><%= isEdit ? 'Edit Hall' : 'Create Hall' %></h2>
 
     <form action="<%= isEdit ? '/halls/edit/' + hall._id : '/halls/create' %>" method="POST"
       enctype="multipart/form-data">
@@ -14,13 +14,20 @@
           
           <!-- Hall Name -->
           <div class="form-group">
-            <label for="name" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">HALL NAME *</label>
+            <div class="label-row">
+              <label for="name" class="form-label">HALL NAME *</label>
+              <% if (typeof error !== 'undefined' && error) { %>
+                <span class="error-inline">
+                  <i class="bi bi-exclamation-triangle" style="font-size: 13px;"></i> <%= error %>
+                </span>
+              <% } %>
+            </div>
             <input type="text" id="name" name="name" class="form-control" value="<%= hall ? hall.name : '' %>" required>
           </div>
 
           <!-- Type -->
           <div class="form-group">
-            <label for="type" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">TYPE *</label>
+            <label for="type" class="form-label">TYPE *</label>
             <select id="type" name="type" class="form-control" required>
               <option value="">Select Type</option>
               <option value="Standard" <%= hall && hall.type === 'Standard' ? 'selected' : '' %>>Standard</option>
@@ -31,7 +38,7 @@
 
           <!-- Status -->
           <div class="form-group">
-            <label for="status" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">STATUS *</label>
+            <label for="status" class="form-label">STATUS *</label>
             <select id="status" name="status" class="form-control" required>
               <option value="">Select Status</option>
               <option value="Available" <%= hall && hall.status === 'Available' ? 'selected' : '' %>>Available</option>
@@ -40,19 +47,19 @@
           </div>
 
           <!-- Layout Configuration -->
-          <div class="form-row" style="gap: 15px;">
+          <div class="form-row">
             <div class="form-group">
-              <label for="rows" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">ROWS *</label>
-              <input type="number" id="rows" name="rows" class="form-control" value="<%= hall && hall.rows ? hall.rows : '' %>" min="1" max="26" required>
+              <label for="rows" class="form-label">ROWS *</label>
+              <input type="number" id="rows" name="rows" class="form-control" value="<%= hall && hall.rows ? hall.rows : '' %>" min="1" max="20" required>
             </div>
 
             <div class="form-group">
-              <label for="columns" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">COLUMNS *</label>
+              <label for="columns" class="form-label">COLUMNS *</label>
               <input type="number" id="columns" name="columns" class="form-control" value="<%= hall && hall.columns ? hall.columns : '' %>" min="1" max="17" required>
             </div>
 
             <div class="form-group">
-              <label for="wingColumns" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">WING COLUMNS *</label>
+              <label for="wingColumns" class="form-label">WING COLUMNS *</label>
               <input type="number" id="wingColumns" name="wingColumns" class="form-control" value="<%= hall && hall.wingColumns ? hall.wingColumns : '' %>" min="0" max="10" required>
             </div>
           </div>
@@ -63,8 +70,8 @@
 
           <!-- Seat Edit Toolbar -->
           <div class="seat-toolbar">
-            <h3 style="color: var(--text-muted); font-size: 13px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 12px;">SEAT EDITOR</h3>
-            <div style="display: flex; gap: 10px;">
+            <h3 class="section-title-sm">SEAT EDITOR</h3>
+            <div class="flex-gap-10">
               <button type="button" id="normalBtn" class="seat-edit-btn active">
                 <i class="bi bi-square"></i> Normal
               </button>
@@ -78,7 +85,7 @@
           </div>
 
           <!-- Action Buttons -->
-          <div class="movie-detail-actions" style="margin-top: 30px;">
+          <div class="movie-detail-actions mt-30">
             <a href="/halls" class="btn btn-secondary">
               ← Back to Halls
             </a>
@@ -91,7 +98,7 @@
 
         <!-- Seat Layout Visualization -->
         <div class="hall-seat-layout">
-          <h3 style="color: var(--text-muted); font-size: 13px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 12px; text-align: center;">SEAT LAYOUT PREVIEW</h3>
+          <h3 class="section-title-sm text-center">SEAT LAYOUT PREVIEW</h3>
           
           <!-- Screen -->
           <div class="screen-display">

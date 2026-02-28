@@ -25,20 +25,39 @@ router.get("/create", (req, res) => {
   res.render("movies/movieForm", {
     movie: null,
     isEdit: false,
-    title: "Movies"
+    title: "Movies",
+    error: null
   }); // points to views/movies/createMovies.ejs
 });
 
 // POST form submission
 router.post("/create", upload.single("picture"), async (req, res) => {
   try {
+    await initDBIfNecessary();
+    const collectionMovie = getCollectionMovie();
+    
+    // Check if movie name already exists (case-insensitive)
+    const escapedName = req.body.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existingMovie = await collectionMovie.findOne({
+      name: { $regex: new RegExp(`^${escapedName}$`, 'i') }
+    });
+    
+    if (existingMovie) {
+      return res.render("movies/movieForm", {
+        movie: req.body,
+        isEdit: false,
+        title: "Movies",
+        error: "A movie with this name already exists. Please choose a different name."
+      });
+    }
+    
     const movieData = req.body;
 
     if (req.file) {
       movieData.pictureUrl = "/uploads/" + req.file.filename;
     }
 
-    await createMovie(req.body); // controller handles DB insert
+    await createMovie(movieData);
     res.redirect("/movies");
   } catch (err) {
     console.error(err);
@@ -60,21 +79,48 @@ router.get("/edit/:id", async (req, res) => {
   res.render("movies/movieForm", {
     movie,
     isEdit: true,
-    title: "Movies"
+    title: "Movies",
+    error: null
   });
 });
 
 // POST update
 router.post("/edit/:id", upload.single("picture"), async (req, res) => {
+  try {
+    await initDBIfNecessary();
+    const collectionMovie = getCollectionMovie();
+    
+    // Check if another movie with same name exists (case-insensitive, excluding current movie)
+    const escapedName = req.body.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existingMovie = await collectionMovie.findOne({
+      name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+      _id: { $ne: new ObjectId(req.params.id) }
+    });
+    
+    if (existingMovie) {
+      const currentMovie = await collectionMovie.findOne({
+        _id: new ObjectId(req.params.id)
+      });
+      return res.render("movies/movieForm", {
+        movie: { ...currentMovie, ...req.body, _id: req.params.id },
+        isEdit: true,
+        title: "Movies",
+        error: "A movie with this name already exists. Please choose a different name."
+      });
+    }
+    
+    const movieData = req.body;
 
-  const movieData = req.body;
+    if (req.file) {
+      movieData.pictureUrl = "/uploads/" + req.file.filename;
+    }
 
-  if (req.file) {
-    movieData.pictureUrl = "/uploads/" + req.file.filename;
+    await updateMovie(req.params.id, movieData);
+    res.redirect(`/movies/${req.params.id}`);
+  } catch (err) {
+    console.error(err);
+    res.send("Error updating movie");
   }
-
-  await updateMovie(req.params.id, req.body);
-  res.redirect(`/movies/${req.params.id}`);
 });
 
 // delete
