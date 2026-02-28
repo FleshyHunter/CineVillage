@@ -1,4 +1,4 @@
-const { getCollectionMovie, initDBIfNecessary } = require("../config/database");
+const { getCollectionMovie, getCollectionHall, initDBIfNecessary } = require("../config/database");
 const { ObjectId } = require("mongodb");
 
 async function createMovie(movieData) {
@@ -18,7 +18,11 @@ async function getAllMovies(req, res) {
   const collectionMovie = getCollectionMovie(); // <- must call the function
   const movies = await collectionMovie.find({}).toArray();
 
-  res.render("movies/movieList", {movies, title: 'Movie List'  });
+  // Fetch all halls for the filter dropdown
+  const collectionHall = getCollectionHall();
+  const halls = await collectionHall.find({}).toArray();
+
+  res.render("movies/movieList", {movies, halls, title: 'Movie List'  });
 }
 
 // Get single movie by ID (for movieDetail.ejs)

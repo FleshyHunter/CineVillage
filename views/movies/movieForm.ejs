@@ -1,127 +1,141 @@
 <%- include('../layouts/header') %>
 
-  <div class="container" style="max-width: 600px; margin-top: 80px;">
-    <div class="card">
-      <h2 style="text-align: center; margin-bottom: 25px;">
-        <%= isEdit ? 'Edit Movie' : 'Create Movie' %>
-      </h2>
+  <div class="container">
+    <h2 style="margin-bottom: 30px;"><%= isEdit ? 'Edit Movie' : 'Create Movie' %></h2>
 
+    <div class="movie-detail-container">
       <form action="<%= isEdit ? '/movies/edit/' + movie._id : '/movies/create' %>" method="POST"
-        enctype="multipart/form-data">
+        enctype="multipart/form-data" style="display: contents;">
 
-
-        <div class="form-group" style="text-align: center; margin-bottom: 20px;">
-          <label for="picture" style="cursor: pointer;">
+        <!-- Left Side: Movie Poster Upload -->
+        <div class="movie-detail-poster">
+          <label for="picture" style="cursor: pointer; display: block;">
             <img id="placeholderImg"
               src="<%= isEdit && movie.pictureUrl ? movie.pictureUrl : '/images/cameraplaceholder.jpg' %>"
               alt="Upload movie image"
-              style="width: 150px; height: 220px; object-fit: cover; border-radius: 6px; border: 2px dashed #94a3b8;">
+              style="width: 100%; border-radius: 8px; border: 2px dashed #94a3b8; object-fit: cover; min-height: 400px;">
           </label>
           <input type="file" id="picture" name="picture" accept="image/*" style="display: none;">
+          <p class="form-help-text">Click to upload poster</p>
         </div>
 
-        <div class="form-group">
-          <label for="name">Movie Name *</label>
-          <input type="text" id="name" name="name" class="form-control" value="<%= movie ? movie.name : '' %>" required>
+        <!-- Right Side: Form Fields -->
+        <div class="movie-detail-info">
+          
+          <!-- Movie Name -->
+          <div class="form-group">
+            <label for="name" class="form-label">Movie Name * <span style="font-size: 10px; font-weight: 400;">(max 50 characters)</span></label>
+            <input type="text" id="name" name="name" class="form-control" value="<%= movie ? movie.name : '' %>" required maxlength="50">
+          </div>
+
+          <!-- Row 1: Duration, Rating, Age Restriction -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="duration" class="form-label">Duration (mins)</label>
+              <input type="number" id="duration" name="duration" class="form-control" value="<%= movie ? movie.duration : '' %>" min="1" step="1">
+            </div>
+
+            <div class="form-group">
+              <label for="rating" class="form-label">Rating</label>
+              <input type="number" id="rating" name="rating" class="form-control" value="<%= movie ? movie.rating : '' %>" min="0" max="5" step="0.1">
+            </div>
+
+            <div class="form-group">
+              <label for="ageRestriction" class="form-label">Age Restriction</label>
+              <select id="ageRestriction" name="ageRestriction" class="form-control">
+                <option value="">Select</option>
+                <option value="G" <%=movie && movie.ageRestriction==='G' ? 'selected' : '' %>>G</option>
+                <option value="PG" <%=movie && movie.ageRestriction==='PG' ? 'selected' : '' %>>PG</option>
+                <option value="PG13" <%=movie && movie.ageRestriction==='PG13' ? 'selected' : '' %>>PG13</option>
+                <option value="NC16" <%=movie && movie.ageRestriction==='NC16' ? 'selected' : '' %>>NC16</option>
+                <option value="M18" <%=movie && movie.ageRestriction==='M18' ? 'selected' : '' %>>M18</option>
+                <option value="R21" <%=movie && movie.ageRestriction==='R21' ? 'selected' : '' %>>R21</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 2: Producer and Genre -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="producer" class="form-label">Director</label>
+              <input type="text" id="producer" name="producer" class="form-control" value="<%= movie ? movie.producer : '' %>">
+            </div>
+
+            <div class="form-group">
+              <label for="genre" class="form-label">Genre</label>
+              <input type="text" id="genre" name="genre" class="form-control"
+                value="<%= movie && Array.isArray(movie.genre) ? movie.genre.join(', ') : (movie ? movie.genre : '') %>"
+                placeholder="e.g. Action, Thriller">
+            </div>
+          </div>
+
+          <!-- Row 3: Language and Subtitle -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="language" class="form-label">Language</label>
+              <select id="language" name="language" class="form-control">
+                <option value="">Select</option>
+                <option value="English" <%=movie && movie.language==='English' ? 'selected' : '' %>>English</option>
+                <option value="Mandarin" <%=movie && movie.language==='Mandarin' ? 'selected' : '' %>>Mandarin</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="subtitle" class="form-label">Subtitle</label>
+              <select id="subtitle" name="subtitle" class="form-control">
+                <option value="">Select</option>
+                <option value="English" <%=movie && movie.subtitle==='English' ? 'selected' : '' %>>English</option>
+                <option value="Mandarin" <%=movie && movie.subtitle==='Mandarin' ? 'selected' : '' %>>Mandarin</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 4: Release Date and Status -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="releaseDate" class="form-label">Release Date</label>
+              <input type="date" id="releaseDate" name="releaseDate" class="form-control"
+                value="<%= movie && movie.releaseDate ? new Date(movie.releaseDate).toISOString().split('T')[0] : '' %>">
+            </div>
+
+            <div class="form-group">
+              <label for="status" class="form-label">Status</label>
+              <select id="status" name="status" class="form-control">
+                <option value="">Select</option>
+                <option value="New" <%=movie && movie.status==='New' ? 'selected' : '' %>>New</option>
+                <option value="Now Showing" <%=movie && movie.status==='Now Showing' ? 'selected' : '' %>>Now Showing</option>
+                <option value="Coming Soon" <%=movie && movie.status==='Coming Soon' ? 'selected' : '' %>>Coming Soon</option>
+                <option value="Discontinued" <%=movie && movie.status==='Discontinued' ? 'selected' : '' %>>Discontinued</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Cast (Full Width) -->
+          <div class="form-group">
+            <label for="cast" class="form-label">Main Cast</label>
+            <input type="text" id="cast" name="cast" class="form-control"
+              value="<%= movie && Array.isArray(movie.cast) ? movie.cast.join(', ') : (movie ? movie.cast : '') %>"
+              placeholder="e.g. Tom Cruise, Zendaya">
+          </div>
+
+          <!-- Description (Full Width) -->
+          <div class="form-group">
+            <label for="description" class="form-label">Synopsis <span style="font-size: 10px; font-weight: 400;">(max 150 characters)</span></label>
+            <textarea id="description" name="description" rows="5"
+              class="form-control" style="resize: vertical;" maxlength="150"><%= movie ? movie.description : '' %></textarea>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="movie-detail-actions">
+            <a href="/movies" class="btn btn-secondary">
+              ← Back to Movies
+            </a>
+            <button type="submit" class="btn btn-primary">
+              <%= isEdit ? 'Update Movie' : 'Create Movie' %>
+            </button>
+          </div>
+
         </div>
-
-        <div class="form-group">
-          <label for="description">Description</label>
-          <textarea id="description" name="description" rows="4"
-            class="form-control"><%= movie ? movie.description : '' %></textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="duration">Duration (minutes)</label>
-          <input type="number" id="duration" name="duration" class="form-control"
-            value="<%= movie ? movie.duration : '' %>">
-        </div>
-
-        <div class="form-group">
-          <label for="rating">Rating</label>
-          <input type="text" id="rating" name="rating" class="form-control" value="<%= movie ? movie.rating : '' %>">
-        </div>
-
-        <div class="form-group">
-          <label for="producer">Producer</label>
-          <input type="text" id="producer" name="producer" class="form-control"
-            value="<%= movie ? movie.producer : '' %>">
-        </div>
-
-        <div class="form-group">
-          <label for="ageRestriction">Age Restriction</label>
-          <select id="ageRestriction" name="ageRestriction" class="form-control">
-            <option value="">Select restriction</option>
-            <option value="G" <%=movie && movie.ageRestriction==='G' ? 'selected' : '' %>>G</option>
-            <option value="PG" <%=movie && movie.ageRestriction==='PG' ? 'selected' : '' %>>PG</option>
-            <option value="PG13" <%=movie && movie.ageRestriction==='PG13' ? 'selected' : '' %>>PG13</option>
-            <option value="NC16" <%=movie && movie.ageRestriction==='NC16' ? 'selected' : '' %>>NC16</option>
-            <option value="M18" <%=movie && movie.ageRestriction==='M18' ? 'selected' : '' %>>M18</option>
-            <option value="R21" <%=movie && movie.ageRestriction==='R21' ? 'selected' : '' %>>R21</option>
-          </select>
-        </div>
-
-        <!-- Genre -->
-        <div class="form-group">
-          <label for="genre">Genre</label>
-          <input type="text" id="genre" name="genre" class="form-control"
-            value="<%= movie && Array.isArray(movie.genre) ? movie.genre.join(', ') : (movie ? movie.genre : '') %>"
-            placeholder="e.g. Action, Thriller">
-        </div>
-
-        <!-- Cast -->
-        <div class="form-group">
-          <label for="cast">Cast</label>
-          <input type="text" id="cast" name="cast" class="form-control"
-            value="<%= movie && Array.isArray(movie.cast) ? movie.cast.join(', ') : (movie ? movie.cast : '') %>"
-            placeholder="e.g. Tom Cruise, Zendaya">
-        </div>
-
-        <!-- Language -->
-        <div class="form-group">
-          <label for="language">Language</label>
-          <select id="language" name="language" class="form-control">
-            <option value="">Select language</option>
-            <option value="English" <%=movie && movie.language==='English' ? 'selected' : '' %>>English</option>
-            <option value="Mandarin" <%=movie && movie.language==='Mandarin' ? 'selected' : '' %>>Mandarin</option>
-          </select>
-        </div>
-
-        <!-- Subtitle -->
-        <div class="form-group">
-          <label for="subtitle">Subtitle</label>
-          <select id="subtitle" name="subtitle" class="form-control">
-            <option value="">Select subtitle</option>
-            <option value="English" <%=movie && movie.subtitle==='English' ? 'selected' : '' %>>English</option>
-            <option value="Mandarin" <%=movie && movie.subtitle==='Mandarin' ? 'selected' : '' %>>Mandarin</option>
-          </select>
-        </div>
-
-        <!-- Release Date -->
-        <div class="form-group">
-          <label for="releaseDate">Release Date</label>
-          <input type="date" id="releaseDate" name="releaseDate" class="form-control"
-            value="<%= movie && movie.releaseDate ? new Date(movie.releaseDate).toISOString().split('T')[0] : '' %>">
-        </div>
-
-        <!-- Status -->
-        <div class="form-group">
-          <label for="status">Status</label>
-          <select id="status" name="status" class="form-control">
-            <option value="">Select status</option>
-            <option value="Coming Soon" <%=movie && movie.status==='Coming Soon' ? 'selected' : '' %>>Coming Soon
-            </option>
-            <option value="Showing" <%=movie && movie.status==='Showing' ? 'selected' : '' %>>Showing</option>
-            <option value="Discontinued" <%=movie && movie.status==='Discontinued' ? 'selected' : '' %>>Discontinued
-            </option>
-          </select>
-        </div>
-
-        <button type="submit" class="btn btn-primary w-100 mt-3">
-          <%= isEdit ? 'Update Movie' : 'Create Movie' %>
-        </button>
-
-        <a href="/movies" class="btn btn-primary" style="margin-bottom: 15px;">&larr; Back to Movies</a>
 
       </form>
     </div>

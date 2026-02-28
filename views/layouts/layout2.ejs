@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CineVillage<% if (typeof title !== 'undefined' && title) { %> | <%= title %><% } %></title>
+  <link rel="icon" type="image/png" href="/images/CVimage.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/components.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar (1 ratio) - Left Side -->
+    <div class="sidebar">
+      <h2 class="sidebar-title">
+        <img src="/images/CVimage.png" alt="CineVillage Logo" style="height: 150px; width: 150px; margin-right: 12px; vertical-align: middle; object-fit: contain;">
+        CineVillage
+      </h2>
+      <a href="/movies">Movies</a>
+      <a href="/movies/create">Add Movie</a>
+      <a href="/halls">Halls</a>
+      <a href="/halls/create">Add Hall</a>
+      <a href="/halls">Staff List</a>
+      <a href="/screenings">Screening</a>
+      <a href="/screenings/create">Create Screening</a>
+    </div>
+
+    <!-- Main Content Area (n ratio) - Right Side -->
+    <div class="main-content">
+      <!-- Header -->
+      <header class="page-header">
+        <h1 class="page-title">
+          <img src="/images/CVimage.png" alt="CineVillage Logo" style="height: 40px; width: 40px; margin-right: 12px; vertical-align: middle; object-fit: contain;">
+          <%= typeof pageTitle !== 'undefined' ? pageTitle : 'CineVillage Management' %>
+        </h1>
+      </header>
+
+      <!-- Page Content (n ratio area) -->
+      <div class="content-wrapper">
+        <%- body %>
+      </div>
+
+      <!-- Footer -->
+      <footer class="page-footer">
+        <p>&copy; <%= new Date().getFullYear() %> CineVillage. All Rights Reserved.</p>
+      </footer>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

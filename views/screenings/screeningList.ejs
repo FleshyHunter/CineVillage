@@ -1,0 +1,523 @@
+<%- include('../layouts/header') %>
+
+<div class="container">
+    <h2 style="margin-bottom: 20px;">Screenings</h2>
+    
+    <!-- View Options -->
+    <div class="movie-filters" style="margin-bottom: 20px;">
+        <button class="filter-btn <%= activeView === 'all' ? 'active' : '' %>" data-view="all">
+            <i class="bi bi-list-ul"></i> All
+        </button>
+        <button class="filter-btn <%= activeView === 'movie' ? 'active' : '' %>" data-view="movie">
+            <i class="bi bi-film"></i> Movie
+        </button>
+        <button class="filter-btn <%= activeView === 'hall' ? 'active' : '' %>" data-view="hall">
+            <i class="bi bi-house-door"></i> Hall
+        </button>
+        <button class="filter-btn <%= activeView === 'date' ? 'active' : '' %>" data-view="date">
+            <i class="bi bi-calendar3"></i> Date
+        </button>
+        <button class="filter-btn <%= activeView === 'completed' ? 'active' : '' %>" data-view="completed">
+            <i class="bi bi-check-circle"></i> Completed
+        </button>
+    </div>
+    
+    <!-- Create Button and Movie Filters -->
+    <div class="search-filter-bar">
+        <div class="search-controls">
+            <!-- Movie filter buttons - only visible when Movie tab is active -->
+            <div id="movieFilterButtons" class="movie-filters" style="display: <%= activeView === 'movie' ? 'flex' : 'none' %>; align-items: center; margin-bottom: 0;">
+                <button class="filter-btn active" data-filter="all">
+                    <i class="bi bi-grid-3x3-gap"></i> All
+                </button>
+                <button class="filter-btn" data-filter="Now Showing">
+                    <i class="bi bi-play-circle"></i> Now Showing
+                </button>
+                <button class="filter-btn" data-filter="Coming Soon">
+                    <i class="bi bi-clock-history"></i> Coming Soon
+                </button>
+            </div>
+            
+            <!-- Search and Sort - only visible when Movie tab is active -->
+            <div id="movieSearchSort" style="display: <%= activeView === 'movie' ? 'flex' : 'none' %>; gap: 12px; align-items: center; margin-left: 16px;">
+                <!-- Search Bar -->
+                <div class="search-box">
+                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                    <input 
+                        type="text" 
+                        id="movieSearchInput" 
+                        class="search-input" 
+                        placeholder="Search movies..."
+                    >
+                </div>
+
+                <!-- Sort By -->
+                <div class="filter-dropdown">
+                    <select id="movieSortFilter" class="filter-select">
+                        <option value="none">Sort By</option>
+                        <option value="nameAZ">Name (A-Z)</option>
+                        <option value="nameZA">Name (Z-A)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="create-button-wrapper">
+            <a href="/screenings/create" class="btn btn-primary">
+                + Create New Screening
+            </a>
+        </div>
+    </div>
+
+    <!-- ALL VIEW: Table of all screenings -->
+    <div id="allView" class="view-section" style="display: <%= activeView === 'all' ? 'block' : 'none' %>;">
+        <% if (screenings && screenings.length > 0) { %>
+            <div class="table-responsive" style="margin-top: 24px;">
+                <table class="table" style="color: var(--text-main);">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--text-muted);">
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Movie</th>
+                            <th>Hall</th>
+                            <th>Price</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% screenings.forEach(screening => { %>
+                            <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+                                <td>
+                                    <% if (screening.startDateTime) { %>
+                                        <%= new Date(screening.startDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (screening.startDateTime && screening.endDateTime) { %>
+                                        <%= new Date(screening.startDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %> - 
+                                        <%= new Date(screening.endDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (screening.movieId && screening.movieId.name) { %>
+                                        <%= screening.movieId.name %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (screening.hallId && screening.hallId.name) { %>
+                                        <%= screening.hallId.name %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
+                                <td>$<%= screening.price ? screening.price.toFixed(2) : '0.00' %></td>
+                                <td>
+                                    <span class="badge" style="
+                                        background-color: <%= screening.status === 'scheduled' ? '#3b82f6' : 
+                                                            screening.status === 'ongoing' ? '#22c55e' : 
+                                                            screening.status === 'completed' ? '#6b7280' : '#ef4444' %>;
+                                        color: white;
+                                        padding: 4px 12px;
+                                        border-radius: 12px;
+                                        font-size: 12px;
+                                    ">
+                                        <%= screening.status %>
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="/screenings/<%= screening._id %>" class="btn btn-sm btn-secondary" style="margin-right: 8px;">
+                                        View
+                                    </a>
+                                    <a href="/screenings/edit/<%= screening._id %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
+                                        Edit
+                                    </a>
+                                    <form action="/screenings/delete/<%= screening._id %>" method="POST" style="display: inline;"
+                                          onsubmit="return confirm('Are you sure you want to delete this screening?');">
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        <% } else { %>
+            <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                <i class="bi bi-film" style="font-size: 64px; opacity: 0.3;"></i>
+                <h4 style="margin-top: 20px;">No screenings found</h4>
+                <p>Create your first screening to get started</p>
+                <a href="/screenings/create" class="btn btn-primary" style="margin-top: 20px;">
+                    + Create Screening
+                </a>
+            </div>
+        <% } %>
+    </div>
+
+    <!-- COMPLETED VIEW: Table of completed screenings -->
+    <div id="completedView" class="view-section" style="display: <%= activeView === 'completed' ? 'block' : 'none' %>;">
+        <% if (completedScreenings && completedScreenings.length > 0) { %>
+            <div class="table-responsive" style="margin-top: 24px;">
+                <table class="table" style="color: var(--text-main);">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--text-muted);">
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Movie</th>
+                            <th>Hall</th>
+                            <th>Price</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% completedScreenings.forEach(screening => { %>
+                            <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+                                <td>
+                                    <% if (screening.startDateTime) { %>
+                                        <%= new Date(screening.startDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (screening.startDateTime && screening.endDateTime) { %>
+                                        <%= new Date(screening.startDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %> - 
+                                        <%= new Date(screening.endDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (screening.movieId && screening.movieId.name) { %>
+                                        <%= screening.movieId.name %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (screening.hallId && screening.hallId.name) { %>
+                                        <%= screening.hallId.name %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
+                                <td>$<%= screening.price ? screening.price.toFixed(2) : '0.00' %></td>
+                                <td>
+                                    <span class="badge" style="
+                                        background-color: #6b7280;
+                                        color: white;
+                                        padding: 4px 12px;
+                                        border-radius: 12px;
+                                        font-size: 12px;
+                                    ">
+                                        <%= screening.status %>
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="/screenings/<%= screening._id %>" class="btn btn-sm btn-secondary" style="margin-right: 8px;">
+                                        View
+                                    </a>
+                                    <form action="/screenings/delete/<%= screening._id %>" method="POST" style="display: inline;"
+                                          onsubmit="return confirm('Are you sure you want to delete this screening?');">
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        <% } else { %>
+            <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                <i class="bi bi-check-circle" style="font-size: 64px; opacity: 0.3;"></i>
+                <h4 style="margin-top: 20px;">No completed screenings</h4>
+                <p>Screenings marked as completed will appear here</p>
+            </div>
+        <% } %>
+    </div>
+
+    <!-- MOVIE VIEW: Grid of movies with filters -->
+    <div id="movieView" class="view-section" style="display: <%= activeView === 'movie' ? 'block' : 'none' %>;">
+        <% if (movies && movies.length > 0) { %>
+            <div class="movies-grid" id="movieCardsGrid">
+                <% movies.forEach(movie => { %>
+                    <a href="/screenings/movie/<%= movie._id %>" 
+                       class="movie-card-link" 
+                       data-status="<%= movie.status || 'all' %>"
+                       data-name="<%= movie.name.toLowerCase() %>">
+                        <div class="movie-card card">
+                            <div class="movie-card-img-wrapper">
+                                <img src="<%= movie.pictureUrl || '/images/placeholder.jpg' %>" alt="<%= movie.name %>"
+                                    class="movie-card-img">
+                                <% if (movie.ageRestriction) { %>
+                                    <div class="age-badge"><%= movie.ageRestriction %></div>
+                                <% } %>
+                            </div>
+                            <div class="movie-card-content">
+                                <div class="movie-name">
+                                    <%= movie.name %>
+                                </div>
+                                <div class="movie-duration">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;">
+                                        <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+                                        <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+                                    </svg>
+                                    <%= movie.duration %> min
+                                </div>
+                                <% if (movie.genre) { %>
+                                    <div class="genre-tags">
+                                        <% if (Array.isArray(movie.genre)) { %>
+                                            <% movie.genre.slice(0, 2).forEach(g => { %>
+                                                <span class="genre-tag"><%= g %></span>
+                                            <% }); %>
+                                        <% } else { %>
+                                            <span class="genre-tag"><%= movie.genre %></span>
+                                        <% } %>
+                                    </div>
+                                <% } %>
+                            </div>
+                        </div>
+                    </a>
+                <% }); %>
+            </div>
+        <% } else { %>
+            <div style="text-align: center; padding: 60px 20px; color: var(--text-muted); margin-top: 24px;">
+                <i class="bi bi-film" style="font-size: 64px; opacity: 0.3;"></i>
+                <h4 style="margin-top: 20px;">No movies available</h4>
+            </div>
+        <% } %>
+    </div>
+
+    <!-- HALL VIEW: Grid of halls -->
+    <div id="hallView" class="view-section" style="display: <%= activeView === 'hall' ? 'block' : 'none' %>;">
+        <% if (halls && halls.length > 0) { %>
+            <div class="movies-grid" style="margin-top: 24px;">
+                <% halls.forEach(hall => { %>
+                    <a href="/screenings/hall/<%= hall._id %>" class="movie-card-link">
+                        <div class="movie-card card">
+                            <div class="movie-card-img-wrapper">
+                                <img src="<%= hall.pictureUrl || '/images/placeholder.jpg' %>" alt="<%= hall.name %>"
+                                    class="movie-card-img">
+                                <% if (hall.type) { %>
+                                    <div class="age-badge"><%= hall.type %></div>
+                                <% } %>
+                            </div>
+                            <div class="movie-card-content">
+                                <div class="movie-name">
+                                    <%= hall.name || 'Unnamed Hall' %>
+                                </div>
+                                <div class="movie-duration">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;">
+                                        <path d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2zM1 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V7zM1 12a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-2z"/>
+                                    </svg>
+                                    <%= hall.capacity || 'N/A' %> seats
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                <% }); %>
+            </div>
+        <% } else { %>
+            <div style="text-align: center; padding: 60px 20px; color: var(--text-muted); margin-top: 24px;">
+                <i class="bi bi-building" style="font-size: 64px; opacity: 0.3;"></i>
+                <h4 style="margin-top: 20px;">No halls with screenings</h4>
+            </div>
+        <% } %>
+    </div>
+
+    <!-- DATE VIEW: Date selector + movie cards -->
+    <!-- DATE VIEW: Select date to view screenings -->
+    <div id="dateView" class="view-section" style="display: <%= activeView === 'date' ? 'block' : 'none' %>;">
+        <div style="margin: 24px 0; max-width: 400px;">
+            <label for="dateSelector" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">SELECT DATE</label>
+            <input type="date" 
+                   id="dateSelector" 
+                   class="form-control" 
+                   value="<%= selectedDate %>"
+                   min="<%= new Date().toISOString().split('T')[0] %>"
+                   max="<%= new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0] %>"
+                   style="font-size: 16px; padding: 12px;">
+        </div>
+
+        <div id="dateMoviesContainer">
+            <% if (dateMovies && dateMovies.length > 0) { %>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+                    <% dateMovies.forEach(movie => { %>
+                        <div class="movie-card card" style="height: 100%; display: flex; flex-direction: column;">
+                            <div class="movie-card-img-wrapper" style="position: relative;">
+                                <img src="<%= movie.pictureUrl || '/images/placeholder.jpg' %>" 
+                                     alt="<%= movie.name %>"
+                                     class="movie-card-img"
+                                     style="height: 280px; object-fit: cover;">
+                                <% if (movie.ageRestriction) { %>
+                                    <div class="age-badge"><%= movie.ageRestriction %></div>
+                                <% } %>
+                            </div>
+                            
+                            <div class="movie-card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
+                                <div class="movie-name" style="margin-bottom: 8px;">
+                                    <%= movie.name %>
+                                </div>
+                                <div class="movie-duration" style="margin-bottom: 16px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;">
+                                        <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+                                        <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+                                    </svg>
+                                    <%= movie.duration %> min
+                                </div>
+                                
+                                <div style="flex-grow: 1;">
+                                    <% Object.keys(movie.screeningsByHallType).forEach(hallType => { %>
+                                        <div style="margin-bottom: 16px;">
+                                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #334155;">
+                                                <i class="bi bi-house-door" style="color: #3b82f6; font-size: 14px;"></i>
+                                                <span style="color: var(--text-main); font-size: 13px; font-weight: 600;"><%= hallType %></span>
+                                            </div>
+                                            
+                                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                                <% movie.screeningsByHallType[hallType].forEach(screening => { %>
+                                                    <div style="background-color: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s;"
+                                                         onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'; this.style.transform='scale(1.05)'"
+                                                         onmouseout="this.style.backgroundColor='rgba(59, 130, 246, 0.1)'; this.style.transform='scale(1)'"
+                                                         title="<%= screening.hallName %>">
+                                                        <span style="color: #3b82f6; font-size: 13px; font-weight: 600;">
+                                                            <%= screening.time %>
+                                                        </span>
+                                                    </div>
+                                                <% }); %>
+                                            </div>
+                                        </div>
+                                    <% }); %>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } else { %>
+                <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                    <i class="bi bi-film" style="font-size: 64px; opacity: 0.3;"></i>
+                    <h4 style="margin-top: 20px;">No screenings for this date</h4>
+                </div>
+            <% } %>
+        </div>
+    </div>
+</div>
+
+<script>
+    const filterBtns = document.querySelectorAll('.filter-btn[data-view]');
+    const viewSections = document.querySelectorAll('.view-section');
+    const dateSelector = document.getElementById('dateSelector');
+    const movieFilterButtons = document.getElementById('movieFilterButtons');
+    const movieSearchSort = document.getElementById('movieSearchSort');
+
+    // Tab switching
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const view = this.getAttribute('data-view');
+            
+            // Show/hide movie filter buttons and search/sort based on view
+            if (movieFilterButtons) {
+                movieFilterButtons.style.display = view === 'movie' ? 'flex' : 'none';
+            }
+            if (movieSearchSort) {
+                movieSearchSort.style.display = view === 'movie' ? 'flex' : 'none';
+            }
+            
+            // Update active button
+            filterBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Show selected view
+            viewSections.forEach(section => {
+                section.style.display = 'none';
+            });
+            document.getElementById(view + 'View').style.display = 'block';
+        });
+    });
+
+    // Date selector change - use traditional navigation instead of API
+    if (dateSelector) {
+        dateSelector.addEventListener('change', function() {
+            const selectedDate = this.value;
+            window.location.href = '/screenings?view=date&date=' + selectedDate;
+        });
+    }
+
+    // Movie view: Filter, Search, and Sort functionality
+    const movieFilterBtns = document.querySelectorAll('#movieFilterButtons .filter-btn');
+    const movieCards = Array.from(document.querySelectorAll('#movieView .movie-card-link'));
+    const movieSearchInput = document.getElementById('movieSearchInput');
+    const movieSortFilter = document.getElementById('movieSortFilter');
+    
+    let activeMovieFilter = 'all';
+
+    // Movie status filter buttons
+    if (movieFilterBtns.length > 0) {
+        movieFilterBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                movieFilterBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                activeMovieFilter = this.getAttribute('data-filter');
+                applyMovieFiltersAndSort();
+            });
+        });
+    }
+
+    // Movie search input
+    if (movieSearchInput) {
+        movieSearchInput.addEventListener('input', applyMovieFiltersAndSort);
+    }
+
+    // Movie sort filter
+    if (movieSortFilter) {
+        movieSortFilter.addEventListener('change', applyMovieFiltersAndSort);
+    }
+
+    function applyMovieFiltersAndSort() {
+        const searchTerm = movieSearchInput ? movieSearchInput.value.toLowerCase() : '';
+        const sortValue = movieSortFilter ? movieSortFilter.value : 'none';
+        
+        // Filter
+        let filteredCards = movieCards.filter(card => {
+            const status = card.getAttribute('data-status');
+            const name = card.getAttribute('data-name');
+            
+            const statusMatch = activeMovieFilter === 'all' || status === activeMovieFilter;
+            const searchMatch = !searchTerm || name.includes(searchTerm);
+            
+            return statusMatch && searchMatch;
+        });
+        
+        // Sort
+        if (sortValue !== 'none') {
+            filteredCards.sort((a, b) => {
+                const nameA = a.getAttribute('data-name');
+                const nameB = b.getAttribute('data-name');
+                
+                switch(sortValue) {
+                    case 'nameAZ': return nameA.localeCompare(nameB);
+                    case 'nameZA': return nameB.localeCompare(nameA);
+                    default: return 0;
+                }
+            });
+        }
+        
+        // Display
+        movieCards.forEach(card => card.style.display = 'none');
+        filteredCards.forEach(card => card.style.display = 'block');
+    }
+</script>
+
+<%- include('../layouts/footer') %>

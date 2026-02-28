@@ -1,0 +1,117 @@
+<%- include('../layouts/header') %>
+<link rel="stylesheet" href="/css/hall.css">
+
+<div class="container">
+  <h2 style="margin-bottom: 30px;"><%= hall.name || 'Hall Details' %></h2>
+  
+  <div class="hall-form-container">
+    
+    <!-- Left Side: Hall Information -->
+    <div class="hall-form-fields">
+      <h3 style="color: var(--text-muted); font-size: 13px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 20px;">HALL INFORMATION</h3>
+      
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; display: block;">TYPE</label>
+          <div class="form-control" style="background-color: var(--bg-main); cursor: default;"><%= hall.type || 'N/A' %></div>
+        </div>
+        
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; display: block;">STATUS</label>
+          <div class="form-control" style="background-color: var(--bg-main); cursor: default;"><%= hall.status || 'N/A' %></div>
+        </div>
+        
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; display: block;">CAPACITY</label>
+          <div class="form-control" style="background-color: var(--bg-main); cursor: default;"><%= hall.capacity || 'N/A' %> seats</div>
+        </div>
+        
+        <div class="form-row" style="gap: 15px;">
+          <div class="form-group">
+            <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; display: block;">ROWS</label>
+            <div class="form-control" style="background-color: var(--bg-main); cursor: default;"><%= hall.rows || 'N/A' %></div>
+          </div>
+          
+          <div class="form-group">
+            <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; display: block;">COLUMNS</label>
+            <div class="form-control" style="background-color: var(--bg-main); cursor: default;"><%= hall.columns || 'N/A' %></div>
+          </div>
+          
+          <div class="form-group">
+            <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; display: block;">WING COLUMNS</label>
+            <div class="form-control" style="background-color: var(--bg-main); cursor: default;"><%= hall.wingColumns || 'N/A' %></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="movie-detail-actions" style="margin-top: 30px;">
+        <a href="/halls" class="btn btn-secondary">
+          ← Back to Halls
+        </a>
+        <a href="/halls/edit/<%= hall._id %>" class="btn btn-primary">
+          <i class="bi bi-pencil-square"></i> Edit Hall
+        </a>
+      </div>
+
+      <!-- Delete Form -->
+      <div style="text-align: center; margin-top: 20px;">
+        <form action="/halls/delete/<%= hall._id %>" method="POST" style="display: inline-block;"
+          onsubmit="return confirm('Are you sure you want to delete this hall?');">
+          <button type="submit" class="btn btn-danger"><i class="bi bi-trash3"></i> Delete Hall</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Right Side: Seat Layout Visualization -->
+    <div>
+      <div class="hall-seat-layout-detail">
+        <h3 style="color: var(--text-muted); font-size: 13px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 20px; text-align: center;">SEAT LAYOUT</h3>
+        
+        <!-- Screen -->
+        <div class="screen-display">
+          <div class="screen-label">SCREEN</div>
+        </div>
+
+        <!-- Seat Grid Container -->
+        <div id="seatGridDetail" class="seat-grid-container">
+          <!-- Seats will be generated here by JavaScript -->
+        </div>
+
+        <!-- Legend -->
+        <div class="seat-legend">
+          <div class="legend-item">
+            <div class="legend-seat normal"></div>
+            <span>Normal</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-seat removed"></div>
+            <span>Removed</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-seat wheelchair"></div>
+            <span>Wheelchair</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-lane"></div>
+            <span>Lane</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/js/hallDetails.js"></script>
+<script>
+  // Initialize hall data and generate seat display
+  setHallData(
+    <%= hall.rows || 0 %>,
+    <%= hall.columns || 0 %>,
+    <%= hall.wingColumns || 0 %>,
+    <%- hall.seatConfig ? JSON.stringify(hall.seatConfig) : '{}' %>
+  );
+</script>
+
+<%- include('../layouts/footer') %>

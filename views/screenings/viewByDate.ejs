@@ -1,0 +1,102 @@
+<%- include('../layouts/header') %>
+
+<div class="container">
+    <h2 style="margin-bottom: 30px;">View Screenings by Date</h2>
+
+    <!-- Date Selector -->
+    <div style="margin-bottom: 30px; max-width: 400px;">
+        <label for="dateSelector" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">SELECT DATE</label>
+        <input type="date" 
+               id="dateSelector" 
+               class="form-control" 
+               value="<%= selectedDate %>"
+               min="<%= new Date().toISOString().split('T')[0] %>"
+               max="<%= new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0] %>"
+               style="font-size: 16px; padding: 12px;">
+    </div>
+
+    <!-- Back Button -->
+    <div style="margin-bottom: 24px;">
+        <a href="/screenings" class="btn btn-secondary">
+            ← Back to Screenings
+        </a>
+    </div>
+
+    <!-- Movies Grid -->
+    <% if (movies.length === 0) { %>
+        <div style="padding: 60px; text-align: center; background-color: var(--bg-card); border-radius: 8px; border: 2px solid #334155;">
+            <i class="bi bi-film" style="font-size: 64px; color: var(--text-muted); margin-bottom: 20px;"></i>
+            <h3 style="color: var(--text-main); margin-bottom: 12px;">No Screenings Available</h3>
+            <p style="color: var(--text-muted); font-size: 16px; margin: 0;">There are no movies scheduled for this date</p>
+        </div>
+    <% } else { %>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+            <% movies.forEach(movie => { %>
+                <div class="movie-card card" style="height: 100%; display: flex; flex-direction: column;">
+                    <!-- Movie Poster -->
+                    <div class="movie-card-img-wrapper" style="position: relative;">
+                        <img src="<%= movie.pictureUrl || '/images/placeholder.jpg' %>" 
+                             alt="<%= movie.name %>"
+                             class="movie-card-img"
+                             style="height: 280px; object-fit: cover;">
+                        <% if (movie.ageRestriction) { %>
+                            <div class="age-badge"><%= movie.ageRestriction %></div>
+                        <% } %>
+                    </div>
+                    
+                    <!-- Movie Info -->
+                    <div class="movie-card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
+                        <div class="movie-name" style="margin-bottom: 8px;">
+                            <%= movie.name %>
+                        </div>
+                        <div class="movie-duration" style="margin-bottom: 16px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;">
+                                <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+                                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+                            </svg>
+                            <%= movie.duration %> min
+                        </div>
+                        
+                        <!-- Screenings by Hall Type -->
+                        <div style="flex-grow: 1;">
+                            <% Object.keys(movie.screeningsByHallType).forEach(hallType => { %>
+                                <div style="margin-bottom: 16px;">
+                                    <!-- Hall Type Header -->
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #334155;">
+                                        <i class="bi bi-house-door" style="color: #3b82f6; font-size: 14px;"></i>
+                                        <span style="color: var(--text-main); font-size: 13px; font-weight: 600;"><%= hallType %></span>
+                                    </div>
+                                    
+                                    <!-- Timings -->
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        <% movie.screeningsByHallType[hallType].forEach(screening => { %>
+                                            <div style="background-color: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s;"
+                                                 onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'; this.style.transform='scale(1.05)'"
+                                                 onmouseout="this.style.backgroundColor='rgba(59, 130, 246, 0.1)'; this.style.transform='scale(1)'"
+                                                 title="<%= screening.hallName %>">
+                                                <span style="color: #3b82f6; font-size: 13px; font-weight: 600;">
+                                                    <%= screening.time %>
+                                                </span>
+                                            </div>
+                                        <% }); %>
+                                    </div>
+                                </div>
+                            <% }); %>
+                        </div>
+                    </div>
+                </div>
+            <% }); %>
+        </div>
+    <% } %>
+</div>
+
+<script>
+    const dateSelector = document.getElementById('dateSelector');
+    
+    dateSelector.addEventListener('change', function() {
+        const selectedDate = this.value;
+        window.location.href = `/screenings/by-date?date=${selectedDate}`;
+    });
+</script>
+
+<%- include('../layouts/footer') %>

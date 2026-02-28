@@ -22,29 +22,75 @@
   background-color: var(--bg-main);
   color: var(--text-main);
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.content-wrapper {
+  flex: 1;
 }
 
 /* Sidebar layout */
 .sidebar {
   flex: 1;                     /* 1 part of the 1:5 ratio */
-  background-color: var(--sidebar-blue);
+  /* Cinema-inspired gradient: deep blue to purple-blue */
+  background: linear-gradient(180deg, 
+    #1e3a8a 0%,      /* Deep cinema blue at top */
+    #1e293b 50%,     /* Mid-tone slate blue */
+    #0f172a 100%     /* Dark navy at bottom */
+  );
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Optional: Add a subtle overlay pattern for texture */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    linear-gradient(45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255,255,255,0.02) 25%, transparent 25%);
+  background-size: 60px 60px;
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+.sidebar-title {
+  color: var(--text-main) !important;
+  margin-bottom: 30px;
+  font-size: 20px;
+  display: block;
+  position: relative;
+  z-index: 1;
 }
 
 /* Sidebar links */
 .sidebar a {
-  color: var(--text-main);
-  text-decoration: none;
+  color: var(--text-main) !important;
+  text-decoration: none !important;
   margin: 15px 0;
   font-weight: 500;
+  display: block;
+  position: relative;
+  z-index: 1;
+  transition: all 0.3s ease;
 }
 
 .sidebar a:hover {
-  color: var(--accent-hover);
+  color: #94a3b8 !important;
+  text-decoration: underline !important;
+  transform: translateX(5px);
 }
+
 
 * {
   margin: 0;
@@ -142,4 +188,34 @@ a:hover {
 
 .btn-primary:hover {
   background-color: var(--accent-hover) !important;
+}
+
+/* === Page Header === */
+.page-header {
+  background-color: var(--bg-card);
+  padding: 20px;
+  margin: -20px -20px 20px -20px;
+  border-bottom: 1px solid #334155;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 24px;
+  color: var(--text-main);
+}
+
+/* === Page Footer === */
+.page-footer {
+  background-color: var(--bg-card);
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px;
+  margin: 40px -20px -20px -20px;
+  border-top: 1px solid #334155;
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.page-footer p {
+  margin: 0;
 }

@@ -1,0 +1,260 @@
+<%- include('../layouts/header') %>
+
+    <div class="container">
+        <h2 style="margin-bottom: 20px;">Halls</h2>
+        
+        <!-- Filter Buttons -->
+        <div class="movie-filters">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="Standard">Standard</button>
+            <button class="filter-btn" data-filter="IMAX">IMAX</button>
+            <button class="filter-btn" data-filter="VIP">VIP</button>
+        </div>
+
+        <!-- Search and Filter Controls -->
+        <div class="search-filter-bar">
+            <div class="search-controls">
+                <!-- Search Bar -->
+                <div class="search-box">
+                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                    <input 
+                        type="text" 
+                        id="hallSearch" 
+                        class="search-input" 
+                        placeholder="Search halls..."
+                    >
+                </div>
+
+                <!-- Sort By -->
+                <div class="filter-dropdown">
+                    <select id="sortFilter" class="filter-select">
+                        <option value="none">Sort By</option>
+                        <option value="nameAZ">Name (A-Z)</option>
+                        <option value="nameZA">Name (Z-A)</option>
+                        <option value="capacityHigh">Capacity (High-Low)</option>
+                        <option value="capacityLow">Capacity (Low-High)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Create Button -->
+            <div class="create-button-wrapper">
+                <a href="/halls/create" class="btn btn-primary">
+                    + Create New Hall
+                </a>
+            </div>
+        </div>
+        <div class="movies-grid">
+            <% halls.forEach(hall=> { %>
+                <a href="/halls/<%= hall._id %>" 
+                   class="movie-card-link hall-card-link" 
+                   data-type="<%= hall.type || 'all' %>"
+                   data-name="<%= hall.name ? hall.name.toLowerCase() : '' %>"
+                   data-capacity="<%= hall.capacity || 0 %>">
+                    <div class="movie-card card">
+                        <div class="movie-card-img-wrapper">
+                            <img src="<%= hall.pictureUrl || '/images/placeholder.jpg' %>" alt="<%= hall.name %>"
+                                class="movie-card-img">
+                            <!-- Hall type badge overlay -->
+                            <% if (hall.type) { %>
+                                <div class="age-badge"><%= hall.type %></div>
+                            <% } %>
+                        </div>
+                        <div class="movie-card-content">
+                            <div class="movie-name">
+                                <%= hall.name || 'Unnamed Hall' %>
+                            </div>
+                            <div class="movie-duration">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;">
+                                    <path d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2zM1 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V7zM1 12a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-2z"/>
+                                </svg>
+                                <%= hall.capacity || 'N/A' %> seats
+                            </div>
+                            <!-- Wheelchair accessibility tag -->
+                            <% 
+                            let hasWheelchair = false;
+                            if (hall.seatConfig && typeof hall.seatConfig === 'object') {
+                                hasWheelchair = Object.values(hall.seatConfig).some(state => state === 'wheelchair');
+                            }
+                            if (hasWheelchair) { %>
+                                <div class="genre-tags">
+                                    <span class="genre-tag" style="background-color: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid #3b82f6;">
+                                        <i class="bi bi-universal-access"></i> Wheelchair Accessible
+                                    </span>
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
+                </a>
+                <% }) %>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="pagination-container">
+            <button id="prevPage" class="pagination-btn" disabled>
+                <i class="bi bi-chevron-left"></i> Previous
+            </button>
+            <div id="pageNumbers" class="page-numbers"></div>
+            <button id="nextPage" class="pagination-btn">
+                Next <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Hall filter, sort, and pagination functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const filterBtns = document.querySelectorAll('.filter-btn');
+            const hallCards = Array.from(document.querySelectorAll('.hall-card-link'));
+            const searchInput = document.getElementById('hallSearch');
+            const sortFilter = document.getElementById('sortFilter');
+            const prevPageBtn = document.getElementById('prevPage');
+            const nextPageBtn = document.getElementById('nextPage');
+            const pageNumbersDiv = document.getElementById('pageNumbers');
+            
+            let activeTypeFilter = 'all';
+            let currentPage = 1;
+            const itemsPerPage = 20; // 4 rows × 5 columns
+
+            // Type filter buttons
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    filterBtns.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    activeTypeFilter = this.getAttribute('data-filter');
+                    currentPage = 1;
+                    applyFiltersAndSort();
+                });
+            });
+
+            // Search input
+            searchInput.addEventListener('input', function() {
+                currentPage = 1;
+                applyFiltersAndSort();
+            });
+
+            // Sort filter
+            sortFilter.addEventListener('change', function() {
+                currentPage = 1;
+                applyFiltersAndSort();
+            });
+
+            // Pagination buttons
+            prevPageBtn.addEventListener('click', function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    applyFiltersAndSort();
+                }
+            });
+
+            nextPageBtn.addEventListener('click', function() {
+                const filteredCards = getFilteredCards();
+                const totalPages = Math.ceil(filteredCards.length / itemsPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    applyFiltersAndSort();
+                }
+            });
+
+            function getFilteredCards() {
+                const searchTerm = searchInput.value.toLowerCase().trim();
+
+                return hallCards.filter(card => {
+                    const type = card.getAttribute('data-type');
+                    const name = card.getAttribute('data-name');
+
+                    const typeMatch = activeTypeFilter === 'all' || type === activeTypeFilter;
+                    const searchMatch = !searchTerm || name.includes(searchTerm);
+
+                    return typeMatch && searchMatch;
+                });
+            }
+
+            function sortCards(cards) {
+                const sortValue = sortFilter.value;
+                const sortedCards = [...cards];
+
+                switch(sortValue) {
+                    case 'nameAZ':
+                        sortedCards.sort((a, b) => {
+                            const nameA = a.getAttribute('data-name');
+                            const nameB = b.getAttribute('data-name');
+                            return nameA.localeCompare(nameB);
+                        });
+                        break;
+                    case 'nameZA':
+                        sortedCards.sort((a, b) => {
+                            const nameA = a.getAttribute('data-name');
+                            const nameB = b.getAttribute('data-name');
+                            return nameB.localeCompare(nameA);
+                        });
+                        break;
+                    case 'capacityHigh':
+                        sortedCards.sort((a, b) => {
+                            const capA = parseInt(a.getAttribute('data-capacity')) || 0;
+                            const capB = parseInt(b.getAttribute('data-capacity')) || 0;
+                            return capB - capA;
+                        });
+                        break;
+                    case 'capacityLow':
+                        sortedCards.sort((a, b) => {
+                            const capA = parseInt(a.getAttribute('data-capacity')) || 0;
+                            const capB = parseInt(b.getAttribute('data-capacity')) || 0;
+                            return capA - capB;
+                        });
+                        break;
+                }
+
+                return sortedCards;
+            }
+
+            function updatePagination(totalItems) {
+                const totalPages = Math.ceil(totalItems / itemsPerPage);
+                
+                // Update button states
+                prevPageBtn.disabled = currentPage === 1;
+                nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
+
+                // Generate page numbers
+                pageNumbersDiv.innerHTML = '';
+                if (totalPages > 0) {
+                    const pageInfo = document.createElement('span');
+                    pageInfo.className = 'page-info';
+                    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+                    pageNumbersDiv.appendChild(pageInfo);
+                }
+            }
+
+            function applyFiltersAndSort() {
+                // Hide all cards first
+                hallCards.forEach(card => card.style.display = 'none');
+
+                // Get filtered cards
+                let filteredCards = getFilteredCards();
+
+                // Sort cards
+                filteredCards = sortCards(filteredCards);
+
+                // Calculate pagination
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                const paginatedCards = filteredCards.slice(startIndex, endIndex);
+
+                // Show only paginated cards
+                paginatedCards.forEach(card => card.style.display = 'block');
+
+                // Update pagination controls
+                updatePagination(filteredCards.length);
+
+                // Scroll to top of hall grid
+                document.querySelector('.movies-grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            // Initial load
+            applyFiltersAndSort();
+        });
+    </script>
+
+    <%- include('../layouts/footer') %>

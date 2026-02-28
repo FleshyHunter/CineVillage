@@ -1,0 +1,694 @@
+<%- include('../layouts/header') %>
+
+  <div class="container">
+    <h2 style="margin-bottom: 30px;"><%= isEdit ? 'Edit Screening' : 'Create Screening' %></h2>
+
+    <!-- Error Message -->
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert alert-danger" role="alert" style="margin-bottom: 24px;">
+        <i class="bi bi-exclamation-triangle-fill"></i> <%= error %>
+      </div>
+    <% } %>
+
+    <div class="movie-detail-container">
+      <form id="screeningForm" action="<%= isEdit ? '/screenings/edit/' + screening._id : '/screenings/create' %>" method="POST"
+        style="display: contents;">
+
+        <!-- Left Side: Movie Preview -->
+        <div class="movie-detail-poster">
+          <% if (isEdit && screening && screening.movieId) { %>
+            <img id="moviePreview"
+              src="<%= screening.movieId.pictureUrl || '/images/placeholder.jpg' %>"
+              alt="Movie poster"
+              style="width: 100%; border-radius: 8px; object-fit: cover; min-height: 400px;">
+            <div style="text-align: center; margin-top: 15px;">
+              <h4 style="color: var(--text-main);"><%= screening.movieId.name %></h4>
+              <p style="color: var(--text-muted); font-size: 13px;"><%= screening.movieId.duration %> mins</p>
+            </div>
+          <% } else { %>
+            <img id="moviePreview"
+              src="/images/placeholder.jpg"
+              alt="Select a movie"
+              style="width: 100%; border-radius: 8px; object-fit: cover; min-height: 400px; border: 2px dashed #94a3b8;">
+            <div id="movieInfo" style="text-align: center; margin-top: 15px;">
+              <p style="color: var(--text-muted); font-size: 13px;">Select a movie to preview</p>
+            </div>
+          <% } %>
+        </div>
+
+        <!-- Right Side: Form Fields -->
+        <div class="movie-detail-info">
+          
+          <!-- Movie Selection -->
+          <div class="form-group">
+            <label for="movieId" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">MOVIE *</label>
+            <select id="movieId" name="movieId" class="form-control" required>
+              <option value="">Select Movie</option>
+              <% if (typeof movies !== 'undefined' && movies.length > 0) { %>
+                <% movies.forEach(movie => { %>
+                  <option value="<%= movie._id %>" 
+                          data-poster="<%= movie.pictureUrl || '/images/placeholder.jpg' %>"
+                          data-name="<%= movie.name %>"
+                          data-duration="<%= movie.duration %>"
+                          <%= screening && screening.movieId && (typeof screening.movieId === 'object' ? screening.movieId._id.toString() : screening.movieId.toString()) === movie._id.toString() ? 'selected' : '' %>>
+                    <%= movie.name %> (<%= movie.duration %> mins)
+                  </option>
+                <% }); %>
+              <% } %>
+            </select>
+          </div>
+
+          <!-- Hall Selection -->
+          <div class="form-group">
+            <label for="hallId" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">HALL *</label>
+            <select id="hallId" name="hallId" class="form-control" required>
+              <option value="">Select Hall</option>
+              <% if (typeof halls !== 'undefined' && halls.length > 0) { %>
+                <% halls.forEach(hall => { %>
+                  <option value="<%= hall._id %>"
+                          <%= screening && screening.hallId && (typeof screening.hallId === 'object' ? screening.hallId._id.toString() : screening.hallId.toString()) === hall._id.toString() ? 'selected' : '' %>>
+                    <%= hall.name %> (<%= hall.capacity %> seats, <%= hall.type %>)
+                  </option>
+                <% }); %>
+              <% } %>
+            </select>
+          </div>
+
+
+
+          <!-- Row 1: Date and Time -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="date" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">DATE *</label>
+              <input type="date" id="date" name="date" class="form-control" 
+                     value="<%= screening && screening.date ? new Date(screening.date).toISOString().split('T')[0] : '' %>" 
+                     min="<%= new Date().toISOString().split('T')[0] %>"
+                     max="<%= new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0] %>"
+                     required>
+            </div>
+
+            <div class="form-group">
+              <label for="startTime" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">START TIME *</label>
+              <input type="time" id="startTime" name="startTime" class="form-control" 
+                     value="<%= screening && screening.startTime ? screening.startTime : '' %>" 
+                     step="300"
+                     required>
+              <div id="conflictNotification" style="display: none; margin-top: 8px; padding: 8px 12px; background-color: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 6px; color: #ef4444; font-size: 13px;">
+                <i class="bi bi-exclamation-triangle-fill" style="margin-right: 6px;"></i>
+                <span id="conflictMessage">Time slot conflict detected. Please choose another time.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hall Schedule Timeline (shown when hall AND date are selected) -->
+          <div id="timelineContainer" style="display: none; margin-bottom: 24px;">
+            <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 12px; display: block;">HALL SCHEDULE</label>
+            <div style="background-color: var(--bg-card); padding: 16px; border-radius: 8px; border: 2px solid #334155;">
+              
+              <!-- Legend -->
+              <div style="display: flex; gap: 16px; margin-bottom: 12px; font-size: 11px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <div style="width: 12px; height: 12px; background: #ef4444; border-radius: 3px;"></div>
+                  <span style="color: var(--text-muted);">Occupied</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <div style="width: 12px; height: 12px; background: #3b82f6; border-radius: 3px;"></div>
+                  <span style="color: var(--text-muted);">Your Screening</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <div style="width: 12px; height: 12px; background: #22c55e; border-radius: 3px;"></div>
+                  <span style="color: var(--text-muted);">Available</span>
+                </div>
+              </div>
+
+              <!-- Timeline: First 12 hours of selected date (00:00 - 11:45) -->
+              <div style="margin-bottom: 16px;">
+                <div id="dateLabel1" style="color: var(--text-main); font-size: 11px; margin-bottom: 4px; font-weight: 700;">Select date</div>
+                <div style="color: var(--text-muted); font-size: 10px; margin-bottom: 4px; font-weight: 600;">00:00 - 11:45</div>
+                <div id="timeline-row1" style="display: grid; grid-template-columns: repeat(48, 1fr); gap: 2px; position: relative;">
+                  <!-- Slots will be generated by JavaScript -->
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+                  <span style="color: var(--text-muted); font-size: 9px;">00:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">03:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">06:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">09:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">11:45</span>
+                </div>
+              </div>
+
+              <!-- Timeline: Second 12 hours of selected date (12:00 - 23:45) -->
+              <div style="margin-bottom: 16px;">
+                <div style="color: var(--text-muted); font-size: 10px; margin-bottom: 4px; font-weight: 600;">12:00 - 23:45</div>
+                <div id="timeline-row2" style="display: grid; grid-template-columns: repeat(48, 1fr); gap: 2px; position: relative;">
+                  <!-- Slots will be generated by JavaScript -->
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+                  <span style="color: var(--text-muted); font-size: 9px;">12:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">15:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">18:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">21:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">23:45</span>
+                </div>
+              </div>
+
+              <!-- Timeline: Next day morning (00:00 - 11:45) -->
+              <div>
+                <div id="dateLabel2" style="color: var(--text-main); font-size: 11px; margin-bottom: 4px; font-weight: 700;">Next day</div>
+                <div style="color: var(--text-muted); font-size: 10px; margin-bottom: 4px; font-weight: 600;">00:00 - 11:45</div>
+                <div id="timeline-row3" style="display: grid; grid-template-columns: repeat(48, 1fr); gap: 2px; position: relative;">
+                  <!-- Slots will be generated by JavaScript -->
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+                  <span style="color: var(--text-muted); font-size: 9px;">00:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">03:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">06:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">09:00</span>
+                  <span style="color: var(--text-muted); font-size: 9px;">11:45</span>
+                </div>
+              </div>
+
+              <div id="timelineMessage" style="margin-top: 12px; color: var(--text-muted); font-size: 12px; text-align: center;">
+                Select both hall and date to view schedule
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: Price -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="price" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">TICKET PRICE (S$) *</label>
+              <input type="number" id="price" name="price" class="form-control" 
+                     value="<%= screening ? screening.price : '12.00' %>" 
+                     min="0" 
+                     step="0.50" 
+                     required>
+            </div>
+
+            <div class="form-group">
+              <label for="status" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">STATUS *</label>
+              <select id="status" name="status" class="form-control" required>
+                <option value="">Select Status</option>
+                <option value="scheduled" <%= !screening || screening.status === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
+                <option value="ongoing" <%= screening && screening.status === 'ongoing' ? 'selected' : '' %>>Ongoing</option>
+                <% if (screening && screening.status === 'completed') { %>
+                  <option value="completed" selected disabled>Completed (Auto-managed)</option>
+                <% } %>
+              </select>
+              <small style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block;">
+                Status is automatically updated based on screening time
+              </small>
+            </div>
+          </div>
+
+          <!-- Calculated Information Display -->
+          <div class="form-group" style="background-color: var(--bg-card); padding: 15px; border-radius: 8px; border: 2px solid #334155;">
+            <h4 style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 12px;">SCREENING DETAILS</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted); font-size: 13px;">End Time:</span>
+                <span id="endTimeDisplay" style="color: var(--text-main); font-weight: 500;">-</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted); font-size: 13px;">Duration:</span>
+                <span id="durationDisplay" style="color: var(--text-main); font-weight: 500;">-</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted); font-size: 13px;">Available Seats:</span>
+                <span id="seatsDisplay" style="color: var(--text-main); font-weight: 500;">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="movie-detail-actions">
+            <a href="/screenings" class="btn btn-secondary">
+              ← Back to Screenings
+            </a>
+            <button type="submit" id="submitBtn" class="btn btn-primary">
+              <%= isEdit ? 'Update Screening' : 'Create Screening' %>
+            </button>
+          </div>
+
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+<!-- Script to load the images dynamically when toggling between movies-->
+  <script>
+    // Movie selection preview
+    const movieSelect = document.getElementById('movieId');
+    const moviePreview = document.getElementById('moviePreview');
+    const movieInfo = document.getElementById('movieInfo');
+    const startTimeInput = document.getElementById('startTime');
+    const endTimeDisplay = document.getElementById('endTimeDisplay');
+    const durationDisplay = document.getElementById('durationDisplay');
+    const hallSelect = document.getElementById('hallId');
+    const seatsDisplay = document.getElementById('seatsDisplay');
+    const dateInput = document.getElementById('date');
+    const timelineContainer = document.getElementById('timelineContainer');
+    const timelineRow1 = document.getElementById('timeline-row1');
+    const timelineRow2 = document.getElementById('timeline-row2');
+    const timelineRow3 = document.getElementById('timeline-row3');
+    const timelineMessage = document.getElementById('timelineMessage');
+    const dateLabel1 = document.getElementById('dateLabel1');
+    const dateLabel2 = document.getElementById('dateLabel2');
+    const conflictNotification = document.getElementById('conflictNotification');
+    const conflictMessage = document.getElementById('conflictMessage');
+    const submitBtn = document.getElementById('submitBtn');
+
+    let selectedMovieDuration = 0;
+    let currentSchedule = [];
+    let previewStartSlot = -1;
+    let previewEndSlot = -1;
+    let hasConflict = false;
+    let occupiedSlots = new Set(); // Track which slots are occupied by existing screenings
+
+    // Round time to 5-minute increments
+    function roundToNearestFiveMin(time) {
+      const [hours, minutes] = time.split(':').map(Number);
+      const roundedMinutes = Math.round(minutes / 5) * 5;
+      if (roundedMinutes === 60) {
+        return `${String((hours + 1) % 24).padStart(2, '0')}:00`;
+      }
+      return `${String(hours).padStart(2, '0')}:${String(roundedMinutes).padStart(2, '0')}`;
+    }
+
+    // Validate time input to 5-minute increments
+    startTimeInput.addEventListener('change', function() {
+      if (this.value) {
+        const rounded = roundToNearestFiveMin(this.value);
+        if (rounded !== this.value) {
+          this.value = rounded;
+        }
+      }
+      updateEndTime();
+    });
+
+    movieSelect.addEventListener('change', function() {
+      const selectedOption = this.options[this.selectedIndex];
+      if (selectedOption.value) {
+        const poster = selectedOption.getAttribute('data-poster');
+        const name = selectedOption.getAttribute('data-name');
+        const duration = selectedOption.getAttribute('data-duration');
+        selectedMovieDuration = parseInt(duration) || 0;
+        
+        moviePreview.src = poster;
+        moviePreview.style.border = 'none';
+        
+        if (movieInfo) {
+          movieInfo.innerHTML = `
+            <h4 style="color: var(--text-main);">${name}</h4>
+            <p style="color: var(--text-muted); font-size: 13px;">${duration} mins</p>
+          `;
+        }
+        
+        durationDisplay.textContent = `${duration} mins`;
+        updateEndTime();
+      } else {
+        moviePreview.src = '/images/placeholder.jpg';
+        moviePreview.style.border = '2px dashed #94a3b8';
+        if (movieInfo) {
+          movieInfo.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">Select a movie to preview</p>';
+        }
+        durationDisplay.textContent = '-';
+        endTimeDisplay.textContent = '-';
+        clearTimelinePreview();
+      }
+    });
+
+    // Calculate end time with rounding and buffer
+    function updateEndTime() {
+      const startTime = startTimeInput.value;
+      if (startTime && selectedMovieDuration > 0) {
+        const [hours, minutes] = startTime.split(':').map(Number);
+        const startDate = new Date();
+        startDate.setHours(hours, minutes, 0);
+        
+        // Add movie duration
+        const endDate = new Date(startDate.getTime() + selectedMovieDuration * 60000);
+        
+        // Round up to next 15-minute mark
+        const endMinutes = endDate.getMinutes();
+        const remainder = endMinutes % 15;
+        if (remainder !== 0) {
+          endDate.setMinutes(endMinutes + (15 - remainder));
+        }
+        
+        // Add 15-minute cleaning buffer
+        endDate.setMinutes(endDate.getMinutes() + 15);
+        
+        const endHours = String(endDate.getHours()).padStart(2, '0');
+        const endMins = String(endDate.getMinutes()).padStart(2, '0');
+        endTimeDisplay.textContent = `${endHours}:${endMins}`;
+        
+        // Update timeline preview
+        updateTimelinePreview();
+      } else {
+        endTimeDisplay.textContent = '-';
+        clearTimelinePreview();
+      }
+    }
+
+    // Calculate which slots the preview should occupy
+    function calculatePreviewSlots() {
+      const startTime = startTimeInput.value;
+      if (!startTime || !selectedMovieDuration || !dateInput.value) {
+        return { start: -1, end: -1 };
+      }
+      
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const startMinutesFromMidnight = hours * 60 + minutes;
+      
+      // Calculate end time
+      let endMinutes = startMinutesFromMidnight + selectedMovieDuration;
+      
+      // Round up to next 15-minute mark
+      const remainder = endMinutes % 15;
+      if (remainder !== 0) {
+        endMinutes += (15 - remainder);
+      }
+      
+      // Add 15-minute buffer
+      endMinutes += 15;
+      
+      // Convert to slot numbers (each slot = 15 minutes)
+      const startSlot = Math.floor(startMinutesFromMidnight / 15);
+      const endSlot = Math.floor(endMinutes / 15);
+      
+      return { start: startSlot, end: endSlot };
+    }
+
+    // Update timeline preview
+    function updateTimelinePreview() {
+      if (!hallSelect.value || !dateInput.value) {
+        hasConflict = false;
+        updateConflictNotification();
+        return;
+      }
+      
+      const slots = calculatePreviewSlots();
+      previewStartSlot = slots.start;
+      previewEndSlot = slots.end;
+      
+      // Clear previous preview
+      clearTimelinePreview();
+      
+      if (previewStartSlot === -1 || previewEndSlot === -1) {
+        hasConflict = false;
+        updateConflictNotification();
+        return;
+      }
+      
+      // Check for conflicts
+      hasConflict = false;
+      currentSchedule.forEach(block => {
+        if (previewStartSlot < block.endSlot && previewEndSlot > block.startSlot) {
+          hasConflict = true;
+        }
+      });
+      
+      // Apply preview styling
+      for (let slot = previewStartSlot; slot < previewEndSlot && slot < 144; slot++) {
+        const slotElement = document.querySelector(`.timeline-slot[data-slot="${slot}"]`);
+        if (slotElement) {
+          // Check if slot is already occupied
+          const isOccupied = occupiedSlots.has(slot);
+          if (isOccupied) {
+            // Show conflict - striped pattern (use background for gradient)
+            slotElement.style.background = 'repeating-linear-gradient(45deg, #ef4444, #ef4444 5px, #3b82f6 5px, #3b82f6 10px)';
+            slotElement.title = `CONFLICT: Time slot already occupied`;
+            slotElement.classList.add('preview-slot');
+          } else {
+            // Show preview in blue for available slots (use backgroundColor for solid color)
+            slotElement.style.background = '';
+            slotElement.style.backgroundColor = '#3b82f6';
+            slotElement.classList.add('preview-slot');
+            const timeStr = formatSlotTime(slot);
+            slotElement.title = `Your screening: ${timeStr}`;
+          }
+        }
+      }
+      
+      // Update message and notification
+      if (hasConflict) {
+        timelineMessage.innerHTML = '<span style="color: #ef4444;">⚠️ Time slot conflict detected!</span>';
+      } else if (previewStartSlot !== -1) {
+        const startTime = formatSlotTime(previewStartSlot);
+        const endTime = formatSlotTime(previewEndSlot);
+        timelineMessage.innerHTML = `<span style="color: #3b82f6;">Preview: ${startTime} - ${endTime}</span>`;
+      }
+      
+      updateConflictNotification();
+    }
+
+    // Update conflict notification and button state
+    function updateConflictNotification() {
+      if (hasConflict) {
+        conflictNotification.style.display = 'block';
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.5';
+        submitBtn.style.cursor = 'not-allowed';
+      } else {
+        conflictNotification.style.display = 'none';
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+      }
+    }
+
+    // Clear timeline preview
+    function clearTimelinePreview() {
+      document.querySelectorAll('.timeline-slot.preview-slot').forEach(slot => {
+        const slotNum = parseInt(slot.dataset.slot);
+        
+        // Clear any inline background style first (including gradients)
+        slot.style.background = '';
+        
+        // Restore to original state: red if occupied, green if available
+        if (occupiedSlots.has(slotNum)) {
+          slot.style.backgroundColor = '#ef4444';
+          // Restore original occupied title from schedule
+          const block = currentSchedule.find(b => slotNum >= b.startSlot && slotNum < b.endSlot);
+          if (block) {
+            slot.title = `${block.movieName} (${block.displayStart} - ${block.displayEnd})`;
+          }
+        } else {
+          slot.style.backgroundColor = '#22c55e';
+          slot.title = formatSlotTime(slotNum);
+        }
+        
+        slot.classList.remove('preview-slot');
+      });
+    }
+
+    // Hall selection - update seats display and show timeline only if date is also selected
+    hallSelect.addEventListener('change', function() {
+      const selectedOption = this.options[this.selectedIndex];
+      if (selectedOption.value) {
+        const optionText = selectedOption.textContent;
+        const seatsMatch = optionText.match(/\((\d+) seats/);
+        if (seatsMatch) {
+          seatsDisplay.textContent = seatsMatch[1];
+        }
+        
+        // Only show timeline if date is also selected
+        if (dateInput.value) {
+          timelineContainer.style.display = 'block';
+          updateDateLabels();
+          loadHallSchedule();
+        }
+      } else {
+        seatsDisplay.textContent = '-';
+        timelineContainer.style.display = 'none';
+        clearTimelinePreview();
+      }
+    });
+
+    // Date selection - load schedule
+    dateInput.addEventListener('change', function() {
+      updateDateLabels();
+      if (hallSelect.value && this.value) {
+        // Show timeline container when both hall and date are selected
+        timelineContainer.style.display = 'block';
+        loadHallSchedule();
+      } else {
+        // Hide timeline if date is cleared
+        if (!this.value) {
+          timelineContainer.style.display = 'none';
+        }
+        clearTimelinePreview();
+      }
+    });
+
+    // Generate timeline slots (3 rows: 0-47, 48-95, 96-143)
+    function generateTimelineSlots() {
+      timelineRow1.innerHTML = '';
+      timelineRow2.innerHTML = '';
+      timelineRow3.innerHTML = '';
+      
+      // Create 48 slots per row
+      for (let i = 0; i < 48; i++) {
+        // Row 1: Slots 0-47 (Selected day 00:00-11:45)
+        const slot1 = document.createElement('div');
+        slot1.className = 'timeline-slot';
+        slot1.dataset.slot = i;
+        slot1.style.height = '20px';
+        slot1.style.background = '#22c55e';
+        slot1.style.borderRadius = '2px';
+        slot1.style.cursor = 'pointer';
+        slot1.title = formatSlotTime(i);
+        timelineRow1.appendChild(slot1);
+        
+        // Row 2: Slots 48-95 (Selected day 12:00-23:45)
+        const slot2 = document.createElement('div');
+        slot2.className = 'timeline-slot';
+        slot2.dataset.slot = i + 48;
+        slot2.style.height = '20px';
+        slot2.style.background = '#22c55e';
+        slot2.style.borderRadius = '2px';
+        slot2.style.cursor = 'pointer';
+        slot2.title = formatSlotTime(i + 48);
+        timelineRow2.appendChild(slot2);
+        
+        // Row 3: Slots 96-143 (Next day 00:00-11:45)
+        const slot3 = document.createElement('div');
+        slot3.className = 'timeline-slot';
+        slot3.dataset.slot = i + 96;
+        slot3.style.height = '20px';
+        slot3.style.background = '#22c55e';
+        slot3.style.borderRadius = '2px';
+        slot3.style.cursor = 'pointer';
+        slot3.title = formatSlotTime(i); // Same time labels as row 1
+        timelineRow3.appendChild(slot3);
+      }
+    }
+
+    // Format slot number to time string
+    function formatSlotTime(slot) {
+      const adjustedSlot = slot % 96; // Handle slots 96-143 as 0-47
+      const totalMinutes = adjustedSlot * 15;
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+    
+    // Update date labels
+    function updateDateLabels() {
+      if (!dateInput.value) {
+        dateLabel1.textContent = 'Select date';
+        dateLabel2.textContent = 'Next day';
+        return;
+      }
+      
+      const selectedDate = new Date(dateInput.value + 'T00:00:00');
+      const nextDate = new Date(selectedDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      
+      const formatDate = (date) => {
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+      };
+      
+      dateLabel1.textContent = formatDate(selectedDate);
+      dateLabel2.textContent = formatDate(nextDate);
+    }
+
+    // Load hall schedule from API
+    async function loadHallSchedule() {
+      const hallId = hallSelect.value;
+      const date = dateInput.value;
+      
+      if (!hallId || !date) {
+        console.log('Cannot load schedule: missing hallId or date');
+        return;
+      }
+      
+      try {
+        timelineMessage.textContent = 'Loading schedule...';
+        console.log('Fetching schedule from API:', `/screenings/api/schedule/${hallId}/${date}`);
+        
+        const response = await fetch(`/screenings/api/schedule/${hallId}/${date}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('API error:', response.status, errorText);
+          throw new Error('Failed to fetch schedule');
+        }
+        
+        currentSchedule = await response.json();
+        console.log('Received schedule data:', currentSchedule);
+        
+        // Generate fresh slots
+        generateTimelineSlots();
+        
+        // Clear and rebuild occupied slots set
+        occupiedSlots.clear();
+        
+        // Mark occupied slots
+        currentSchedule.forEach(block => {
+          console.log('Marking slots occupied:', block.startSlot, 'to', block.endSlot, 'for', block.movieName);
+          for (let slot = block.startSlot; slot < block.endSlot; slot++) {
+            occupiedSlots.add(slot); // Track as occupied
+            const slotElement = document.querySelector(`.timeline-slot[data-slot="${slot}"]`);
+            if (slotElement) {
+              slotElement.style.background = '';
+              slotElement.style.backgroundColor = '#ef4444';
+              slotElement.title = `${block.movieName} (${block.displayStart} - ${block.displayEnd})`;
+            } else {
+              console.warn('Could not find slot element for slot:', slot);
+            }
+          }
+        });
+        
+        if (currentSchedule.length > 0) {
+          timelineMessage.textContent = `${currentSchedule.length} screening(s) scheduled`;
+        } else {
+          timelineMessage.textContent = 'No screenings scheduled for this date';
+        }
+        
+        // Update preview after loading schedule
+        updateTimelinePreview();
+      } catch (error) {
+        console.error('Error loading schedule:', error);
+        timelineMessage.textContent = 'Error loading schedule';
+      }
+    }
+
+    // Initialize on page load if editing
+    <% if (isEdit && screening) { %>
+      <% if (screening.movieId && screening.movieId.duration) { %>
+        selectedMovieDuration = <%= screening.movieId.duration %>;
+        durationDisplay.textContent = '<%= screening.movieId.duration %> mins';
+        updateEndTime();
+      <% } %>
+      <% if (screening.hallId && screening.hallId.capacity) { %>
+        seatsDisplay.textContent = '<%= screening.hallId.capacity %>';
+        timelineContainer.style.display = 'block';
+        generateTimelineSlots();
+        if (dateInput.value) {
+          updateDateLabels();
+          loadHallSchedule();
+        } else {
+          updateTimelinePreview();
+        }
+      <% } %>
+    <% } else { %>
+      // Don't show timeline on initial load - wait for hall and date selection
+      updateDateLabels();
+    <% } %>
+    
+    // Prevent form submission if there's a conflict
+    const screeningForm = document.getElementById('screeningForm');
+    screeningForm.addEventListener('submit', function(e) {
+      if (hasConflict) {
+        e.preventDefault();
+        alert('Cannot create screening: Time slot conflict detected. Please choose another time.');
+        return false;
+      }
+    });
+  </script>
+
+  <%- include('../layouts/footer') %>

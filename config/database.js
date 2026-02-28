@@ -5,7 +5,9 @@ let client = null;
 //customers collection in the database
 let collectionMovie = null;
 let collectionHall = null;
+let collectionScreening = null;
 let collectionAdmin = null;
+let collectionStaff = null;
 
 //function to connect to db and get the collection object
 async function initDBIfNecessary() {
@@ -21,7 +23,9 @@ async function initDBIfNecessary() {
         //table defining in db
         collectionMovie = db.collection("movie");
         collectionHall = db.collection("hall");
+        collectionScreening = db.collection("screening");
         collectionAdmin = db.collection("admin");
+        collectionStaff = db.collection("staff");
 
     }
 } // end initDBIfNecessary
@@ -73,15 +77,33 @@ async function getAdminbyEmail(adminEmail) {
     });
 }
 
+//needs to put db into a function to make sure a null is not returned aka error handling
 function getCollectionMovie() {
     if (!collectionMovie) throw new Error("DB not initialized");
     return collectionMovie;
 }
 
+function getCollectionHall() {
+    if (!collectionHall) throw new Error("DB not initialized");
+    return collectionHall;
+}
+
+function getCollectionScreening() {
+    if (!collectionScreening) throw new Error("DB not initialized");
+    return collectionScreening;
+}
+
+function getCollectionStaff() {
+    if (!collectionScreening) throw new Error("DB not initialized");
+    return collectionScreening;
+}
 //export the functions so they can be used in other files
 module.exports = {
     initDBIfNecessary,
     disconnect,
-    getCollectionMovie,
     getAdminbyEmail,
+    getCollectionMovie,
+    getCollectionHall,
+    getCollectionScreening,
+    getCollectionStaff,
 };

@@ -1,0 +1,81 @@
+<%- include('../layouts/header') %>
+
+<div class="container">
+    <h2 style="margin-bottom: 30px;"><%= movie.name %> - Screenings</h2>
+
+    <div class="movie-detail-container">
+        <!-- Left Side: Movie Poster -->
+        <div class="movie-detail-poster">
+            <img src="<%= movie.pictureUrl || '/images/placeholder.jpg' %>"
+                alt="<%= movie.name %>"
+                style="width: 100%; border-radius: 8px; object-fit: cover; min-height: 400px;">
+            <div style="text-align: left; margin-top: 15px;">
+                <h4 style="color: var(--text-main);"><%= movie.name %></h4>
+                <p style="color: var(--text-muted); font-size: 13px;"><%= movie.duration %> mins</p>
+                <% if (movie.genre) { %>
+                    <div class="genre-tags" style="justify-content: flex-start; margin-top: 10px;">
+                        <% if (Array.isArray(movie.genre)) { %>
+                            <% movie.genre.forEach(g => { %>
+                                <span class="genre-tag"><%= g %></span>
+                            <% }); %>
+                        <% } else { %>
+                            <span class="genre-tag"><%= movie.genre %></span>
+                        <% } %>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+
+        <!-- Right Side: Screenings by Date -->
+        <div class="movie-detail-info">
+            
+            <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 16px; display: block;">AVAILABLE SCREENINGS</label>
+            
+            <% if (Object.keys(screeningsByDate).length === 0) { %>
+                <div style="padding: 40px; text-align: center; background-color: var(--bg-card); border-radius: 8px; border: 2px solid #334155;">
+                    <i class="bi bi-calendar-x" style="font-size: 48px; color: var(--text-muted); margin-bottom: 16px;"></i>
+                    <p style="color: var(--text-muted); font-size: 16px; margin: 0;">No screenings scheduled for this movie</p>
+                </div>
+            <% } else { %>
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <% Object.keys(screeningsByDate).forEach(date => { %>
+                        <div style="background-color: var(--bg-card); padding: 20px; border-radius: 8px; border: 2px solid #334155;">
+                            <!-- Date Header -->
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #334155;">
+                                <i class="bi bi-calendar3" style="font-size: 20px; color: #3b82f6;"></i>
+                                <h4 style="color: var(--text-main); font-size: 16px; font-weight: 600; margin: 0;"><%= date %></h4>
+                            </div>
+                            
+                            <!-- Timings Grid -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px;">
+                                <% screeningsByDate[date].forEach(screening => { %>
+                                    <div style="background-color: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; border-radius: 6px; padding: 10px; text-align: center; cursor: pointer; transition: all 0.2s;" 
+                                         onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'; this.style.transform='translateY(-2px)'"
+                                         onmouseout="this.style.backgroundColor='rgba(59, 130, 246, 0.1)'; this.style.transform='translateY(0)'"
+                                         title="<%= screening.hallName %>">
+                                        <div style="color: #3b82f6; font-size: 16px; font-weight: 600; margin-bottom: 4px;">
+                                            <%= screening.time %>
+                                        </div>
+                                        <div style="color: var(--text-muted); font-size: 11px;">
+                                            <%= screening.hallName %>
+                                        </div>
+                                    </div>
+                                <% }); %>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } %>
+
+            <!-- Back Button -->
+            <div class="movie-detail-actions" style="margin-top: 24px;">
+                <a href="/screenings?view=movie" class="btn btn-secondary">
+                    ← Back to Movie List
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<%- include('../layouts/footer') %>
