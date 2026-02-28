@@ -46,13 +46,25 @@
               <option value="">Select Movie</option>
               <% if (typeof movies !== 'undefined' && movies.length > 0) { %>
                 <% movies.forEach(movie => { %>
+                  <% if (movie._id) { %>
+                    <% 
+                      let isSelected = false;
+                      if (screening && screening.movieId) {
+                        if (typeof screening.movieId === 'object' && screening.movieId._id) {
+                          isSelected = screening.movieId._id.toString() === movie._id.toString();
+                        } else if (typeof screening.movieId === 'string') {
+                          isSelected = screening.movieId === movie._id.toString();
+                        }
+                      }
+                    %>
                   <option value="<%= movie._id %>" 
                           data-poster="<%= movie.pictureUrl || '/images/placeholder.jpg' %>"
                           data-name="<%= movie.name %>"
                           data-duration="<%= movie.duration %>"
-                          <%= screening && screening.movieId && (typeof screening.movieId === 'object' ? screening.movieId._id.toString() : screening.movieId.toString()) === movie._id.toString() ? 'selected' : '' %>>
+                          <%= isSelected ? 'selected' : '' %>>
                     <%= movie.name %> (<%= movie.duration %> mins)
                   </option>
+                  <% } %>
                 <% }); %>
               <% } %>
             </select>
@@ -65,10 +77,22 @@
               <option value="">Select Hall</option>
               <% if (typeof halls !== 'undefined' && halls.length > 0) { %>
                 <% halls.forEach(hall => { %>
+                  <% if (hall._id) { %>
+                    <% 
+                      let isSelected = false;
+                      if (screening && screening.hallId) {
+                        if (typeof screening.hallId === 'object' && screening.hallId._id) {
+                          isSelected = screening.hallId._id.toString() === hall._id.toString();
+                        } else if (typeof screening.hallId === 'string') {
+                          isSelected = screening.hallId === hall._id.toString();
+                        }
+                      }
+                    %>
                   <option value="<%= hall._id %>"
-                          <%= screening && screening.hallId && (typeof screening.hallId === 'object' ? screening.hallId._id.toString() : screening.hallId.toString()) === hall._id.toString() ? 'selected' : '' %>>
+                          <%= isSelected ? 'selected' : '' %>>
                     <%= hall.name %> (<%= hall.capacity %> seats, <%= hall.type %>)
                   </option>
+                  <% } %>
                 <% }); %>
               <% } %>
             </select>
@@ -91,7 +115,7 @@
               <label for="startTime" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">START TIME *</label>
               <input type="time" id="startTime" name="startTime" class="form-control" 
                      value="<%= screening && screening.startTime ? screening.startTime : '' %>" 
-                     step="300"
+                     step="900"
                      required>
               <div id="conflictNotification" style="display: none; margin-top: 8px; padding: 8px 12px; background-color: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 6px; color: #ef4444; font-size: 13px;">
                 <i class="bi bi-exclamation-triangle-fill" style="margin-right: 6px;"></i>
@@ -265,21 +289,26 @@
     let previewEndSlot = -1;
     let hasConflict = false;
     let occupiedSlots = new Set(); // Track which slots are occupied by existing screenings
+    <% if (isEdit && screening && screening._id) { %>
+    let currentScreeningId = '<%= screening._id.toString() %>'; // Current screening ID for edit mode
+    <% } else { %>
+    let currentScreeningId = null;
+    <% } %>
 
-    // Round time to 5-minute increments
-    function roundToNearestFiveMin(time) {
+    // Round time to 15-minute increments
+    function roundToNearestFifteenMin(time) {
       const [hours, minutes] = time.split(':').map(Number);
-      const roundedMinutes = Math.round(minutes / 5) * 5;
+      const roundedMinutes = Math.round(minutes / 15) * 15;
       if (roundedMinutes === 60) {
         return `${String((hours + 1) % 24).padStart(2, '0')}:00`;
       }
       return `${String(hours).padStart(2, '0')}:${String(roundedMinutes).padStart(2, '0')}`;
     }
 
-    // Validate time input to 5-minute increments (only when user finishes editing)
+    // Validate time input to 15-minute increments (only when user finishes editing)
     startTimeInput.addEventListener('blur', function() {
       if (this.value) {
-        const rounded = roundToNearestFiveMin(this.value);
+        const rounded = roundToNearestFifteenMin(this.value);
         if (rounded !== this.value) {
           this.value = rounded;
         }
@@ -388,6 +417,7 @@
 
     // Update timeline preview
     function updateTimelinePreview() {
+      
       if (!hallSelect.value || !dateInput.value) {
         hasConflict = false;
         updateConflictNotification();
@@ -410,6 +440,10 @@
       // Check for conflicts
       hasConflict = false;
       currentSchedule.forEach(block => {
+        // Skip the current screening in edit mode
+        if (currentScreeningId && block.screeningId === currentScreeningId) {
+          return; // Don't check conflict with self
+        }
         if (previewStartSlot < block.endSlot && previewEndSlot > block.startSlot) {
           hasConflict = true;
         }
@@ -632,9 +666,13 @@
         // Clear and rebuild occupied slots set
         occupiedSlots.clear();
         
-        // Mark occupied slots
+        // Mark occupied slots (excluding current screening if editing)
         currentSchedule.forEach(block => {
-          console.log('Marking slots occupied:', block.startSlot, 'to', block.endSlot, 'for', block.movieName);
+          // Skip the current screening in edit mode
+          if (currentScreeningId && block.screeningId === currentScreeningId) {
+            return; // Don't mark this screening's slots as occupied
+          }
+
           for (let slot = block.startSlot; slot < block.endSlot; slot++) {
             occupiedSlots.add(slot); // Track as occupied
             const slotElement = document.querySelector(`.timeline-slot[data-slot="${slot}"]`);
@@ -642,8 +680,6 @@
               slotElement.style.background = '';
               slotElement.style.backgroundColor = '#ef4444';
               slotElement.title = `${block.movieName} (${block.displayStart} - ${block.displayEnd})`;
-            } else {
-              console.warn('Could not find slot element for slot:', slot);
             }
           }
         });

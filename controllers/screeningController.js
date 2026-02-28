@@ -86,11 +86,13 @@ async function createScreening(screeningData) {
   // Convert to proper types
   if (screeningData.price) screeningData.price = parseFloat(screeningData.price);
   
-  // Combine date and time into startDateTime
+  // Combine date and time into startDateTime - use local timezone
   if (screeningData.date && screeningData.startTime) {
     const dateStr = screeningData.date;
     const timeStr = screeningData.startTime;
-    screeningData.startDateTime = new Date(`${dateStr}T${timeStr}:00`);
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    screeningData.startDateTime = new Date(year, month - 1, day, hours, minutes, 0);
   }
 
   // Fetch movie to get duration
@@ -464,20 +466,13 @@ async function getHallSchedule(hallId, date) {
     nextDayNoon
   });
   
-  // Find all screenings for this hall that overlap with the target date range
+  // Find all screenings for this hall that overlap with the displayed timeline
+  // Timeline shows: [dayStart to nextDayNoon] (selected date + next morning)
+  // A screening overlaps if: it starts before timeline ends AND ends after timeline starts
   const screenings = await collectionScreening.find({
     hallId: new ObjectId(hallId),
-    $or: [
-      // Screenings that start on the target date
-      { startDateTime: { $gte: dayStart, $lte: dayEnd } },
-      // Screenings from target date that bleed into next day
-      { 
-        startDateTime: { $gte: dayStart, $lte: dayEnd },
-        endDateTime: { $gte: nextDayStart, $lte: nextDayNoon }
-      },
-      // Screenings that start on next day morning
-      { startDateTime: { $gte: nextDayStart, $lte: nextDayNoon } }
-    ]
+    startDateTime: { $lt: nextDayNoon },      // Starts before end of timeline
+    endDateTime: { $gt: dayStart }            // Ends after start of timeline
   }).toArray();
   
   console.log(`Found ${screenings.length} screenings for this hall and date`);
@@ -506,18 +501,21 @@ async function getHallSchedule(hallId, date) {
     const startSlot = calculateTimeSlot(startDateTime, dayStart);
     const endSlot = calculateTimeSlot(endDateTime, dayStart);
     
-    timelineBlocks.push({
-      screeningId: screening._id,
-      movieName: movie ? movie.name : 'Unknown',
-      startDateTime: startDateTime.toISOString(),
-      endDateTime: endDateTime.toISOString(),
-      displayStart: formatTime(startDateTime),
-      displayEnd: formatTime(endDateTime),
-      startSlot,
-      endSlot,
-      price: screening.price,
-      status: screening.status
-    });
+    // Only include if the screening has at least some overlap with visible timeline (slots 0-143)
+    if (endSlot > 0 && startSlot < 144) {
+      timelineBlocks.push({
+        screeningId: screening._id.toString(),
+        movieName: movie ? movie.name : 'Unknown',
+        startDateTime: startDateTime.toISOString(),
+        endDateTime: endDateTime.toISOString(),
+        displayStart: formatTime(startDateTime),
+        displayEnd: formatTime(endDateTime),
+        startSlot: Math.max(0, startSlot),     // Clamp to visible range
+        endSlot: Math.min(144, endSlot),       // Clamp to visible range
+        price: screening.price,
+        status: screening.status
+      });
+    }
   }
   
   return timelineBlocks;

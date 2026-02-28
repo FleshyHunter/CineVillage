@@ -171,11 +171,12 @@ router.get("/edit/:id", async (req, res) => {
     screening.hallId = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
   }
 
-  // Extract date and time from startDateTime
+  // Extract date and time from startDateTime using local timezone
   if (screening.startDateTime) {
     const date = new Date(screening.startDateTime);
-    screening.date = date.toISOString().split('T')[0];
-    screening.startTime = date.toTimeString().slice(0, 5);
+    // Use local timezone methods to avoid UTC conversion issues
+    screening.date = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    screening.startTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   }
 
   res.render("screenings/screeningForm", {
@@ -263,11 +264,8 @@ router.get("/:id", async (req, res) => {
     screening.hallId = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
   }
 
-  res.render('screenings/screeningDetails', { 
-    title: "Screenings", 
-    isEdit: false, 
-    screening 
-  });
+  // Redirect to screenings list (no detail view exists)
+  res.redirect('/screenings');
 });
 
 module.exports = router;
