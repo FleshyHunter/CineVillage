@@ -11,7 +11,7 @@
     <% } %>
 
     <div class="movie-detail-container">
-      <form id="screeningForm" action="<%= isEdit ? '/screenings/edit/' + screening._id : '/screenings/create' %>" method="POST"
+      <form id="screeningForm" action="<%= isEdit ? '/screenings/edit/' + screening._id + '?returnTo=' + encodeURIComponent((typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/screenings') : '/screenings/create' %>" method="POST"
         style="display: contents;">
 
         <!-- Left Side: Movie Preview -->
@@ -246,7 +246,7 @@
 
           <!-- Action Buttons -->
           <div class="movie-detail-actions">
-            <a href="/screenings" class="btn btn-secondary">
+            <a href="<%= (typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/screenings' %>" class="btn btn-secondary">
               ← Back to Screenings
             </a>
             <button type="submit" id="submitBtn" class="btn btn-primary">

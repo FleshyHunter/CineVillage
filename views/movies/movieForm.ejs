@@ -109,7 +109,6 @@
               <label for="status" class="form-label">Status</label>
               <select id="status" name="status" class="form-control">
                 <option value="">Select</option>
-                <option value="New" <%=movie && movie.status==='New' ? 'selected' : '' %>>New</option>
                 <option value="Now Showing" <%=movie && movie.status==='Now Showing' ? 'selected' : '' %>>Now Showing</option>
                 <option value="Coming Soon" <%=movie && movie.status==='Coming Soon' ? 'selected' : '' %>>Coming Soon</option>
                 <option value="Discontinued" <%=movie && movie.status==='Discontinued' ? 'selected' : '' %>>Discontinued</option>

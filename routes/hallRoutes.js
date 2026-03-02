@@ -85,6 +85,7 @@ router.get("/edit/:id", async (req, res) => {
 });
 
 // POST update
+
 router.post("/edit/:id", upload.single("picture"), async (req, res) => {
   try {
     await initDBIfNecessary();

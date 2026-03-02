@@ -32,14 +32,18 @@ function setEditMode(mode) {
 }
 
 function generateSeats() {
-  const rows = parseInt(document.getElementById('rows').value) || 0;
-  const columns = parseInt(document.getElementById('columns').value) || 0;
+  const rows = Math.min((parseInt(document.getElementById('rows').value) || 0), 20);
+  const columns = Math.min((parseInt(document.getElementById('columns').value) || 0), 17);
   const wingColumns = parseInt(document.getElementById('wingColumns').value) || 0;
+
+
 
   if (rows === 0 || columns === 0) {
     document.getElementById('seatGrid').innerHTML = '<p style="color: var(--text-muted); text-align: center;">Enter rows and columns to see layout preview</p>';
     return;
   }
+
+  
 
   const seatGrid = document.getElementById('seatGrid');
   seatGrid.innerHTML = '';

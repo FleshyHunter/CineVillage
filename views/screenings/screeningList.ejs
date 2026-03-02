@@ -39,9 +39,9 @@
             </div>
             
             <!-- Search and Sort - only visible when Movie tab is active -->
-            <div id="movieSearchSort" style="display: <%= activeView === 'movie' ? 'flex' : 'none' %>; gap: 12px; align-items: center; margin-left: 16px;">
+            <div id="movieSearchSort" style="display: <%= activeView === 'movie' ? 'flex' : 'none' %>; gap: 10px; align-items: center; margin-left: 12px;">
                 <!-- Search Bar -->
-                <div class="search-box">
+                <div class="search-box" style="max-width: 150px !important; min-width: 0 !important; flex: 0 0 auto;">
                     <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
                     </svg>
@@ -49,12 +49,12 @@
                         type="text" 
                         id="movieSearchInput" 
                         class="search-input" 
-                        placeholder="Search movies..."
+                        placeholder="Search..."
                     >
                 </div>
 
                 <!-- Sort By -->
-                <div class="filter-dropdown">
+                <div class="filter-dropdown" style="min-width: 60px !important;">
                     <select id="movieSortFilter" class="filter-select">
                         <option value="none">Sort By</option>
                         <option value="nameAZ">Name (A-Z)</option>
@@ -64,7 +64,7 @@
             </div>
 
             <!-- All view filters - only visible when All tab is active -->
-            <div id="allFilters" style="display: <%= activeView === 'all' ? 'flex' : 'none' %>; gap: 12px; align-items: center;">
+            <div id="allFilters" style="display: <%= (activeView === 'all' || activeView === 'completed') ? 'flex' : 'none' %>; gap: 12px; align-items: center;">
                 <!-- Search Bar -->
                 <div class="search-box">
                     <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
@@ -83,7 +83,7 @@
                     <input 
                         type="date" 
                         id="allDateFilter" 
-                        class="filter-select"
+                        class="filter-select date-input"
                         min="<%= new Date().toISOString().split('T')[0] %>"
                         max="<%= new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0] %>"
                         placeholder="Select date"
@@ -108,6 +108,89 @@
                         <option value="none">Sort By</option>
                         <option value="earliest">Earliest First</option>
                         <option value="latest">Latest First</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Hall view filters - only visible when Hall tab is active -->
+            <div id="hallFilterButtons" class="movie-filters" style="display: <%= activeView === 'hall' ? 'flex' : 'none' %>; align-items: center; margin-bottom: 0;">
+                <button class="filter-btn active" data-filter="all">
+                    <i class="bi bi-grid-3x3-gap"></i> All
+                </button>
+                <button class="filter-btn" data-filter="Standard">
+                    <i class="bi bi-display"></i> Standard
+                </button>
+                <button class="filter-btn" data-filter="IMAX">
+                    <i class="bi bi-badge-4k"></i> IMAX
+                </button>
+                <button class="filter-btn" data-filter="VIP">
+                    <i class="bi bi-star"></i> VIP
+                </button>
+            </div>
+
+            <!-- Hall Search and Sort - only visible when Hall tab is active -->
+            <div id="hallSearchSort" style="display: <%= activeView === 'hall' ? 'flex' : 'none' %>; gap: 10px; align-items: center; margin-left: 12px;">
+                <!-- Search Bar -->
+                <div class="search-box" style="max-width: 150px !important; min-width: 0 !important; flex: 0 0 auto;">
+                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                    <input 
+                        type="text" 
+                        id="hallSearchInput" 
+                        class="search-input" 
+                        placeholder="Search..."
+                    >
+                </div>
+
+                <!-- Sort By -->
+                <div class="filter-dropdown" style="width: 250px !important;">
+                    <select id="hallSortFilter" class="filter-select">
+                        <option value="none">Sort By</option>
+                        <option value="nameAZ">Name (A-Z)</option>
+                        <option value="nameZA">Name (Z-A)</option>
+                        <option value="capacityHigh">Capacity (High-Low)</option>
+                        <option value="capacityLow">Capacity (Low-High)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Date view selector - only visible when Date tab is active -->
+            <div id="dateFilters" style="display: <%= activeView === 'date' ? 'flex' : 'none' %>; gap: 12px; align-items: center;">
+                <div class="search-box" style="max-width: 180px !important; min-width: 0 !important; flex: 0 0 auto;">
+                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                    <input 
+                        type="text" 
+                        id="dateMovieSearchInput" 
+                        class="search-input" 
+                        placeholder="Search movies..."
+                    >
+                </div>
+
+                <button id="datePrevDayBtn" class="pagination-btn" type="button">
+                    <i class="bi bi-chevron-left"></i> Previous Day
+                </button>
+
+                <div class="filter-dropdown">
+                    <input type="date" 
+                           id="dateSelector" 
+                           class="filter-select"
+                           value="<%= selectedDate %>"
+                           min="<%= new Date().toISOString().split('T')[0] %>"
+                           max="<%= new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0] %>">
+                </div>
+
+                <button id="dateNextDayBtn" class="pagination-btn" type="button">
+                    Next Day <i class="bi bi-chevron-right"></i>
+                </button>
+
+                <div class="filter-dropdown" style="width: 180px !important;">
+                    <select id="dateSortFilter" class="filter-select">
+                        <option value="none" selected>Sort By</option>
+                        <option value="nameAZ">Name (A-Z)</option>
+                        <option value="nameZA">Name (Z-A)</option>
                     </select>
                 </div>
             </div>
@@ -199,6 +282,17 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Controls for All View -->
+            <div class="pagination-container" style="margin-top: 24px;">
+                <button id="allPrevPage" class="pagination-btn" disabled>
+                    <i class="bi bi-chevron-left"></i> Previous
+                </button>
+                <div id="allPageNumbers" class="page-numbers"></div>
+                <button id="allNextPage" class="pagination-btn">
+                    Next <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
         <% } else { %>
             <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
                 <i class="bi bi-film" style="font-size: 64px; opacity: 0.3;"></i>
@@ -214,13 +308,13 @@
     <!-- COMPLETED VIEW: Table of completed screenings -->
     <div id="completedView" class="view-section" style="display: <%= activeView === 'completed' ? 'block' : 'none' %>;">
         <% if (completedScreenings && completedScreenings.length > 0) { %>
-            <div class="table-responsive" style="margin-top: 24px;">
-                <table class="table" style="color: var(--text-main);">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover">
                     <thead>
-                        <tr style="border-bottom: 2px solid var(--text-muted);">
+                        <tr>
                             <th>Date</th>
                             <th>Time</th>
-                            <th>Movie</th>
+                            <th>Name</th>
                             <th>Hall</th>
                             <th>Price</th>
                             <th>Status</th>
@@ -229,7 +323,7 @@
                     </thead>
                     <tbody>
                         <% completedScreenings.forEach(screening => { %>
-                            <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
+                            <tr>
                                 <td>
                                     <% if (screening.startDateTime) { %>
                                         <%= new Date(screening.startDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) %>
@@ -262,7 +356,9 @@
                                 <td>$<%= screening.price ? screening.price.toFixed(2) : '0.00' %></td>
                                 <td>
                                     <span class="badge" style="
-                                        background-color: #6b7280;
+                                        background-color: <%= screening.status === 'scheduled' ? '#3b82f6' : 
+                                                            screening.status === 'ongoing' ? '#22c55e' : 
+                                                            screening.status === 'completed' ? '#6b7280' : '#ef4444' %>;
                                         color: white;
                                         padding: 4px 12px;
                                         border-radius: 12px;
@@ -272,8 +368,8 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="/screenings/<%= screening._id %>" class="btn btn-sm btn-secondary" style="margin-right: 8px;">
-                                        View
+                                    <a href="/screenings/edit/<%= screening._id %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
+                                        Edit
                                     </a>
                                     <form action="/screenings/delete/<%= screening._id %>" method="POST" style="display: inline;"
                                           onsubmit="return confirm('Are you sure you want to delete this screening?');">
@@ -287,11 +383,22 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Controls for Completed View -->
+            <div class="pagination-container" style="margin-top: 24px;">
+                <button id="completedPrevPage" class="pagination-btn" disabled>
+                    <i class="bi bi-chevron-left"></i> Previous
+                </button>
+                <div id="completedPageNumbers" class="page-numbers"></div>
+                <button id="completedNextPage" class="pagination-btn">
+                    Next <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
         <% } else { %>
             <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
                 <i class="bi bi-check-circle" style="font-size: 64px; opacity: 0.3;"></i>
                 <h4 style="margin-top: 20px;">No completed screenings</h4>
-                <p>Screenings marked as completed will appear here</p>
+                <p>Screenings with end time before current time will appear here</p>
             </div>
         <% } %>
     </div>
@@ -340,6 +447,17 @@
                     </a>
                 <% }); %>
             </div>
+
+            <!-- Pagination Controls for Movie View -->
+            <div class="pagination-container" style="margin-top: 24px;">
+                <button id="moviePrevPage" class="pagination-btn" disabled>
+                    <i class="bi bi-chevron-left"></i> Previous
+                </button>
+                <div id="moviePageNumbers" class="page-numbers"></div>
+                <button id="movieNextPage" class="pagination-btn">
+                    Next <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
         <% } else { %>
             <div style="text-align: center; padding: 60px 20px; color: var(--text-muted); margin-top: 24px;">
                 <i class="bi bi-film" style="font-size: 64px; opacity: 0.3;"></i>
@@ -351,12 +469,16 @@
     <!-- HALL VIEW: Grid of halls -->
     <div id="hallView" class="view-section" style="display: <%= activeView === 'hall' ? 'block' : 'none' %>;">
         <% if (halls && halls.length > 0) { %>
-            <div class="movies-grid" style="margin-top: 24px;">
+            <div class="movies-grid" id="hallCardsGrid" style="margin-top: 24px;">
                 <% halls.forEach(hall => { %>
-                    <a href="/screenings/hall/<%= hall._id %>" class="movie-card-link">
+                    <a href="/screenings/hall/<%= hall._id %>" 
+                       class="movie-card-link hall-card-link" 
+                       data-type="<%= hall.type || 'all' %>"
+                       data-name="<%= hall.name ? hall.name.toLowerCase() : '' %>"
+                       data-capacity="<%= hall.capacity || 0 %>">
                         <div class="movie-card card">
                             <div class="movie-card-img-wrapper">
-                                <img src="<%= hall.pictureUrl || '/images/placeholder.jpg' %>" alt="<%= hall.name %>"
+                                <img src="<%= hall.pictureUrl || '/images/hallPlaceHolder.jpg' %>" alt="<%= hall.name %>"
                                     class="movie-card-img">
                                 <% if (hall.type) { %>
                                     <div class="age-badge"><%= hall.type %></div>
@@ -377,6 +499,17 @@
                     </a>
                 <% }); %>
             </div>
+
+            <!-- Pagination Controls for Hall View -->
+            <div class="pagination-container" style="margin-top: 24px;">
+                <button id="hallPrevPage" class="pagination-btn" disabled>
+                    <i class="bi bi-chevron-left"></i> Previous
+                </button>
+                <div id="hallPageNumbers" class="page-numbers"></div>
+                <button id="hallNextPage" class="pagination-btn">
+                    Next <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
         <% } else { %>
             <div style="text-align: center; padding: 60px 20px; color: var(--text-muted); margin-top: 24px;">
                 <i class="bi bi-building" style="font-size: 64px; opacity: 0.3;"></i>
@@ -388,22 +521,11 @@
     <!-- DATE VIEW: Date selector + movie cards -->
     <!-- DATE VIEW: Select date to view screenings -->
     <div id="dateView" class="view-section" style="display: <%= activeView === 'date' ? 'block' : 'none' %>;">
-        <div style="margin: 24px 0; max-width: 400px;">
-            <label for="dateSelector" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">SELECT DATE</label>
-            <input type="date" 
-                   id="dateSelector" 
-                   class="form-control" 
-                   value="<%= selectedDate %>"
-                   min="<%= new Date().toISOString().split('T')[0] %>"
-                   max="<%= new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0] %>"
-                   style="font-size: 16px; padding: 12px;">
-        </div>
-
         <div id="dateMoviesContainer">
             <% if (dateMovies && dateMovies.length > 0) { %>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+                <div id="dateCardsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
                     <% dateMovies.forEach(movie => { %>
-                        <div class="movie-card card" style="height: 100%; display: flex; flex-direction: column;">
+                        <div class="movie-card card" data-name="<%= movie.name.toLowerCase() %>" style="height: 650px; display: flex; flex-direction: column;">
                             <div class="movie-card-img-wrapper" style="position: relative;">
                                 <img src="<%= movie.pictureUrl || '/images/placeholder.jpg' %>" 
                                      alt="<%= movie.name %>"
@@ -436,14 +558,15 @@
                                             
                                             <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                                                 <% movie.screeningsByHallType[hallType].forEach(screening => { %>
-                                                    <div style="background-color: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s;"
-                                                         onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'; this.style.transform='scale(1.05)'"
-                                                         onmouseout="this.style.backgroundColor='rgba(59, 130, 246, 0.1)'; this.style.transform='scale(1)'"
-                                                         title="<%= screening.hallName %>">
+                                                    <a href="/screenings/edit/<%= screening.screeningId %>?returnTo=<%= encodeURIComponent('/screenings?view=date&date=' + selectedDate) %>"
+                                                       style="background-color: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s; text-decoration: none; display: inline-block;"
+                                                       onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'; this.style.transform='scale(1.05)'"
+                                                       onmouseout="this.style.backgroundColor='rgba(59, 130, 246, 0.1)'; this.style.transform='scale(1)'"
+                                                       title="Edit screening in <%= screening.hallName %>">
                                                         <span style="color: #3b82f6; font-size: 13px; font-weight: 600;">
                                                             <%= screening.time %>
                                                         </span>
-                                                    </div>
+                                                    </a>
                                                 <% }); %>
                                             </div>
                                         </div>
@@ -452,6 +575,17 @@
                             </div>
                         </div>
                     <% }); %>
+                </div>
+
+                <!-- Pagination Controls for Date View -->
+                <div class="pagination-container" style="margin-top: 24px;">
+                    <button id="datePrevPage" class="pagination-btn" disabled>
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </button>
+                    <div id="datePageNumbers" class="page-numbers"></div>
+                    <button id="dateNextPage" class="pagination-btn">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
                 </div>
             <% } else { %>
                 <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
@@ -467,9 +601,16 @@
     const filterBtns = document.querySelectorAll('.filter-btn[data-view]');
     const viewSections = document.querySelectorAll('.view-section');
     const dateSelector = document.getElementById('dateSelector');
+    const dateMovieSearchInput = document.getElementById('dateMovieSearchInput');
+    const datePrevDayBtn = document.getElementById('datePrevDayBtn');
+    const dateNextDayBtn = document.getElementById('dateNextDayBtn');
+    const dateSortFilter = document.getElementById('dateSortFilter');
     const movieFilterButtons = document.getElementById('movieFilterButtons');
     const movieSearchSort = document.getElementById('movieSearchSort');
     const allFilters = document.getElementById('allFilters');
+    const hallFilterButtons = document.getElementById('hallFilterButtons');
+    const hallSearchSort = document.getElementById('hallSearchSort');
+    const dateFilters = document.getElementById('dateFilters');
 
     // Tab switching
     filterBtns.forEach(btn => {
@@ -486,7 +627,20 @@
             
             // Show/hide all view filters based on view
             if (allFilters) {
-                allFilters.style.display = view === 'all' ? 'flex' : 'none';
+                allFilters.style.display = (view === 'all' || view === 'completed') ? 'flex' : 'none';
+            }
+            
+            // Show/hide hall filter buttons and search/sort based on view
+            if (hallFilterButtons) {
+                hallFilterButtons.style.display = view === 'hall' ? 'flex' : 'none';
+            }
+            if (hallSearchSort) {
+                hallSearchSort.style.display = view === 'hall' ? 'flex' : 'none';
+            }
+
+            // Show/hide date selector based on view
+            if (dateFilters) {
+                dateFilters.style.display = view === 'date' ? 'flex' : 'none';
             }
             
             // Update active button
@@ -502,10 +656,48 @@
     });
 
     // Date selector change - use traditional navigation instead of API
+    function navigateToDate(selectedDate) {
+        window.location.href = '/screenings?view=date&date=' + selectedDate;
+    }
+
+    function formatDateForInput(dateObj) {
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function shiftDateBy(days) {
+        if (!dateSelector || !dateSelector.value) return;
+        const [year, month, day] = dateSelector.value.split('-').map(Number);
+        const nextDateObj = new Date(year, month - 1, day);
+        nextDateObj.setDate(nextDateObj.getDate() + days);
+        const nextDate = formatDateForInput(nextDateObj);
+
+        const minDate = dateSelector.min;
+        const maxDate = dateSelector.max;
+        if ((minDate && nextDate < minDate) || (maxDate && nextDate > maxDate)) return;
+
+        dateSelector.value = nextDate;
+        navigateToDate(nextDate);
+    }
+
     if (dateSelector) {
         dateSelector.addEventListener('change', function() {
             const selectedDate = this.value;
-            window.location.href = '/screenings?view=date&date=' + selectedDate;
+            navigateToDate(selectedDate);
+        });
+    }
+
+    if (datePrevDayBtn) {
+        datePrevDayBtn.addEventListener('click', function() {
+            shiftDateBy(-1);
+        });
+    }
+
+    if (dateNextDayBtn) {
+        dateNextDayBtn.addEventListener('click', function() {
+            shiftDateBy(1);
         });
     }
 
@@ -514,6 +706,13 @@
     const movieCards = Array.from(document.querySelectorAll('#movieView .movie-card-link'));
     const movieSearchInput = document.getElementById('movieSearchInput');
     const movieSortFilter = document.getElementById('movieSortFilter');
+    
+    // Movie pagination
+    const moviePrevPageBtn = document.getElementById('moviePrevPage');
+    const movieNextPageBtn = document.getElementById('movieNextPage');
+    const moviePageNumbersDiv = document.getElementById('moviePageNumbers');
+    let movieCurrentPage = 1;
+    const movieItemsPerPage = 20;
     
     let activeMovieFilter = 'all';
 
@@ -524,6 +723,7 @@
                 movieFilterBtns.forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 activeMovieFilter = this.getAttribute('data-filter');
+                movieCurrentPage = 1;
                 applyMovieFiltersAndSort();
             });
         });
@@ -531,12 +731,35 @@
 
     // Movie search input
     if (movieSearchInput) {
-        movieSearchInput.addEventListener('input', applyMovieFiltersAndSort);
+        movieSearchInput.addEventListener('input', function() {
+            movieCurrentPage = 1;
+            applyMovieFiltersAndSort();
+        });
     }
 
     // Movie sort filter
     if (movieSortFilter) {
-        movieSortFilter.addEventListener('change', applyMovieFiltersAndSort);
+        movieSortFilter.addEventListener('change', function() {
+            movieCurrentPage = 1;
+            applyMovieFiltersAndSort();
+        });
+    }
+
+    // Movie pagination buttons
+    if (moviePrevPageBtn) {
+        moviePrevPageBtn.addEventListener('click', function() {
+            if (movieCurrentPage > 1) {
+                movieCurrentPage--;
+                applyMovieFiltersAndSort();
+            }
+        });
+    }
+
+    if (movieNextPageBtn) {
+        movieNextPageBtn.addEventListener('click', function() {
+            movieCurrentPage++;
+            applyMovieFiltersAndSort();
+        });
     }
 
     function applyMovieFiltersAndSort() {
@@ -568,9 +791,38 @@
             });
         }
         
+        // Pagination
+        const totalPages = Math.ceil(filteredCards.length / movieItemsPerPage);
+        const startIndex = (movieCurrentPage - 1) * movieItemsPerPage;
+        const endIndex = startIndex + movieItemsPerPage;
+        const paginatedCards = filteredCards.slice(startIndex, endIndex);
+        
+        // Update pagination controls
+        if (moviePrevPageBtn) moviePrevPageBtn.disabled = movieCurrentPage === 1;
+        if (movieNextPageBtn) movieNextPageBtn.disabled = movieCurrentPage === totalPages || totalPages === 0;
+        
+        if (moviePageNumbersDiv) {
+            moviePageNumbersDiv.innerHTML = '';
+            if (totalPages > 0) {
+                const pageInfo = document.createElement('span');
+                pageInfo.className = 'page-info';
+                pageInfo.textContent = `Page ${movieCurrentPage} of ${totalPages}`;
+                moviePageNumbersDiv.appendChild(pageInfo);
+            }
+        }
+        
         // Display
+        const moviesGrid = document.querySelector('#movieCardsGrid');
         movieCards.forEach(card => card.style.display = 'none');
-        filteredCards.forEach(card => card.style.display = 'block');
+        paginatedCards.forEach(card => {
+            if (moviesGrid) moviesGrid.appendChild(card);
+            card.style.display = 'block';
+        });
+        
+        // Scroll to top
+        if (moviesGrid && movieCurrentPage > 1) {
+            moviesGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
     // All View: Search and Filter functionality
@@ -579,6 +831,13 @@
     const allHallFilter = document.getElementById('allHallFilter');
     const allSortFilter = document.getElementById('allSortFilter');
     const allTableRows = Array.from(document.querySelectorAll('#allView tbody tr'));
+    
+    // All view pagination
+    const allPrevPageBtn = document.getElementById('allPrevPage');
+    const allNextPageBtn = document.getElementById('allNextPage');
+    const allPageNumbersDiv = document.getElementById('allPageNumbers');
+    let allCurrentPage = 1;
+    const allItemsPerPage = 15;
 
     function applyAllFilters() {
         const searchTerm = allSearchInput ? allSearchInput.value.toLowerCase() : '';
@@ -683,26 +942,487 @@
             visibleRows.forEach(row => tbody.appendChild(row));
         }
 
-        // Show all visible rows
-        allTableRows.forEach(row => {
-            if (row.dataset.visible === 'true') {
-                row.style.display = '';
+        // Get visible rows after sorting
+        const visibleRows = allTableRows.filter(row => row.dataset.visible === 'true');
+        
+        // Pagination
+        const totalPages = Math.ceil(visibleRows.length / allItemsPerPage);
+        const startIndex = (allCurrentPage - 1) * allItemsPerPage;
+        const endIndex = startIndex + allItemsPerPage;
+        const paginatedRows = visibleRows.slice(startIndex, endIndex);
+        
+        // Update pagination controls
+        if (allPrevPageBtn) allPrevPageBtn.disabled = allCurrentPage === 1;
+        if (allNextPageBtn) allNextPageBtn.disabled = allCurrentPage === totalPages || totalPages === 0;
+        
+        if (allPageNumbersDiv) {
+            allPageNumbersDiv.innerHTML = '';
+            if (totalPages > 0) {
+                const pageInfo = document.createElement('span');
+                pageInfo.className = 'page-info';
+                pageInfo.textContent = `Page ${allCurrentPage} of ${totalPages}`;
+                allPageNumbersDiv.appendChild(pageInfo);
+            }
+        }
+
+        // Display paginated rows
+        allTableRows.forEach(row => row.style.display = 'none');
+        paginatedRows.forEach(row => row.style.display = '');
+        
+        // Scroll to top if not on first page
+        if (allCurrentPage > 1) {
+            const allView = document.getElementById('allView');
+            if (allView) allView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    // Attach event listeners for All/Completed shared filters
+    if (allSearchInput) {
+        allSearchInput.addEventListener('input', function() {
+            allCurrentPage = 1;
+            completedCurrentPage = 1;
+            applyAllFilters();
+            applyCompletedFilters();
+        });
+    }
+    if (allDateFilter) {
+        allDateFilter.addEventListener('change', function() {
+            allCurrentPage = 1;
+            completedCurrentPage = 1;
+            applyAllFilters();
+            applyCompletedFilters();
+        });
+    }
+    if (allHallFilter) {
+        allHallFilter.addEventListener('change', function() {
+            allCurrentPage = 1;
+            completedCurrentPage = 1;
+            applyAllFilters();
+            applyCompletedFilters();
+        });
+    }
+    if (allSortFilter) {
+        allSortFilter.addEventListener('change', function() {
+            allCurrentPage = 1;
+            completedCurrentPage = 1;
+            applyAllFilters();
+            applyCompletedFilters();
+        });
+    }
+
+    // All view pagination buttons
+    if (allPrevPageBtn) {
+        allPrevPageBtn.addEventListener('click', function() {
+            if (allCurrentPage > 1) {
+                allCurrentPage--;
+                applyAllFilters();
             }
         });
     }
 
-    // Attach event listeners for All view filters
-    if (allSearchInput) {
-        allSearchInput.addEventListener('input', applyAllFilters);
+    if (allNextPageBtn) {
+        allNextPageBtn.addEventListener('click', function() {
+            allCurrentPage++;
+            applyAllFilters();
+        });
     }
-    if (allDateFilter) {
-        allDateFilter.addEventListener('change', applyAllFilters);
+
+    // Completed view filters + pagination (same filter set as All view)
+    const completedTableRows = Array.from(document.querySelectorAll('#completedView tbody tr'));
+    const completedPrevPageBtn = document.getElementById('completedPrevPage');
+    const completedNextPageBtn = document.getElementById('completedNextPage');
+    const completedPageNumbersDiv = document.getElementById('completedPageNumbers');
+    let completedCurrentPage = 1;
+    const completedItemsPerPage = 20;
+
+    function applyCompletedFilters() {
+        const searchTerm = allSearchInput ? allSearchInput.value.toLowerCase() : '';
+        const selectedDate = allDateFilter ? allDateFilter.value : '';
+        const selectedHall = allHallFilter ? allHallFilter.value : '';
+        const sortValue = allSortFilter ? allSortFilter.value : 'none';
+
+        completedTableRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 6) {
+                row.style.display = '';
+                return;
+            }
+
+            const dateText = cells[0].textContent.trim();
+            const movieName = cells[2].textContent.trim().toLowerCase();
+            const hallName = cells[3].textContent.trim();
+
+            const searchMatch = !searchTerm || movieName.includes(searchTerm);
+
+            let dateMatch = true;
+            if (selectedDate) {
+                const dateParts = dateText.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
+                if (dateParts) {
+                    const months = {
+                        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+                        'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+                        'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+                    };
+                    const day = dateParts[1].padStart(2, '0');
+                    const month = months[dateParts[2]];
+                    const year = dateParts[3];
+                    const rowDateString = `${year}-${month}-${day}`;
+                    dateMatch = rowDateString === selectedDate;
+                } else {
+                    dateMatch = false;
+                }
+            }
+
+            const hallMatch = !selectedHall || hallName === selectedHall;
+
+            if (searchMatch && dateMatch && hallMatch) {
+                row.dataset.visible = 'true';
+            } else {
+                row.dataset.visible = 'false';
+                row.style.display = 'none';
+            }
+        });
+
+        if (sortValue !== 'none') {
+            const tbody = document.querySelector('#completedView tbody');
+            const visibleRows = completedTableRows.filter(row => row.dataset.visible === 'true');
+
+            visibleRows.sort((a, b) => {
+                const timeA = a.querySelectorAll('td')[1].textContent.trim().split(' - ')[0];
+                const timeB = b.querySelectorAll('td')[1].textContent.trim().split(' - ')[0];
+                const dateA = a.querySelectorAll('td')[0].textContent.trim();
+                const dateB = b.querySelectorAll('td')[0].textContent.trim();
+
+                const parseDateStr = (dateStr) => {
+                    const parts = dateStr.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
+                    if (parts) {
+                        const months = {
+                            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3,
+                            'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7,
+                            'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+                        };
+                        return new Date(parts[3], months[parts[2]], parts[1]);
+                    }
+                    return new Date(0);
+                };
+
+                const fullDateA = parseDateStr(dateA);
+                const fullDateB = parseDateStr(dateB);
+
+                if (timeA !== 'N/A') {
+                    const [hours, minutes] = timeA.split(':');
+                    fullDateA.setHours(parseInt(hours), parseInt(minutes));
+                }
+                if (timeB !== 'N/A') {
+                    const [hours, minutes] = timeB.split(':');
+                    fullDateB.setHours(parseInt(hours), parseInt(minutes));
+                }
+
+                if (sortValue === 'earliest') {
+                    return fullDateA - fullDateB;
+                } else if (sortValue === 'latest') {
+                    return fullDateB - fullDateA;
+                }
+                return 0;
+            });
+
+            visibleRows.forEach(row => tbody.appendChild(row));
+        }
+
+        const visibleRows = completedTableRows.filter(row => row.dataset.visible === 'true');
+        const totalPages = Math.ceil(visibleRows.length / completedItemsPerPage);
+        const startIndex = (completedCurrentPage - 1) * completedItemsPerPage;
+        const endIndex = startIndex + completedItemsPerPage;
+        const paginatedRows = visibleRows.slice(startIndex, endIndex);
+        
+        // Update pagination controls
+        if (completedPrevPageBtn) completedPrevPageBtn.disabled = completedCurrentPage === 1;
+        if (completedNextPageBtn) completedNextPageBtn.disabled = completedCurrentPage === totalPages || totalPages === 0;
+        
+        if (completedPageNumbersDiv) {
+            completedPageNumbersDiv.innerHTML = '';
+            if (totalPages > 0) {
+                const pageInfo = document.createElement('span');
+                pageInfo.className = 'page-info';
+                pageInfo.textContent = `Page ${completedCurrentPage} of ${totalPages}`;
+                completedPageNumbersDiv.appendChild(pageInfo);
+            }
+        }
+        
+        // Display paginated rows
+        completedTableRows.forEach(row => row.style.display = 'none');
+        paginatedRows.forEach(row => row.style.display = '');
+        
+        // Scroll to top if not on first page
+        if (completedCurrentPage > 1) {
+            const completedView = document.getElementById('completedView');
+            if (completedView) completedView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
-    if (allHallFilter) {
-        allHallFilter.addEventListener('change', applyAllFilters);
+
+    // Completed view pagination buttons
+    if (completedPrevPageBtn) {
+        completedPrevPageBtn.addEventListener('click', function() {
+            if (completedCurrentPage > 1) {
+                completedCurrentPage--;
+                applyCompletedFilters();
+            }
+        });
     }
-    if (allSortFilter) {
-        allSortFilter.addEventListener('change', applyAllFilters);
+
+    if (completedNextPageBtn) {
+        completedNextPageBtn.addEventListener('click', function() {
+            const visibleRows = completedTableRows.filter(row => row.dataset.visible === 'true');
+            const totalPages = Math.ceil(visibleRows.length / completedItemsPerPage);
+            if (completedCurrentPage < totalPages) {
+                completedCurrentPage++;
+                applyCompletedFilters();
+            }
+        });
+    }
+
+    // Initialize pagination on page load
+    if (completedTableRows.length > 0) {
+        applyCompletedFilters();
+    }
+    if (allTableRows.length > 0) {
+        applyAllFilters();
+    }
+    if (movieCards.length > 0) {
+        applyMovieFiltersAndSort();
+    }
+
+    // Hall view: Filter, Search, and Sort functionality
+    const hallFilterBtns = document.querySelectorAll('#hallFilterButtons .filter-btn');
+    const hallCards = Array.from(document.querySelectorAll('#hallView .hall-card-link'));
+    const hallSearchInput = document.getElementById('hallSearchInput');
+    const hallSortFilter = document.getElementById('hallSortFilter');
+    
+    // Hall pagination
+    const hallPrevPageBtn = document.getElementById('hallPrevPage');
+    const hallNextPageBtn = document.getElementById('hallNextPage');
+    const hallPageNumbersDiv = document.getElementById('hallPageNumbers');
+    let hallCurrentPage = 1;
+    const hallItemsPerPage = 20;
+    
+    let activeHallFilter = 'all';
+
+    // Hall type filter buttons
+    if (hallFilterBtns.length > 0) {
+        hallFilterBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                hallFilterBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                activeHallFilter = this.getAttribute('data-filter');
+                hallCurrentPage = 1;
+                applyHallFiltersAndSort();
+            });
+        });
+    }
+
+    // Hall search input
+    if (hallSearchInput) {
+        hallSearchInput.addEventListener('input', function() {
+            hallCurrentPage = 1;
+            applyHallFiltersAndSort();
+        });
+    }
+
+    // Hall sort filter
+    if (hallSortFilter) {
+        hallSortFilter.addEventListener('change', function() {
+            hallCurrentPage = 1;
+            applyHallFiltersAndSort();
+        });
+    }
+
+    // Hall pagination buttons
+    if (hallPrevPageBtn) {
+        hallPrevPageBtn.addEventListener('click', function() {
+            if (hallCurrentPage > 1) {
+                hallCurrentPage--;
+                applyHallFiltersAndSort();
+            }
+        });
+    }
+
+    if (hallNextPageBtn) {
+        hallNextPageBtn.addEventListener('click', function() {
+            hallCurrentPage++;
+            applyHallFiltersAndSort();
+        });
+    }
+
+    function applyHallFiltersAndSort() {
+        const searchTerm = hallSearchInput ? hallSearchInput.value.toLowerCase() : '';
+        const sortValue = hallSortFilter ? hallSortFilter.value : 'none';
+        
+        // Filter
+        let filteredCards = hallCards.filter(card => {
+            const type = card.getAttribute('data-type');
+            const name = card.getAttribute('data-name');
+            
+            const typeMatch = activeHallFilter === 'all' || type === activeHallFilter;
+            const searchMatch = !searchTerm || name.includes(searchTerm);
+            
+            return typeMatch && searchMatch;
+        });
+        
+        // Sort
+        if (sortValue !== 'none') {
+            filteredCards.sort((a, b) => {
+                const nameA = a.getAttribute('data-name');
+                const nameB = b.getAttribute('data-name');
+                const capacityA = parseInt(a.getAttribute('data-capacity')) || 0;
+                const capacityB = parseInt(b.getAttribute('data-capacity')) || 0;
+                
+                switch(sortValue) {
+                    case 'nameAZ': return nameA.localeCompare(nameB);
+                    case 'nameZA': return nameB.localeCompare(nameA);
+                    case 'capacityHigh': return capacityB - capacityA;
+                    case 'capacityLow': return capacityA - capacityB;
+                    default: return 0;
+                }
+            });
+        }
+        
+        // Pagination
+        const totalPages = Math.ceil(filteredCards.length / hallItemsPerPage);
+        const startIndex = (hallCurrentPage - 1) * hallItemsPerPage;
+        const endIndex = startIndex + hallItemsPerPage;
+        const paginatedCards = filteredCards.slice(startIndex, endIndex);
+        
+        // Update pagination controls
+        if (hallPrevPageBtn) hallPrevPageBtn.disabled = hallCurrentPage === 1;
+        if (hallNextPageBtn) hallNextPageBtn.disabled = hallCurrentPage === totalPages || totalPages === 0;
+        
+        if (hallPageNumbersDiv) {
+            hallPageNumbersDiv.innerHTML = '';
+            if (totalPages > 0) {
+                const pageInfo = document.createElement('span');
+                pageInfo.className = 'page-info';
+                pageInfo.textContent = `Page ${hallCurrentPage} of ${totalPages}`;
+                hallPageNumbersDiv.appendChild(pageInfo);
+            }
+        }
+        
+        // Display
+        const hallsGrid = document.querySelector('#hallCardsGrid');
+        hallCards.forEach(card => card.style.display = 'none');
+        paginatedCards.forEach(card => {
+            if (hallsGrid) hallsGrid.appendChild(card);
+            card.style.display = 'block';
+        });
+        
+        // Scroll to top
+        if (hallsGrid && hallCurrentPage > 1) {
+            hallsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    if (hallCards.length > 0) {
+        applyHallFiltersAndSort();
+    }
+
+    // Date view pagination
+    const dateCards = Array.from(document.querySelectorAll('#dateMoviesContainer .movie-card'));
+    const datePrevPageBtn = document.getElementById('datePrevPage');
+    const dateNextPageBtn = document.getElementById('dateNextPage');
+    const datePageNumbersDiv = document.getElementById('datePageNumbers');
+    let dateCurrentPage = 1;
+    const dateItemsPerPage = 12;
+
+    function updateDatePagination() {
+        const searchTerm = dateMovieSearchInput ? dateMovieSearchInput.value.toLowerCase().trim() : '';
+        const sortValue = dateSortFilter ? dateSortFilter.value : 'none';
+        const dateCardsGrid = document.getElementById('dateCardsGrid');
+        let filteredDateCards = dateCards.filter(card => {
+            const movieName = card.getAttribute('data-name') || '';
+            return !searchTerm || movieName.includes(searchTerm);
+        });
+
+        filteredDateCards.sort((a, b) => {
+            const nameA = a.getAttribute('data-name') || '';
+            const nameB = b.getAttribute('data-name') || '';
+            if (sortValue === 'nameAZ') return nameA.localeCompare(nameB);
+            if (sortValue === 'nameZA') return nameB.localeCompare(nameA);
+            return 0;
+        });
+
+        const totalPages = Math.ceil(filteredDateCards.length / dateItemsPerPage);
+        if (dateCurrentPage > Math.max(1, totalPages)) {
+            dateCurrentPage = 1;
+        }
+        const startIndex = (dateCurrentPage - 1) * dateItemsPerPage;
+        const endIndex = startIndex + dateItemsPerPage;
+        const paginatedDateCards = filteredDateCards.slice(startIndex, endIndex);
+        
+        // Update pagination controls
+        if (datePrevPageBtn) datePrevPageBtn.disabled = dateCurrentPage === 1;
+        if (dateNextPageBtn) dateNextPageBtn.disabled = dateCurrentPage === totalPages || totalPages === 0;
+        
+        if (datePageNumbersDiv) {
+            datePageNumbersDiv.innerHTML = '';
+            if (totalPages > 0) {
+                const pageInfo = document.createElement('span');
+                pageInfo.className = 'page-info';
+                pageInfo.textContent = `Page ${dateCurrentPage} of ${totalPages}`;
+                datePageNumbersDiv.appendChild(pageInfo);
+            }
+        }
+        
+        // Display paginated cards
+        dateCards.forEach(card => {
+            card.style.display = 'none';
+        });
+        paginatedDateCards.forEach(card => {
+            if (dateCardsGrid) dateCardsGrid.appendChild(card);
+            card.style.display = 'block';
+        });
+        
+        // Scroll to top if not on first page
+        if (dateCurrentPage > 1) {
+            const dateView = document.getElementById('dateView');
+            if (dateView) dateView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    // Date view pagination buttons
+    if (datePrevPageBtn) {
+        datePrevPageBtn.addEventListener('click', function() {
+            if (dateCurrentPage > 1) {
+                dateCurrentPage--;
+                updateDatePagination();
+            }
+        });
+    }
+
+    if (dateNextPageBtn) {
+        dateNextPageBtn.addEventListener('click', function() {
+            const totalPages = Math.ceil(dateCards.length / dateItemsPerPage);
+            if (dateCurrentPage < totalPages) {
+                dateCurrentPage++;
+                updateDatePagination();
+            }
+        });
+    }
+
+    if (dateCards.length > 0) {
+        updateDatePagination();
+    }
+
+    if (dateMovieSearchInput) {
+        dateMovieSearchInput.addEventListener('input', function() {
+            dateCurrentPage = 1;
+            updateDatePagination();
+        });
+    }
+
+    if (dateSortFilter) {
+        dateSortFilter.addEventListener('change', function() {
+            dateCurrentPage = 1;
+            updateDatePagination();
+        });
     }
 </script>
 

@@ -15,8 +15,17 @@ function roundUpTo15Min(date) {
 
 // Utility: Calculate end time with movie duration + 15 min cleaning buffer
 function calculateEndTime(startDateTime, durationMinutes) {
+  // Normalize duration to a safe numeric minute value (handles string durations from DB)
+  const parsedDuration = typeof durationMinutes === 'number'
+    ? durationMinutes
+    : parseInt(durationMinutes, 10);
+
+  if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+    throw new Error(`Invalid movie duration: ${durationMinutes}`);
+  }
+
   const endDateTime = new Date(startDateTime);
-  endDateTime.setMinutes(endDateTime.getMinutes() + durationMinutes);
+  endDateTime.setMinutes(endDateTime.getMinutes() + parsedDuration);
   
   // Round up to next 15-minute mark
   const roundedEnd = roundUpTo15Min(endDateTime);
@@ -30,6 +39,31 @@ function calculateEndTime(startDateTime, durationMinutes) {
 // Utility: Check if two time ranges overlap
 function hasTimeConflict(start1, end1, start2, end2) {
   return (start1 < end2 && end1 > start2);
+}
+
+// Utility: Parse date + time from form reliably in local timezone.
+// Supports YYYY-MM-DD (native date input) and DD/MM/YYYY (fallback text input).
+function parseLocalDateTime(dateStr, timeStr) {
+  if (!dateStr || !timeStr) {
+    return null;
+  }
+
+  let year, month, day;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    [year, month, day] = dateStr.split('-').map(Number);
+  } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+    const parts = dateStr.split('/').map(Number);
+    day = parts[0];
+    month = parts[1];
+    year = parts[2];
+  } else {
+    return null;
+  }
+
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const parsed = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 // Check for scheduling conflicts
@@ -88,11 +122,10 @@ async function createScreening(screeningData) {
   
   // Combine date and time into startDateTime - use local timezone
   if (screeningData.date && screeningData.startTime) {
-    const dateStr = screeningData.date;
-    const timeStr = screeningData.startTime;
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    screeningData.startDateTime = new Date(year, month - 1, day, hours, minutes, 0);
+    screeningData.startDateTime = parseLocalDateTime(screeningData.date, screeningData.startTime);
+    if (!screeningData.startDateTime) {
+      throw new Error("Invalid date/time format. Please select a valid date and time.");
+    }
   }
 
   // Fetch movie to get duration
@@ -297,7 +330,8 @@ async function getAllScreenings(req, res) {
         }
         byHallType[hallInfo.type].push({
           time: screening.startDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          hallName: hallInfo.name
+          hallName: hallInfo.name,
+          screeningId: screening._id.toString()
         });
       }
     });
@@ -312,10 +346,22 @@ async function getAllScreenings(req, res) {
     };
   });
 
-  // Get completed screenings (sorted by most recent first)
-  const completedScreenings = await collectionScreening.find({
-    status: 'completed'
-  }).sort({ startDateTime: -1 }).toArray();
+  // Get completed screenings based on time passed (same local Date handling as scheduling/status logic)
+  const now = new Date();
+  const completedScreenings = allScreenings
+    .filter(s => s.endDateTime && new Date(s.endDateTime) < now)
+    .sort((a, b) => new Date(b.startDateTime) - new Date(a.startDateTime));
+
+  // Ensure all screenings shown in Completed view are marked as completed
+  for (const screening of completedScreenings) {
+    if (screening.status !== 'completed') {
+      await collectionScreening.updateOne(
+        { _id: screening._id },
+        { $set: { status: 'completed' } }
+      );
+    }
+    screening.status = 'completed';
+  }
 
   // Populate movie and hall details for completed screenings
   for (let screening of completedScreenings) {
@@ -369,14 +415,13 @@ async function updateScreening(id, screeningData) {
   
   // Combine date and time into startDateTime - use local timezone
   if (screeningData.date && screeningData.startTime) {
-    const dateStr = screeningData.date;
-    const timeStr = screeningData.startTime;
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    screeningData.startDateTime = new Date(year, month - 1, day, hours, minutes, 0);
+    screeningData.startDateTime = parseLocalDateTime(screeningData.date, screeningData.startTime);
+    if (!screeningData.startDateTime) {
+      throw new Error("Invalid date/time format. Please select a valid date and time.");
+    }
     
     console.log('UPDATE - Parsed startDateTime:', {
-      input: `${dateStr} ${timeStr}`,
+      input: `${screeningData.date} ${screeningData.startTime}`,
       output: screeningData.startDateTime,
       iso: screeningData.startDateTime.toISOString()
     });
@@ -556,12 +601,16 @@ async function getHallSchedulePage(req, res) {
     await initDBIfNecessary();
     const collectionHall = getCollectionHall();
     const hall = await collectionHall.findOne({ _id: new ObjectId(req.params.hallId) });
+    const requestedDate = req.query.date;
+    const selectedDate = (typeof requestedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate))
+      ? requestedDate
+      : new Date().toISOString().split('T')[0];
     
     if (!hall) {
       return res.status(404).send("Hall not found");
     }
     
-    res.render("screenings/viewByHallSchedule", { hall, title: `${hall.name} Schedule` });
+    res.render("screenings/viewByHallSchedule", { hall, selectedDate, title: `${hall.name} Schedule` });
   } catch (error) {
     console.error('Error fetching hall:', error);
     res.status(500).send("Error fetching hall");

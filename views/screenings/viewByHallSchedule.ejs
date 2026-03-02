@@ -1,18 +1,18 @@
 
 <%- include('../layouts/header') %>
 
-<div class="container">
-    <h2 style="margin-bottom: 30px;"><%= hall.name %> - Schedule</h2>
+<div class="container" data-hall-id="<%= hall._id %>">
+    <h2 class="mb-30"><%= hall.name %> - Schedule</h2>
 
     <div class="movie-detail-container">
         <!-- Left Side: Hall Image -->
         <div class="movie-detail-poster">
             <img src="<%= hall.pictureUrl || '/images/placeholder.jpg' %>"
                 alt="<%= hall.name %>"
-                style="width: 100%; border-radius: 8px; object-fit: cover; min-height: 400px;">
-            <div style="text-align: center; margin-top: 15px;">
-                <h4 style="color: var(--text-main);"><%= hall.name %></h4>
-                <p style="color: var(--text-muted); font-size: 13px;"><%= hall.type %> | <%= hall.capacity %> seats</p>
+                class="detail-cover-img">
+            <div class="detail-meta-block detail-meta-block-center">
+                <h4 class="detail-meta-title"><%= hall.name %></h4>
+                <p class="detail-meta-subtitle"><%= hall.type %> | <%= hall.capacity %> seats</p>
             </div>
         </div>
 
@@ -21,78 +21,100 @@
             
             <!-- Date Selection -->
             <div class="form-group">
-                <label for="dateInput" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">SELECT DATE</label>
+                <label for="dateInput" class="form-label">SELECT DATE</label>
                 <input type="date" id="dateInput" class="form-control" 
-                       value="<%= new Date().toISOString().split('T')[0] %>"
+                       value="<%= selectedDate %>"
                        min="<%= new Date().toISOString().split('T')[0] %>"
                        max="<%= new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0] %>">
             </div>
 
+            <!-- Screenings List for Selected Date -->
+            <div id="selectedDateScreeningsContainer" class="selected-date-screenings">
+                <label class="form-label section-title-sm">SCREENINGS FOR SELECTED DATE</label>
+                <div class="schedule-panel">
+                    <div class="schedule-card-header">
+                        <i class="bi bi-calendar3 schedule-card-icon"></i>
+                        <h4 id="selectedDateHeading" class="schedule-card-title"></h4>
+                    </div>
+                    <div id="selectedDateScreeningsList" class="selected-date-list"></div>
+                    <div id="selectedDatePagination" class="pagination-container selected-date-pagination">
+                        <button id="selectedDatePrevPage" class="pagination-btn" disabled>
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </button>
+                        <div id="selectedDatePageNumbers" class="page-numbers"></div>
+                        <button id="selectedDateNextPage" class="pagination-btn">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            
             <!-- Hall Schedule Timeline -->
-            <div id="timelineContainer" style="margin-bottom: 24px;">
-                <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 12px; display: block;">HALL SCHEDULE</label>
-                <div style="background-color: var(--bg-card); padding: 16px; border-radius: 8px; border: 2px solid #334155;">
+            <div id="timelineContainer" class="timeline-container">
+                <label class="form-label section-title-sm">HALL SCHEDULE</label>
+                <div class="schedule-panel schedule-panel-compact">
                     
                     <!-- Legend -->
-                    <div style="display: flex; gap: 16px; margin-bottom: 12px; font-size: 11px;">
-                        <div style="display: flex; align-items: center; gap: 6px;">
-                            <div style="width: 12px; height: 12px; background: #ef4444; border-radius: 3px;"></div>
-                            <span style="color: var(--text-muted);">Occupied</span>
+                    <div class="timeline-legend">
+                        <div class="timeline-legend-item">
+                            <div class="timeline-legend-dot timeline-legend-dot-occupied"></div>
+                            <span class="timeline-legend-text">Occupied</span>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 6px;">
-                            <div style="width: 12px; height: 12px; background: #22c55e; border-radius: 3px;"></div>
-                            <span style="color: var(--text-muted);">Available</span>
+                        <div class="timeline-legend-item">
+                            <div class="timeline-legend-dot timeline-legend-dot-available"></div>
+                            <span class="timeline-legend-text">Available</span>
                         </div>
                     </div>
 
                     <!-- Timeline: First 12 hours (00:00 - 11:45) -->
-                    <div style="margin-bottom: 16px;">
-                        <div id="dateLabel1" style="color: var(--text-main); font-size: 11px; margin-bottom: 4px; font-weight: 700;"></div>
-                        <div style="color: var(--text-muted); font-size: 10px; margin-bottom: 4px; font-weight: 600;">00:00 - 11:45</div>
-                        <div id="timeline-row1" style="display: grid; grid-template-columns: repeat(48, 1fr); gap: 2px;">
+                    <div class="timeline-row-block">
+                        <div id="dateLabel1" class="timeline-date-label"></div>
+                        <div class="timeline-range-label">00:00 - 11:45</div>
+                        <div id="timeline-row1" class="timeline-grid">
                             <!-- Slots generated by JavaScript -->
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-                            <span style="color: var(--text-muted); font-size: 9px;">00:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">03:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">06:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">09:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">11:45</span>
+                        <div class="timeline-ticks">
+                            <span class="timeline-tick">00:00</span>
+                            <span class="timeline-tick">03:00</span>
+                            <span class="timeline-tick">06:00</span>
+                            <span class="timeline-tick">09:00</span>
+                            <span class="timeline-tick">11:45</span>
                         </div>
                     </div>
 
                     <!-- Timeline: Second 12 hours (12:00 - 23:45) -->
-                    <div style="margin-bottom: 16px;">
-                        <div style="color: var(--text-muted); font-size: 10px; margin-bottom: 4px; font-weight: 600;">12:00 - 23:45</div>
-                        <div id="timeline-row2" style="display: grid; grid-template-columns: repeat(48, 1fr); gap: 2px;">
+                    <div class="timeline-row-block">
+                        <div class="timeline-range-label">12:00 - 23:45</div>
+                        <div id="timeline-row2" class="timeline-grid">
                             <!-- Slots generated by JavaScript -->
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-                            <span style="color: var(--text-muted); font-size: 9px;">12:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">15:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">18:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">21:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">23:45</span>
+                        <div class="timeline-ticks">
+                            <span class="timeline-tick">12:00</span>
+                            <span class="timeline-tick">15:00</span>
+                            <span class="timeline-tick">18:00</span>
+                            <span class="timeline-tick">21:00</span>
+                            <span class="timeline-tick">23:45</span>
                         </div>
                     </div>
 
                     <!-- Timeline: Next day morning (00:00 - 11:45) -->
                     <div>
-                        <div id="dateLabel2" style="color: var(--text-main); font-size: 11px; margin-bottom: 4px; font-weight: 700;"></div>
-                        <div style="color: var(--text-muted); font-size: 10px; margin-bottom: 4px; font-weight: 600;">00:00 - 11:45</div>
-                        <div id="timeline-row3" style="display: grid; grid-template-columns: repeat(48, 1fr); gap: 2px;">
+                        <div id="dateLabel2" class="timeline-date-label"></div>
+                        <div class="timeline-range-label">00:00 - 11:45</div>
+                        <div id="timeline-row3" class="timeline-grid">
                             <!-- Slots generated by JavaScript -->
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-                            <span style="color: var(--text-muted); font-size: 9px;">00:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">03:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">06:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">09:00</span>
-                            <span style="color: var(--text-muted); font-size: 9px;">11:45</span>
+                        <div class="timeline-ticks">
+                            <span class="timeline-tick">00:00</span>
+                            <span class="timeline-tick">03:00</span>
+                            <span class="timeline-tick">06:00</span>
+                            <span class="timeline-tick">09:00</span>
+                            <span class="timeline-tick">11:45</span>
                         </div>
                     </div>
 
-                    <div id="timelineMessage" style="margin-top: 12px; color: var(--text-muted); font-size: 12px; text-align: center;">
+                    <div id="timelineMessage" class="timeline-message">
                         Loading schedule...
                     </div>
                 </div>
@@ -100,7 +122,7 @@
 
             <!-- Back Button -->
             <div class="movie-detail-actions">
-                <a href="/screenings/by-hall" class="btn btn-secondary">
+                <a href="/screenings?view=hall" class="btn btn-secondary">
                     ← Back to Hall List
                 </a>
             </div>
@@ -117,9 +139,16 @@
     const timelineMessage = document.getElementById('timelineMessage');
     const dateLabel1 = document.getElementById('dateLabel1');
     const dateLabel2 = document.getElementById('dateLabel2');
+    const selectedDateHeading = document.getElementById('selectedDateHeading');
+    const selectedDateScreeningsList = document.getElementById('selectedDateScreeningsList');
+    const selectedDatePrevPage = document.getElementById('selectedDatePrevPage');
+    const selectedDateNextPage = document.getElementById('selectedDateNextPage');
+    const selectedDatePageNumbers = document.getElementById('selectedDatePageNumbers');
     const hallId = '<%= hall._id %>';
     
     let currentSchedule = [];
+    let selectedDateCurrentPage = 1;
+    const selectedDateItemsPerPage = 5;
 
     // Generate timeline slots
     function generateTimelineSlots() {
@@ -130,34 +159,22 @@
         for (let i = 0; i < 48; i++) {
             // Row 1: Slots 0-47
             const slot1 = document.createElement('div');
-            slot1.className = 'timeline-slot';
+            slot1.className = 'timeline-slot available';
             slot1.dataset.slot = i;
-            slot1.style.height = '20px';
-            slot1.style.background = '#22c55e';
-            slot1.style.borderRadius = '2px';
-            slot1.style.cursor = 'pointer';
             slot1.title = formatSlotTime(i);
             timelineRow1.appendChild(slot1);
             
             // Row 2: Slots 48-95
             const slot2 = document.createElement('div');
-            slot2.className = 'timeline-slot';
+            slot2.className = 'timeline-slot available';
             slot2.dataset.slot = i + 48;
-            slot2.style.height = '20px';
-            slot2.style.background = '#22c55e';
-            slot2.style.borderRadius = '2px';
-            slot2.style.cursor = 'pointer';
             slot2.title = formatSlotTime(i + 48);
             timelineRow2.appendChild(slot2);
             
             // Row 3: Slots 96-143
             const slot3 = document.createElement('div');
-            slot3.className = 'timeline-slot';
+            slot3.className = 'timeline-slot available';
             slot3.dataset.slot = i + 96;
-            slot3.style.height = '20px';
-            slot3.style.background = '#22c55e';
-            slot3.style.borderRadius = '2px';
-            slot3.style.cursor = 'pointer';
             slot3.title = formatSlotTime(i);
             timelineRow3.appendChild(slot3);
         }
@@ -188,6 +205,60 @@
         dateLabel2.textContent = formatDate(nextDate);
     }
 
+    function renderSelectedDateScreenings() {
+        if (!selectedDateHeading || !selectedDateScreeningsList || !dateInput.value) {
+            return;
+        }
+
+        const selectedDate = new Date(dateInput.value + 'T00:00:00');
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        selectedDateHeading.textContent = `${days[selectedDate.getDay()]}, ${selectedDate.getDate()} ${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+
+        selectedDateScreeningsList.innerHTML = '';
+        const totalPages = Math.max(1, Math.ceil(currentSchedule.length / selectedDateItemsPerPage));
+        if (selectedDateCurrentPage > totalPages) {
+            selectedDateCurrentPage = totalPages;
+        }
+
+        if (!currentSchedule.length) {
+            selectedDateScreeningsList.innerHTML = '<p class="selected-screenings-empty">No screenings scheduled for this date</p>';
+        } else {
+            const startIndex = (selectedDateCurrentPage - 1) * selectedDateItemsPerPage;
+            const endIndex = startIndex + selectedDateItemsPerPage;
+            const paginatedSchedule = currentSchedule.slice(startIndex, endIndex);
+
+            paginatedSchedule.forEach(block => {
+                const item = document.createElement('a');
+                item.className = 'selected-screening-item';
+                item.href = `/screenings/edit/${block.screeningId}?returnTo=${encodeURIComponent(`/screenings/hall/${hallId}?date=${dateInput.value}`)}`;
+                item.title = `Edit ${block.movieName}`;
+
+                const movieName = document.createElement('div');
+                movieName.className = 'selected-screening-name';
+                movieName.textContent = block.movieName || 'Untitled Movie';
+
+                const timing = document.createElement('div');
+                timing.className = 'selected-screening-time';
+                timing.textContent = `${block.displayStart} - ${block.displayEnd}`;
+
+                item.appendChild(movieName);
+                item.appendChild(timing);
+                selectedDateScreeningsList.appendChild(item);
+            });
+        }
+
+        if (selectedDatePrevPage && selectedDateNextPage && selectedDatePageNumbers) {
+            selectedDatePrevPage.disabled = selectedDateCurrentPage === 1;
+            selectedDateNextPage.disabled = selectedDateCurrentPage === totalPages;
+            selectedDatePageNumbers.innerHTML = '';
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'page-number active';
+            pageInfo.textContent = `Page ${selectedDateCurrentPage} of ${totalPages}`;
+            selectedDatePageNumbers.appendChild(pageInfo);
+        }
+    }
+
     // Load hall schedule
     async function loadHallSchedule() {
         const date = dateInput.value;
@@ -205,6 +276,7 @@
             }
             
             currentSchedule = await response.json();
+            renderSelectedDateScreenings();
             
             // Generate fresh slots
             generateTimelineSlots();
@@ -214,8 +286,8 @@
                 for (let slot = block.startSlot; slot < block.endSlot; slot++) {
                     const slotElement = document.querySelector(`.timeline-slot[data-slot="${slot}"]`);
                     if (slotElement) {
-                        slotElement.style.background = '';
-                        slotElement.style.backgroundColor = '#ef4444';
+                        slotElement.classList.remove('available');
+                        slotElement.classList.add('occupied');
                         slotElement.title = `${block.movieName} (${block.displayStart} - ${block.displayEnd})`;
                     }
                 }
@@ -229,14 +301,36 @@
         } catch (error) {
             console.error('Error loading schedule:', error);
             timelineMessage.textContent = 'Error loading schedule';
+            currentSchedule = [];
+            renderSelectedDateScreenings();
         }
     }
 
     // Date selection
     dateInput.addEventListener('change', function() {
+        selectedDateCurrentPage = 1;
         updateDateLabels();
         loadHallSchedule();
     });
+
+    if (selectedDatePrevPage) {
+        selectedDatePrevPage.addEventListener('click', function() {
+            if (selectedDateCurrentPage > 1) {
+                selectedDateCurrentPage--;
+                renderSelectedDateScreenings();
+            }
+        });
+    }
+
+    if (selectedDateNextPage) {
+        selectedDateNextPage.addEventListener('click', function() {
+            const totalPages = Math.max(1, Math.ceil(currentSchedule.length / selectedDateItemsPerPage));
+            if (selectedDateCurrentPage < totalPages) {
+                selectedDateCurrentPage++;
+                renderSelectedDateScreenings();
+            }
+        });
+    }
 
     // Initialize on page load
     updateDateLabels();

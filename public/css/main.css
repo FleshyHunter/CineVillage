@@ -48,6 +48,17 @@
   overflow: hidden;
 }
 
+/* Layout2-specific sticky sidebar: fixed viewport height with internal scroll if needed */
+.layout2-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  min-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 /* Optional: Add a subtle overlay pattern for texture */
 .sidebar::before {
   content: '';

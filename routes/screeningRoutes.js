@@ -14,6 +14,16 @@ const {
 const { initDBIfNecessary, getCollectionScreening, getCollectionMovie, getCollectionHall } = require("../config/database");
 const { ObjectId } = require("mongodb");
 
+function sanitizeReturnTo(returnTo) {
+  if (typeof returnTo !== "string" || !returnTo.startsWith("/")) {
+    return "/screenings";
+  }
+  if (returnTo.startsWith("//")) {
+    return "/screenings";
+  }
+  return returnTo;
+}
+
 // View by Hall schedule (individual hall)
 router.get("/hall/:hallId", getHallSchedulePage);
 
@@ -67,7 +77,8 @@ router.get("/api/date-screenings", async (req, res) => {
           }
           byHallType[hallInfo.type].push({
             time: screening.startDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
-            hallName: hallInfo.name
+            hallName: hallInfo.name,
+            screeningId: screening._id.toString()
           });
         }
       });
@@ -101,7 +112,7 @@ router.get("/create", async (req, res) => {
   const collectionHall = getCollectionHall();
   
   const movies = await collectionMovie.find({ 
-    status: { $in: ["Now Showing", "Coming Soon"] } 
+    status: { $in: ["New", "Now Showing", "Coming Soon"] } 
   }).toArray();
   
   const halls = await collectionHall.find({ 
@@ -113,7 +124,8 @@ router.get("/create", async (req, res) => {
     movies,
     halls,
     isEdit: false,
-    title: "Screenings"
+    title: "Screenings",
+    returnTo: "/screenings"
   });
 });
 
@@ -128,7 +140,7 @@ router.post("/create", async (req, res) => {
     // Return to form with error message
     const collectionMovie = getCollectionMovie();
     const collectionHall = getCollectionHall();
-    const movies = await collectionMovie.find({ status: { $in: ["Now Showing", "Coming Soon"] } }).toArray();
+    const movies = await collectionMovie.find({ status: { $in: ["New", "Now Showing", "Coming Soon"] } }).toArray();
     const halls = await collectionHall.find({ status: "Available" }).toArray();
     
     res.render("screenings/screeningForm", {
@@ -137,7 +149,8 @@ router.post("/create", async (req, res) => {
       halls,
       isEdit: false,
       title: "Screenings",
-      error: err.message || "Error creating screening"
+      error: err.message || "Error creating screening",
+      returnTo: "/screenings"
     });
   }
 });
@@ -145,6 +158,7 @@ router.post("/create", async (req, res) => {
 // GET edit form
 router.get("/edit/:id", async (req, res) => {
   await initDBIfNecessary();
+  const returnTo = sanitizeReturnTo(req.query.returnTo);
   
   // Auto-update statuses before fetching
   await updateScreeningStatuses();
@@ -160,7 +174,9 @@ router.get("/edit/:id", async (req, res) => {
   const collectionMovie = getCollectionMovie();
   const collectionHall = getCollectionHall();
   
-  const movies = await collectionMovie.find({}).toArray();
+  const movies = await collectionMovie.find({ 
+    status: { $in: ["New", "Now Showing", "Coming Soon"] } 
+  }).toArray();
   const halls = await collectionHall.find({}).toArray();
 
   // Populate movie and hall details
@@ -184,22 +200,26 @@ router.get("/edit/:id", async (req, res) => {
     movies,
     halls,
     isEdit: true,
-    title: "Screenings"
+    title: "Screenings",
+    returnTo
   });
 });
 
 // POST update
 router.post("/edit/:id", async (req, res) => {
+  const returnTo = sanitizeReturnTo(req.query.returnTo);
   try {
     const screeningData = req.body;
     await updateScreening(req.params.id, screeningData);
-    res.redirect(`/screenings/${req.params.id}`);
+    res.redirect(returnTo);
   } catch (err) {
     console.error(err);
     // Return to form with error message
     const collectionMovie = getCollectionMovie();
     const collectionHall = getCollectionHall();
-    const movies = await collectionMovie.find({}).toArray();
+    const movies = await collectionMovie.find({ 
+      status: { $in: ["New", "Now Showing", "Coming Soon"] } 
+    }).toArray();
     const halls = await collectionHall.find({}).toArray();
     
     res.render("screenings/screeningForm", {
@@ -208,7 +228,8 @@ router.post("/edit/:id", async (req, res) => {
       halls,
       isEdit: true,
       title: "Screenings",
-      error: err.message || "Error updating screening"
+      error: err.message || "Error updating screening",
+      returnTo
     });
   }
 });
