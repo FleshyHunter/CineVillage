@@ -1,5 +1,6 @@
 const { getCollectionScreening, getCollectionMovie, getCollectionHall, initDBIfNecessary } = require("../config/database");
 const { ObjectId } = require("mongodb");
+const { isHallAvailableNow, doesScreeningOverlapMaintenance, getMaintenanceWindow } = require("../public/js/hallStatus");
 
 // Utility: Round up time to next 15-minute interval
 function roundUpTo15Min(date) {
@@ -66,6 +67,19 @@ function parseLocalDateTime(dateStr, timeStr) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+// Utility: Safely normalize unknown id shapes into ObjectId
+function toObjectIdSafe(value) {
+  if (!value) return null;
+  if (value instanceof ObjectId) return value;
+  if (typeof value === 'string') {
+    return ObjectId.isValid(value) ? new ObjectId(value) : null;
+  }
+  if (typeof value === 'object' && value._id) {
+    return toObjectIdSafe(value._id);
+  }
+  return null;
+}
+
 // Check for scheduling conflicts
 async function checkSchedulingConflict(hallId, startDateTime, endDateTime, excludeScreeningId = null) {
   await initDBIfNecessary();
@@ -108,6 +122,7 @@ async function checkSchedulingConflict(hallId, startDateTime, endDateTime, exclu
 async function createScreening(screeningData) {
   await initDBIfNecessary();
   screeningData.created = new Date();
+  const collectionHall = getCollectionHall();
 
   // Convert IDs to ObjectId
   if (screeningData.movieId) {
@@ -131,9 +146,13 @@ async function createScreening(screeningData) {
   // Fetch movie to get duration
   const collectionMovie = getCollectionMovie();
   const movie = await collectionMovie.findOne({ _id: screeningData.movieId });
+  const hall = await collectionHall.findOne({ _id: screeningData.hallId });
   
   if (!movie) {
     throw new Error("Movie not found");
+  }
+  if (!hall) {
+    throw new Error("Hall not found");
   }
 
   // Calculate end time with duration + buffer, rounded to 15-min
@@ -147,6 +166,28 @@ async function createScreening(screeningData) {
     screeningData.status = 'ongoing';
   } else {
     screeningData.status = 'completed';
+  }
+
+  // If this screening overlaps hall maintenance, mark as paused.
+  if (doesScreeningOverlapMaintenance(hall, screeningData.startDateTime, screeningData.endDateTime)) {
+    screeningData.status = 'paused';
+  }
+
+  // Hard-stop if hall maintenance overlaps the requested slot.
+  const maintenanceWindow = getMaintenanceWindow(hall);
+  if (hall.status === 'Under Maintenance') {
+    if (!maintenanceWindow) {
+      throw new Error(`Hall ${hall.name} is under maintenance. Choose another hall or time.`);
+    }
+
+    if (hasTimeConflict(
+      screeningData.startDateTime,
+      screeningData.endDateTime,
+      maintenanceWindow.start,
+      maintenanceWindow.end
+    )) {
+      throw new Error(`Hall ${hall.name} is under maintenance from ${maintenanceWindow.startDate} to ${maintenanceWindow.endDate}. Please pick another time or hall.`);
+    }
   }
 
   // Check for scheduling conflicts
@@ -186,26 +227,35 @@ async function createScreening(screeningData) {
 async function updateScreeningStatuses() {
   await initDBIfNecessary();
   const collectionScreening = getCollectionScreening();
+  const collectionHall = getCollectionHall();
   
   const now = new Date();
   console.log('=== AUTO-UPDATING SCREENING STATUSES ===');
   console.log('Current time:', now.toISOString());
   
   const allScreenings = await collectionScreening.find({}).toArray();
+  const allHalls = await collectionHall.find({}).toArray();
+  const hallMap = new Map(allHalls.map(h => [h._id.toString(), h]));
   
   for (let screening of allScreenings) {
     let newStatus = screening.status;
     
     const startTime = new Date(screening.startDateTime);
     const endTime = new Date(screening.endDateTime);
+    const hall = screening.hallId ? hallMap.get(screening.hallId.toString()) : null;
     
-    // Determine status based on current time
-    if (now < startTime) {
-      newStatus = 'scheduled';
-    } else if (now >= startTime && now < endTime) {
-      newStatus = 'ongoing';
-    } else if (now >= endTime) {
-      newStatus = 'completed';
+    // Pause takes precedence if screening is inside hall maintenance window.
+    if (hall && doesScreeningOverlapMaintenance(hall, startTime, endTime)) {
+      newStatus = 'paused';
+    } else {
+      // Determine status based on current time
+      if (now < startTime) {
+        newStatus = 'scheduled';
+      } else if (now >= startTime && now < endTime) {
+        newStatus = 'ongoing';
+      } else if (now >= endTime) {
+        newStatus = 'completed';
+      }
     }
     
     // Update if status has changed
@@ -236,15 +286,21 @@ async function getAllScreenings(req, res) {
   const allScreenings = await collectionScreening.find({}).toArray();
   
   // Filter for active screenings (scheduled/ongoing) - for All, Movie, Hall, Date views
-  const screenings = allScreenings.filter(s => s.status === 'scheduled' || s.status === 'ongoing');
+  const screenings = allScreenings.filter(s => ['scheduled', 'ongoing', 'paused'].includes(s.status));
   
   // Populate movie and hall details for active screenings
   for (let screening of screenings) {
     if (screening.movieId) {
-      screening.movieId = await collectionMovie.findOne({ _id: new ObjectId(screening.movieId) });
+      const movieId = toObjectIdSafe(screening.movieId);
+      if (movieId) {
+        screening.movieId = await collectionMovie.findOne({ _id: movieId });
+      }
     }
     if (screening.hallId) {
-      screening.hallId = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
+      const hallId = toObjectIdSafe(screening.hallId);
+      if (hallId) {
+        screening.hallId = await collectionHall.findOne({ _id: hallId });
+      }
     }
   }
 
@@ -301,7 +357,7 @@ async function getAllScreenings(req, res) {
   
   const dateScreenings = await collectionScreening.find({
     startDateTime: { $gte: startOfDay, $lte: endOfDay },
-    status: { $in: ['scheduled', 'ongoing'] }
+    status: { $in: ['scheduled', 'ongoing', 'paused'] }
   }).toArray();
 
   // Get movies for selected date
@@ -311,7 +367,8 @@ async function getAllScreenings(req, res) {
   }).toArray();
 
   // Get all halls
-  const allHalls = await collectionHall.find({ status: 'Available' }).toArray();
+  const allHallsRaw = await collectionHall.find({}).toArray();
+  const allHalls = allHallsRaw.filter(hall => isHallAvailableNow(hall));
   const hallMap = {};
   allHalls.forEach(h => {
     hallMap[h._id.toString()] = { name: h.name, type: h.type };
@@ -348,6 +405,10 @@ async function getAllScreenings(req, res) {
 
   // Get completed screenings based on time passed (same local Date handling as scheduling/status logic)
   const now = new Date();
+  const pausedScreenings = allScreenings
+    .filter(s => s.status === 'paused')
+    .sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime));
+
   const completedScreenings = allScreenings
     .filter(s => s.endDateTime && new Date(s.endDateTime) < now)
     .sort((a, b) => new Date(b.startDateTime) - new Date(a.startDateTime));
@@ -366,10 +427,32 @@ async function getAllScreenings(req, res) {
   // Populate movie and hall details for completed screenings
   for (let screening of completedScreenings) {
     if (screening.movieId) {
-      screening.movieId = await collectionMovie.findOne({ _id: new ObjectId(screening.movieId) });
+      const movieId = toObjectIdSafe(screening.movieId);
+      if (movieId) {
+        screening.movieId = await collectionMovie.findOne({ _id: movieId });
+      }
     }
     if (screening.hallId) {
-      screening.hallId = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
+      const hallId = toObjectIdSafe(screening.hallId);
+      if (hallId) {
+        screening.hallId = await collectionHall.findOne({ _id: hallId });
+      }
+    }
+  }
+
+  // Populate movie and hall details for paused screenings
+  for (let screening of pausedScreenings) {
+    if (screening.movieId) {
+      const movieId = toObjectIdSafe(screening.movieId);
+      if (movieId) {
+        screening.movieId = await collectionMovie.findOne({ _id: movieId });
+      }
+    }
+    if (screening.hallId) {
+      const hallId = toObjectIdSafe(screening.hallId);
+      if (hallId) {
+        screening.hallId = await collectionHall.findOne({ _id: hallId });
+      }
     }
   }
 
@@ -378,6 +461,7 @@ async function getAllScreenings(req, res) {
     movies: allMovies,  // All movies for Movie view with Now Showing/Coming Soon filters
     halls: hallsWithScreenings,
     dateMovies: dateMoviesWithScreenings,
+    pausedScreenings,
     completedScreenings,
     selectedDate,
     activeView,
@@ -401,6 +485,7 @@ async function getScreeningById(screeningId) {
 
 async function updateScreening(id, screeningData) {
   await initDBIfNecessary();
+  const collectionHall = getCollectionHall();
 
   // Convert IDs to ObjectId
   if (screeningData.movieId) {
@@ -430,9 +515,13 @@ async function updateScreening(id, screeningData) {
   // Fetch movie to get duration
   const collectionMovie = getCollectionMovie();
   const movie = await collectionMovie.findOne({ _id: screeningData.movieId });
+  const hall = await collectionHall.findOne({ _id: screeningData.hallId });
   
   if (!movie) {
     throw new Error("Movie not found");
+  }
+  if (!hall) {
+    throw new Error("Hall not found");
   }
 
   // Calculate end time with duration + buffer, rounded to 15-min
@@ -446,6 +535,27 @@ async function updateScreening(id, screeningData) {
     screeningData.status = 'ongoing';
   } else {
     screeningData.status = 'completed';
+  }
+
+  if (doesScreeningOverlapMaintenance(hall, screeningData.startDateTime, screeningData.endDateTime)) {
+    screeningData.status = 'paused';
+  }
+
+  // Hard-stop if hall maintenance overlaps the requested slot.
+  const maintenanceWindow = getMaintenanceWindow(hall);
+  if (hall.status === 'Under Maintenance') {
+    if (!maintenanceWindow) {
+      throw new Error(`Hall ${hall.name} is under maintenance. Choose another hall or time.`);
+    }
+
+    if (hasTimeConflict(
+      screeningData.startDateTime,
+      screeningData.endDateTime,
+      maintenanceWindow.start,
+      maintenanceWindow.end
+    )) {
+      throw new Error(`Hall ${hall.name} is under maintenance from ${maintenanceWindow.startDate} to ${maintenanceWindow.endDate}. Please pick another time or hall.`);
+    }
   }
 
   // Check for scheduling conflicts (excluding current screening)
@@ -478,6 +588,24 @@ async function deleteScreening(id) {
 
   const collectionScreening = getCollectionScreening();
   await collectionScreening.deleteOne({ _id: new ObjectId(id) });
+}
+
+// Pause all screenings in a hall that overlap its maintenance window
+async function pauseScreeningsForHallMaintenance(hall) {
+  await initDBIfNecessary();
+  const window = getMaintenanceWindow(hall);
+  if (!window) return;
+
+  const collectionScreening = getCollectionScreening();
+  await collectionScreening.updateMany(
+    {
+      hallId: new ObjectId(hall._id),
+      startDateTime: { $lte: window.end },
+      endDateTime: { $gte: window.start },
+      status: { $in: ['scheduled', 'ongoing'] }
+    },
+    { $set: { status: 'paused' } }
+  );
 }
 
 // Get hall schedule for a specific date (for timeline visualization)
@@ -534,7 +662,9 @@ async function getHallSchedule(hallId, date) {
   const timelineBlocks = [];
   
   for (const screening of screenings) {
-    const movie = await collectionMovie.findOne({ _id: new ObjectId(screening.movieId) });
+    const movieId = toObjectIdSafe(screening.movieId);
+    if (!movieId) continue;
+    const movie = await collectionMovie.findOne({ _id: movieId });
     
     const startDateTime = new Date(screening.startDateTime);
     const endDateTime = new Date(screening.endDateTime);
@@ -587,7 +717,8 @@ async function getHallsForScreenings(req, res) {
   try {
     await initDBIfNecessary();
     const collectionHall = getCollectionHall();
-    const halls = await collectionHall.find({ status: 'Available' }).toArray();
+    const hallsRaw = await collectionHall.find({}).toArray();
+    const halls = hallsRaw.filter(hall => isHallAvailableNow(hall));
     res.render("screenings/viewByHall", { halls, title: 'View by Hall' });
   } catch (error) {
     console.error('Error fetching halls:', error);
@@ -640,7 +771,7 @@ async function getMovieScreenings(req, res) {
     // Get all screenings for this movie
     const screenings = await collectionScreening.find({
       movieId: new ObjectId(req.params.movieId),
-      status: { $in: ['scheduled', 'ongoing'] }
+      status: { $in: ['scheduled', 'ongoing', 'paused'] }
     }).sort({ startDateTime: 1 }).toArray();
     
     console.log(`Found ${screenings.length} screenings with status scheduled/ongoing`);
@@ -682,7 +813,8 @@ async function getMovieScreenings(req, res) {
       groupedByDate[dateKey].push({
         time: screening.startDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
         hallName: hallMap[screening.hallId.toString()] || 'Unknown Hall',
-        screeningId: screening._id
+        screeningId: screening._id,
+        status: screening.status || 'scheduled'
       });
     });
     
@@ -703,6 +835,7 @@ module.exports = {
   getScreeningById,
   updateScreening,
   deleteScreening,
+  pauseScreeningsForHallMaintenance,
   getHallSchedule,
   getHallSchedulePage,
   getMovieScreenings,

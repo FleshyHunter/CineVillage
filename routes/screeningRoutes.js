@@ -48,7 +48,7 @@ router.get("/api/date-screenings", async (req, res) => {
     // Get all screenings for this date
     const screenings = await collectionScreening.find({
       startDateTime: { $gte: startOfDay, $lte: endOfDay },
-      status: { $in: ['scheduled', 'ongoing'] }
+      status: { $in: ['scheduled', 'ongoing', 'paused'] }
     }).toArray();
     
     // Get unique movie IDs
@@ -58,7 +58,7 @@ router.get("/api/date-screenings", async (req, res) => {
     }).toArray();
     
     // Get all halls
-    const halls = await collectionHall.find({ status: 'Available' }).toArray();
+    const halls = await collectionHall.find({}).toArray();
     const hallMap = {};
     halls.forEach(h => {
       hallMap[h._id.toString()] = { name: h.name, type: h.type };
@@ -115,9 +115,7 @@ router.get("/create", async (req, res) => {
     status: { $in: ["New", "Now Showing", "Coming Soon"] } 
   }).toArray();
   
-  const halls = await collectionHall.find({ 
-    status: "Available" 
-  }).toArray();
+  const halls = await collectionHall.find({}).toArray();
   
   res.render("screenings/screeningForm", {
     screening: null,
@@ -141,7 +139,7 @@ router.post("/create", async (req, res) => {
     const collectionMovie = getCollectionMovie();
     const collectionHall = getCollectionHall();
     const movies = await collectionMovie.find({ status: { $in: ["New", "Now Showing", "Coming Soon"] } }).toArray();
-    const halls = await collectionHall.find({ status: "Available" }).toArray();
+    const halls = await collectionHall.find({}).toArray();
     
     res.render("screenings/screeningForm", {
       screening: req.body,

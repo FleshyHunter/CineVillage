@@ -1,5 +1,6 @@
 const { MongoClient } = require("mongodb");
 const bcrypt = require("bcrypt");
+const PERSONNEL_BCRYPT_ROUNDS = 10;
 let client = null;
 //this is the collection object for querying the
 //customers collection in the database
@@ -7,6 +8,7 @@ let collectionMovie = null;
 let collectionHall = null;
 let collectionScreening = null;
 let collectionAdmin = null;
+let collectionManager = null;
 let collectionStaff = null;
 
 //function to connect to db and get the collection object
@@ -25,6 +27,7 @@ async function initDBIfNecessary() {
         collectionHall = db.collection("hall");
         collectionScreening = db.collection("screening");
         collectionAdmin = db.collection("admin");
+        collectionManager = db.collection("manager");
         collectionStaff = db.collection("staff");
 
     }
@@ -47,23 +50,67 @@ async function insertAdmin(admin) {
 async function createAdmin() {
     try {
         let adminAccount = await getAdminbyEmail("admin@gmail.com");
-        console.log(adminAccount);
+        const defaultAdminProfile = {
+            name: "admin",
+            username: "admin",
+            email: "admin@gmail.com",
+            contact: "82077872",
+            role: "Admin"
+        };
+
         if (adminAccount == null) {
             await insertAdmin({
-                name: "Admin",
-                email: "admin@gmail.com",
+                ...defaultAdminProfile,
                 password: await bcrypt.hash("admin", 31),
             });
             console.log("Admin account created");
+        } else {
+            // Update only missing profile fields on existing admin record.
+            // This avoids creating duplicate admin documents.
+            const missingFields = {};
+            for (const [key, value] of Object.entries(defaultAdminProfile)) {
+                if (!adminAccount[key]) {
+                    missingFields[key] = value;
+                }
+            }
+
+            if (Object.keys(missingFields).length > 0) {
+                await collectionAdmin.updateOne(
+                    { _id: adminAccount._id },
+                    { $set: missingFields }
+                );
+                console.log("Admin account profile fields backfilled");
+            }
         }
     } catch (error) {
         console.error("Error", error.message);
     }
 }
 
+async function initializePersonnelPasswords() {
+    try {
+        await initDBIfNecessary();
+
+        const defaultPersonnelPasswordHash = await bcrypt.hash("personnel", PERSONNEL_BCRYPT_ROUNDS);
+
+        await collectionManager.updateMany(
+            {},
+            { $set: { password: defaultPersonnelPasswordHash } }
+        );
+
+        await collectionStaff.updateMany(
+            {},
+            { $set: { password: defaultPersonnelPasswordHash } }
+        );
+    } catch (error) {
+        console.error("Error initializing personnel passwords:", error.message);
+    }
+}
+
 (async () => {
     try {
         await createAdmin();
+        await initializePersonnelPasswords();
     
     } catch (err) {
         console.error("Top-level error:", err);
@@ -93,17 +140,30 @@ function getCollectionScreening() {
     return collectionScreening;
 }
 
+function getCollectionAdmin() {
+    if (!collectionAdmin) throw new Error("DB not initialized");
+    return collectionAdmin;
+}
+
+function getCollectionManager() {
+
+    if (!collectionManager) throw new Error("DB not initialized");
+    return collectionManager;
+}
+
 function getCollectionStaff() {
-    if (!collectionScreening) throw new Error("DB not initialized");
-    return collectionScreening;
+    if (!collectionStaff) throw new Error("DB not initialized");
+    return collectionStaff;
 }
 //export the functions so they can be used in other files
 module.exports = {
     initDBIfNecessary,
     disconnect,
     getAdminbyEmail,
+    getCollectionAdmin,
     getCollectionMovie,
     getCollectionHall,
     getCollectionScreening,
+    getCollectionManager,
     getCollectionStaff,
 };

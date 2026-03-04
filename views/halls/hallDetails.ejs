@@ -18,7 +18,25 @@
         
         <div class="form-group">
           <label class="form-label-compact">STATUS</label>
-          <div class="form-control form-control-readonly"><%= hall.status || 'N/A' %></div>
+          <%
+            const detailHallStatus = hall.configuredStatus || hall.status || 'N/A';
+            const detailMaintenanceStart = hall.maintenanceStartDate || '';
+            const detailMaintenanceEnd = hall.maintenanceEndDate || '';
+            const formatDateShort = (dateStr) => {
+              if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+              const [yyyy, mm, dd] = dateStr.split('-');
+              return `${dd}/${mm}/${yyyy.slice(2)}`;
+            };
+            const detailMaintenanceRange = (detailMaintenanceStart && detailMaintenanceEnd)
+              ? ` (${formatDateShort(detailMaintenanceStart)} - ${formatDateShort(detailMaintenanceEnd)})`
+              : '';
+            const detailStatusText = detailHallStatus === 'Available'
+              ? 'Available'
+              : `Under Maintenance${detailMaintenanceRange}`;
+          %>
+          <div class="form-control form-control-readonly">
+            <%= detailStatusText %>
+          </div>
         </div>
         
         <div class="form-group">
@@ -56,10 +74,22 @@
 
       <!-- Delete Form -->
       <div class="text-center mt-20">
+        <% if (typeof deleteError !== 'undefined' && deleteError) { %>
+          <div class="alert alert-danger" role="alert" style="margin-bottom: 12px;">
+            <i class="bi bi-exclamation-triangle-fill"></i> <%= deleteError %>
+          </div>
+        <% } %>
         <form action="/halls/delete/<%= hall._id %>" method="POST" class="inline-block"
           onsubmit="return confirm('Are you sure you want to delete this hall?');">
-          <button type="submit" class="btn btn-danger"><i class="bi bi-trash3"></i> Delete Hall</button>
+          <button type="submit" class="btn btn-danger" <%= linkedScreeningCount > 0 ? 'disabled' : '' %>>
+            <i class="bi bi-trash3"></i> Delete Hall
+          </button>
         </form>
+        <% if (linkedScreeningCount > 0) { %>
+          <p style="margin-top: 8px; color: #f59e0b; font-size: 13px;">
+            This hall has <%= linkedScreeningCount %> linked screening(s) and cannot be deleted.
+          </p>
+        <% } %>
       </div>
     </div>
 

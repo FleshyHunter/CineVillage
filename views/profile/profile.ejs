@@ -1,0 +1,51 @@
+<div class="container" style="width: 100%; max-width: none;">
+  <h2 class="page-title" style="margin-bottom: 40px;">Profile</h2>
+
+  <div class="card" style="width: 100%; margin: 0;">
+    <h3 class="section-title">Admin Information</h3>
+
+    <% if (!admin) { %>
+      <div class="error-banner">Profile data is unavailable.</div>
+    <% } else { %>
+      <div class="form-group" style="max-width: 280px;">
+        <label class="form-label-compact">PROFILE PHOTO</label>
+        <img src="<%= admin.pictureUrl || '/images/cameraplaceholder.jpg' %>"
+             alt="Profile photo"
+             style="width: 100%; border-radius: 8px; border: 2px solid #334155; object-fit: cover;">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label-compact">NAME</label>
+          <div class="form-control form-control-readonly"><%= admin.name || '-' %></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label-compact">USERNAME</label>
+          <div class="form-control form-control-readonly"><%= admin.username || '-' %></div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label-compact">EMAIL</label>
+          <div class="form-control form-control-readonly"><%= admin.email || '-' %></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label-compact">CONTACT</label>
+          <div class="form-control form-control-readonly"><%= admin.contact || '-' %></div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label-compact">ROLE</label>
+        <div class="form-control form-control-readonly"><%= admin.role || 'Admin' %></div>
+      </div>
+
+      <div class="movie-detail-actions mt-30">
+        <a href="/profile/edit" class="btn btn-primary">
+          <i class="bi bi-pencil-square"></i> Edit Profile
+        </a>
+      </div>
+    <% } %>
+  </div>
+</div>

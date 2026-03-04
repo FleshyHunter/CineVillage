@@ -18,10 +18,102 @@ function initializeHallForm() {
   document.getElementById('columns').addEventListener('input', generateSeats);
   document.getElementById('wingColumns').addEventListener('input', generateSeats);
 
+  // Maintenance duration toggle based on status
+  const statusSelect = document.getElementById('status');
+  const maintenanceStartInput = document.getElementById('maintenanceStartDate');
+  const maintenanceEndInput = document.getElementById('maintenanceEndDate');
+
+  if (maintenanceStartInput && maintenanceEndInput) {
+    maintenanceStartInput.addEventListener('change', syncMaintenanceDateBounds);
+    maintenanceEndInput.addEventListener('change', syncMaintenanceDateBounds);
+    maintenanceStartInput.addEventListener('change', updateHallStatusDisplay);
+    maintenanceEndInput.addEventListener('change', updateHallStatusDisplay);
+  }
+
+  if (statusSelect) {
+    statusSelect.addEventListener('change', syncMaintenanceDurationState);
+    statusSelect.addEventListener('change', syncMaintenanceDateBounds);
+    statusSelect.addEventListener('change', updateHallStatusDisplay);
+    syncMaintenanceDurationState();
+    syncMaintenanceDateBounds();
+    updateHallStatusDisplay();
+  }
+
   // Save seat configuration before form submit
   document.querySelector('form').addEventListener('submit', (e) => {
+    syncMaintenanceDurationState();
     document.getElementById('seatConfig').value = JSON.stringify(seatData);
   });
+}
+
+function syncMaintenanceDurationState() {
+  const statusSelect = document.getElementById('status');
+  const startInput = document.getElementById('maintenanceStartDate');
+  const endInput = document.getElementById('maintenanceEndDate');
+
+  if (!statusSelect || !startInput || !endInput) return;
+
+  const isUnderMaintenance = statusSelect.value === 'Under Maintenance';
+
+  if (isUnderMaintenance) {
+    startInput.disabled = false;
+    endInput.disabled = false;
+    startInput.required = true;
+    endInput.required = true;
+    startInput.classList.remove('maintenance-duration-inactive');
+    endInput.classList.remove('maintenance-duration-inactive');
+  } else {
+    startInput.required = false;
+    endInput.required = false;
+    startInput.value = '';
+    endInput.value = '';
+    startInput.disabled = true;
+    endInput.disabled = true;
+    startInput.classList.add('maintenance-duration-inactive');
+    endInput.classList.add('maintenance-duration-inactive');
+  }
+}
+
+function syncMaintenanceDateBounds() {
+  const startInput = document.getElementById('maintenanceStartDate');
+  const endInput = document.getElementById('maintenanceEndDate');
+  if (!startInput || !endInput) return;
+
+  if (startInput.value) {
+    endInput.min = startInput.value;
+    if (endInput.value && endInput.value < startInput.value) {
+      endInput.value = startInput.value;
+    }
+  } else {
+    endInput.min = '';
+  }
+}
+
+function formatDateShort(dateStr) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '';
+  const [yyyy, mm, dd] = dateStr.split('-');
+  return `${dd}/${mm}/${yyyy.slice(2)}`;
+}
+
+function updateHallStatusDisplay() {
+  const statusSelect = document.getElementById('status');
+  const startInput = document.getElementById('maintenanceStartDate');
+  const endInput = document.getElementById('maintenanceEndDate');
+  const statusDisplay = document.getElementById('statusDisplayText');
+  if (!statusSelect || !startInput || !endInput || !statusDisplay) return;
+
+  if (statusSelect.value !== 'Under Maintenance') {
+    statusDisplay.textContent = 'Available';
+    return;
+  }
+
+  const start = formatDateShort(startInput.value);
+  const end = formatDateShort(endInput.value);
+  if (start && end) {
+    statusDisplay.textContent = `Under Maintenance (${start} - ${end})`;
+  } else {
+    statusDisplay.textContent = 'Under Maintenance';
+  }
 }
 
 function setEditMode(mode) {

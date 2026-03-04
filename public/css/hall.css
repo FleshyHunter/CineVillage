@@ -198,6 +198,11 @@
   border-right: 2px dashed #475569;
 }
 
+.maintenance-duration-inactive {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
   .hall-form-container {

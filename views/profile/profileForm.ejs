@@ -1,0 +1,74 @@
+<div class="container" style="width: 100%; max-width: none;">
+  <h2 class="mb-30">Edit Profile</h2>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="error-banner"><%= error %></div>
+  <% } %>
+
+  <% if (!admin) { %>
+    <div class="error-banner">Profile data is unavailable.</div>
+  <% } else { %>
+    <div class="movie-detail-container">
+      <form action="/profile/edit" method="POST" enctype="multipart/form-data" style="display: contents;">
+        <div class="movie-detail-poster">
+          <label for="picture" style="cursor: pointer; display: block;">
+            <img id="profilePreview"
+              src="<%= admin.pictureUrl || '/images/cameraplaceholder.jpg' %>"
+              alt="Upload profile photo"
+              style="width: 100%; border-radius: 8px; border: 2px dashed #94a3b8; object-fit: cover; min-height: 400px;">
+          </label>
+          <input type="file" id="picture" name="picture" accept="image/*" style="display: none;">
+          <p class="form-help-text">Click to upload profile photo</p>
+        </div>
+
+        <div class="movie-detail-info">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="name" class="form-label-compact">NAME *</label>
+              <input id="name" name="name" type="text" class="form-control" value="<%= admin.name || '' %>" required>
+            </div>
+            <div class="form-group">
+              <label for="username" class="form-label-compact">USERNAME *</label>
+              <input id="username" name="username" type="text" class="form-control" value="<%= admin.username || '' %>" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="email" class="form-label-compact">EMAIL *</label>
+              <input id="email" name="email" type="email" class="form-control" value="<%= admin.email || '' %>" required>
+            </div>
+            <div class="form-group">
+              <label for="contact" class="form-label-compact">CONTACT *</label>
+              <input id="contact" name="contact" type="text" class="form-control" value="<%= admin.contact || '' %>" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label-compact">ROLE</label>
+            <div class="form-control form-control-readonly"><%= admin.role || 'Admin' %></div>
+          </div>
+
+          <div class="movie-detail-actions mt-30">
+            <a href="/profile" class="btn btn-secondary">← Back to Profile</a>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  <% } %>
+</div>
+
+<script>
+  const pictureInput = document.getElementById('picture');
+  const profilePreview = document.getElementById('profilePreview');
+
+  if (pictureInput && profilePreview) {
+    pictureInput.addEventListener('change', () => {
+      const file = pictureInput.files[0];
+      if (file) {
+        profilePreview.src = URL.createObjectURL(file);
+      }
+    });
+  }
+</script>

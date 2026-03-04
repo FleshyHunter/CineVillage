@@ -50,7 +50,7 @@
                             <div class="schedule-time-grid">
                                 <% screeningsByDate[date].forEach(screening => { %>
                                     <a href="/screenings/edit/<%= screening.screeningId %>?returnTo=<%= encodeURIComponent('/screenings/movie/' + movie._id) %>"
-                                       class="schedule-time-chip"
+                                       class="schedule-time-chip <%= screening.status === 'paused' ? 'schedule-time-chip-paused' : '' %>"
                                        title="Edit screening in <%= screening.hallName %>">
                                         <div class="schedule-time-value">
                                             <%= screening.time %>
@@ -58,6 +58,12 @@
                                         <div class="schedule-time-subtext">
                                             <%= screening.hallName %>
                                         </div>
+                                        <% if (screening.status === 'paused') { %>
+                                          <div class="schedule-time-alert" aria-label="Paused due to maintenance">
+                                            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                                            <span>Paused</span>
+                                          </div>
+                                        <% } %>
                                     </a>
                                 <% }); %>
                             </div>

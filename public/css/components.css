@@ -441,6 +441,47 @@ textarea.form-control {
   border: 1px solid rgba(37, 99, 235, 0.4);
 }
 
+/* Hall card tags */
+.hall-status-tag i {
+  font-size: 9px;
+  margin-right: 4px;
+}
+
+.hall-status-available {
+  background-color: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border-color: #22c55e;
+}
+
+.hall-status-maintenance {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.hall-status-unknown {
+  background-color: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  border-color: #94a3b8;
+}
+
+.hall-wheelchair-tag {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+/* Keep hall cards uniform even when tag counts differ */
+.hall-card-link .movie-card {
+  height: 425px;
+}
+
+.hall-card-link .movie-card-content {
+  height: 175px;
+  min-height: 175px;
+  overflow: hidden;
+}
+
 /* === Movie Detail Page === */
 .movie-detail-container {
   display: grid;
@@ -695,6 +736,19 @@ textarea.form-control {
   transform: translateY(-2px);
 }
 
+.schedule-time-chip-paused {
+  background-color: rgba(245, 158, 11, 0.1);
+  border-color: #f59e0b;
+}
+
+.schedule-time-chip-paused .schedule-time-value {
+  color: #b45309;
+}
+
+.schedule-time-chip-paused .schedule-time-subtext {
+  color: #b45309;
+}
+
 .schedule-time-value {
   color: #3b82f6;
   font-size: 16px;
@@ -705,6 +759,16 @@ textarea.form-control {
 .schedule-time-subtext {
   color: var(--text-muted);
   font-size: 11px;
+}
+
+.schedule-time-alert {
+  color: #f59e0b;
+  font-size: 12px;
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
 }
 
 .schedule-pagination {

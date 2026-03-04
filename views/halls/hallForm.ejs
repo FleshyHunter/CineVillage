@@ -46,6 +46,41 @@
             </select>
           </div>
 
+          <!-- Maintenance Duration -->
+          <div class="form-group">
+            <label class="form-label">MAINTENANCE DURATION</label>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="maintenanceStartDate" class="form-label">START DATE</label>
+                <input
+                  type="date"
+                  id="maintenanceStartDate"
+                  name="maintenanceStartDate"
+                  class="form-control"
+                  value="<%= hall && hall.maintenanceStartDate ? new Date(hall.maintenanceStartDate).toISOString().split('T')[0] : '' %>"
+                >
+              </div>
+              <div class="form-group">
+                <label for="maintenanceEndDate" class="form-label">END DATE</label>
+                <input
+                  type="date"
+                  id="maintenanceEndDate"
+                  name="maintenanceEndDate"
+                  class="form-control"
+                  value="<%= hall && hall.maintenanceEndDate ? new Date(hall.maintenanceEndDate).toISOString().split('T')[0] : '' %>"
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Status Display (requested view logic) -->
+          <!-- <div class="form-group">
+            <label class="form-label">STATUS DISPLAY</label>
+            <div id="statusDisplayText" class="form-control form-control-readonly">
+              Available
+            </div>
+          </div> -->
+
           <!-- Layout Configuration -->
           <div class="form-row">
             <div class="form-group">
@@ -153,4 +188,3 @@
   </script>
 
   <%- include('../layouts/footer') %>
-

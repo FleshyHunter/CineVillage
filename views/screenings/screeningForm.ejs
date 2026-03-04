@@ -89,13 +89,20 @@
                       }
                     %>
                   <option value="<%= hall._id %>"
+                          data-status="<%= hall.status || '' %>"
+                          data-maintenance-start="<%= hall.maintenanceStartDate || '' %>"
+                          data-maintenance-end="<%= hall.maintenanceEndDate || '' %>"
                           <%= isSelected ? 'selected' : '' %>>
-                    <%= hall.name %> (<%= hall.capacity %> seats, <%= hall.type %>)
+                    <%= hall.name %> (<%= hall.capacity %> seats, <%= hall.type %>)<%= hall.status === 'Under Maintenance' ? ' - Under Maintenance' : '' %>
                   </option>
                   <% } %>
                 <% }); %>
               <% } %>
             </select>
+            <div id="maintenanceNotice" style="display: none; margin-top: 8px; padding: 8px 12px; background-color: rgba(245, 158, 11, 0.12); border: 1px solid #f59e0b; border-radius: 6px; color: #f59e0b; font-size: 13px;">
+              <i class="bi bi-exclamation-triangle-fill" style="margin-right: 6px;"></i>
+              <span id="maintenanceNoticeMessage"></span>
+            </div>
           </div>
 
 
@@ -215,6 +222,9 @@
                 <option value="">Select Status</option>
                 <option value="scheduled" <%= !screening || screening.status === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
                 <option value="ongoing" <%= screening && screening.status === 'ongoing' ? 'selected' : '' %>>Ongoing</option>
+                <% if (screening && screening.status === 'paused') { %>
+                  <option value="paused" selected disabled>Paused (Hall Maintenance)</option>
+                <% } %>
                 <% if (screening && screening.status === 'completed') { %>
                   <option value="completed" selected disabled>Completed (Auto-managed)</option>
                 <% } %>
@@ -282,6 +292,8 @@
     const conflictNotification = document.getElementById('conflictNotification');
     const conflictMessage = document.getElementById('conflictMessage');
     const submitBtn = document.getElementById('submitBtn');
+    const maintenanceNotice = document.getElementById('maintenanceNotice');
+    const maintenanceNoticeMessage = document.getElementById('maintenanceNoticeMessage');
 
     let selectedMovieDuration = 0;
     let currentSchedule = [];
@@ -305,6 +317,61 @@
       return `${String(hours).padStart(2, '0')}:${String(roundedMinutes).padStart(2, '0')}`;
     }
 
+    function formatDateShort(dateStr) {
+      if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+      const [yyyy, mm, dd] = dateStr.split('-');
+      return `${dd}/${mm}/${yyyy.slice(2)}`;
+    }
+
+    function getSelectedScreeningWindow() {
+      if (!dateInput.value || !startTimeInput.value || !selectedMovieDuration) return null;
+      const [year, month, day] = dateInput.value.split('-').map(Number);
+      const [hours, minutes] = startTimeInput.value.split(':').map(Number);
+      const start = new Date(year, month - 1, day, hours, minutes, 0, 0);
+      if (Number.isNaN(start.getTime())) return null;
+
+      const end = new Date(start.getTime() + selectedMovieDuration * 60000);
+      const remainder = end.getMinutes() % 15;
+      if (remainder !== 0) {
+        end.setMinutes(end.getMinutes() + (15 - remainder));
+      }
+      end.setMinutes(end.getMinutes() + 15);
+      return { start, end };
+    }
+
+    function updateMaintenanceNotice() {
+      if (!maintenanceNotice || !maintenanceNoticeMessage) return;
+      const selectedHallOption = hallSelect.options[hallSelect.selectedIndex];
+      if (!selectedHallOption || !selectedHallOption.value) {
+        maintenanceNotice.style.display = 'none';
+        return;
+      }
+
+      const hallStatus = selectedHallOption.getAttribute('data-status');
+      const maintenanceStart = selectedHallOption.getAttribute('data-maintenance-start');
+      const maintenanceEnd = selectedHallOption.getAttribute('data-maintenance-end');
+      const screeningWindow = getSelectedScreeningWindow();
+
+      if (hallStatus !== 'Under Maintenance' || !maintenanceStart || !maintenanceEnd || !screeningWindow) {
+        maintenanceNotice.style.display = 'none';
+        return;
+      }
+
+      const [startYear, startMonth, startDay] = maintenanceStart.split('-').map(Number);
+      const [endYear, endMonth, endDay] = maintenanceEnd.split('-').map(Number);
+      const maintenanceStartDate = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+      const maintenanceEndDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+
+      const overlaps = screeningWindow.start <= maintenanceEndDate && screeningWindow.end >= maintenanceStartDate;
+      if (!overlaps) {
+        maintenanceNotice.style.display = 'none';
+        return;
+      }
+
+      maintenanceNoticeMessage.textContent = `This hall is unavailable from ${formatDateShort(maintenanceStart)} to ${formatDateShort(maintenanceEnd)}.`;
+      maintenanceNotice.style.display = 'block';
+    }
+
     // Validate time input to 15-minute increments (only when user finishes editing)
     startTimeInput.addEventListener('blur', function() {
       if (this.value) {
@@ -314,11 +381,13 @@
         }
       }
       updateEndTime();
+      updateMaintenanceNotice();
     });
     
     // Update end time when time changes
     startTimeInput.addEventListener('change', function() {
       updateEndTime();
+      updateMaintenanceNotice();
     });
 
     movieSelect.addEventListener('change', function() {
@@ -341,6 +410,7 @@
         
         durationDisplay.textContent = `${duration} mins`;
         updateEndTime();
+        updateMaintenanceNotice();
       } else {
         moviePreview.src = '/images/placeholder.jpg';
         moviePreview.style.border = '2px dashed #94a3b8';
@@ -350,6 +420,7 @@
         durationDisplay.textContent = '-';
         endTimeDisplay.textContent = '-';
         clearTimelinePreview();
+        updateMaintenanceNotice();
       }
     });
 
@@ -539,10 +610,12 @@
           updateDateLabels();
           loadHallSchedule();
         }
+        updateMaintenanceNotice();
       } else {
         seatsDisplay.textContent = '-';
         timelineContainer.style.display = 'none';
         clearTimelinePreview();
+        updateMaintenanceNotice();
       }
     });
 
@@ -560,6 +633,7 @@
         }
         clearTimelinePreview();
       }
+      updateMaintenanceNotice();
     });
 
     // Generate timeline slots (3 rows: 0-47, 48-95, 96-143)
@@ -716,9 +790,11 @@
           updateTimelinePreview();
         }
       <% } %>
+      updateMaintenanceNotice();
     <% } else { %>
       // Don't show timeline on initial load - wait for hall and date selection
       updateDateLabels();
+      updateMaintenanceNotice();
     <% } %>
     
     // Prevent form submission if there's a conflict

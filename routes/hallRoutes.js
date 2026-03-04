@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const { createHall, getAllHalls, getHallbyId, updateHall, deleteHall } = require("../controllers/hallController");
-const { initDBIfNecessary, getCollectionHall } = require("../config/database");
+const { updateScreeningStatuses } = require("../controllers/screeningController");
+const { initDBIfNecessary, getCollectionHall, getCollectionScreening } = require("../config/database");
 const { ObjectId } = require("mongodb");
 
 const multer = require("multer");
@@ -117,6 +118,7 @@ router.post("/edit/:id", upload.single("picture"), async (req, res) => {
     }
 
     await updateHall(req.params.id, hallData);
+    await updateScreeningStatuses();
     res.redirect(`/halls/${req.params.id}`);
   } catch (err) {
     console.error(err);
@@ -131,6 +133,9 @@ router.post("/delete/:id", async (req, res) => {
     res.redirect("/halls");
   } catch (err) {
     console.error(err);
+    if (err.message && err.message.includes("Cannot delete hall")) {
+      return res.redirect(`/halls/${req.params.id}?deleteError=${encodeURIComponent(err.message)}`);
+    }
     res.send("Error deleting hall");
   }
 });
@@ -140,8 +145,19 @@ router.get("/", getAllHalls);
 
 // GET single hall details
 router.get("/:id", async (req, res) => {
+  await initDBIfNecessary();
   const hall = await getHallbyId(req.params.id);
-  res.render('halls/hallDetails', { title: "Halls", isEdit: false, hall });
+  const collectionScreening = getCollectionScreening();
+  const linkedScreeningCount = ObjectId.isValid(req.params.id)
+    ? await collectionScreening.countDocuments({ hallId: new ObjectId(req.params.id) })
+    : 0;
+  res.render('halls/hallDetails', {
+    title: "Halls",
+    isEdit: false,
+    hall,
+    linkedScreeningCount,
+    deleteError: req.query.deleteError || null
+  });
 });
 
 module.exports = router;

@@ -1,0 +1,538 @@
+<div class="container">
+  <h2 style="margin-bottom: 20px;">Personnel</h2>
+
+  <div class="movie-filters" style="margin-bottom: 20px;">
+    <button class="filter-btn <%= activeView === 'all' ? 'active' : '' %>" data-view="all">
+      <i class="bi bi-list-ul"></i> All
+    </button>
+    <button class="filter-btn <%= activeView === 'manager' ? 'active' : '' %>" data-view="manager">
+      <i class="bi bi-person-badge"></i> Manager
+    </button>
+    <button class="filter-btn <%= activeView === 'staff' ? 'active' : '' %>" data-view="staff">
+      <i class="bi bi-people"></i> Staff
+    </button>
+  </div>
+
+  <div id="allView" class="view-section" style="display: <%= activeView === 'all' ? 'block' : 'none' %>;">
+    <div id="allControls" class="search-filter-bar" style="display: flex;">
+      <div class="search-controls">
+        <div class="search-box">
+          <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+          </svg>
+          <input type="text" id="allSearchInput" class="search-input" placeholder="Search Personnel">
+        </div>
+
+        <div class="filter-dropdown">
+          <select id="allSortFilter" class="filter-select">
+            <option value="nameAZ">Sort By (A-Z)</option>
+            <option value="nameZA">Sort By (Z-A)</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div class="create-button-wrapper">
+        <a href="/personnel/create?role=staff" class="btn btn-primary">
+          + Create Personnel
+        </a>
+      </div>
+    </div>
+
+    <% if (allPersonnel && allPersonnel.length > 0) { %>
+      <div class="table-responsive">
+        <table class="table table-dark table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Contact</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="allTableBody">
+            <% allPersonnel.forEach(person => { %>
+              <tr data-name="<%= (person.name || '').toLowerCase() %>" data-role="<%= person.role || '' %>">
+                <td><%= person.name || 'N/A' %></td>
+                <td><%= person.username || 'N/A' %></td>
+                <td><%= person.email || 'N/A' %></td>
+                <td><%= person.contact || 'N/A' %></td>
+                <td><%= person.role || 'N/A' %></td>
+                <td>
+                  <span class="badge" style="
+                    background-color: <%= person.status === 'Inactive' ? '#6b7280' : '#22c55e' %>;
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                  ">
+                    <%= person.status || 'Active' %>
+                  </span>
+                </td>
+                <td>
+                  <a href="/personnel/edit/<%= person.collectionRole %>/<%= person._id %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
+                    Edit
+                  </a>
+                  <form action="/personnel/delete/<%= person.collectionRole %>/<%= person._id %>" method="POST" style="display: inline;"
+                        onsubmit="return confirm('Are you sure you want to delete this personnel record?');">
+                    <button type="submit" class="btn btn-sm btn-danger">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination-container" style="margin-top: 24px;">
+        <button id="allPrevPage" class="pagination-btn" disabled>
+          <i class="bi bi-chevron-left"></i> Previous
+        </button>
+        <div id="allPageNumbers" class="page-numbers"></div>
+        <button id="allNextPage" class="pagination-btn">
+          Next <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+    <% } else { %>
+      <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+        <i class="bi bi-people" style="font-size: 64px; opacity: 0.3;"></i>
+        <h4 style="margin-top: 20px;">No personnel found</h4>
+      </div>
+    <% } %>
+  </div>
+
+  <div id="managerView" class="view-section" style="display: <%= activeView === 'manager' ? 'block' : 'none' %>;">
+    <div id="managerControls" class="search-filter-bar" style="display: flex;">
+      <div class="search-controls">
+        <div class="search-box">
+          <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+          </svg>
+          <input type="text" id="managerSearchInput" class="search-input" placeholder="Search managers...">
+        </div>
+
+        <div class="filter-dropdown">
+          <select id="managerSortFilter" class="filter-select">
+            <option value="nameAZ">Sort By (A-Z)</option>
+            <option value="nameZA">Sort By (Z-A)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="create-button-wrapper">
+        <a href="/personnel/create?role=manager" class="btn btn-primary">
+          + Create Manager
+        </a>
+      </div>
+    </div>
+
+    <% if (managers && managers.length > 0) { %>
+      <div class="table-responsive">
+        <table class="table table-dark table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Contact</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="managerTableBody">
+            <% managers.forEach(manager => { %>
+              <tr data-name="<%= (manager.name || '').toLowerCase() %>">
+                <td><%= manager.name || 'N/A' %></td>
+                <td><%= manager.username || 'N/A' %></td>
+                <td><%= manager.email || 'N/A' %></td>
+                <td><%= manager.contact || 'N/A' %></td>
+                <td>
+                  <span class="badge" style="
+                    background-color: <%= manager.status === 'Inactive' ? '#6b7280' : '#22c55e' %>;
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                  ">
+                    <%= manager.status || 'Active' %>
+                  </span>
+                </td>
+                <td>
+                  <a href="/personnel/edit/manager/<%= manager._id %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
+                    Edit
+                  </a>
+                  <form action="/personnel/delete/manager/<%= manager._id %>" method="POST" style="display: inline;"
+                        onsubmit="return confirm('Are you sure you want to delete this manager?');">
+                    <button type="submit" class="btn btn-sm btn-danger">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination-container" style="margin-top: 24px;">
+        <button id="managerPrevPage" class="pagination-btn" disabled>
+          <i class="bi bi-chevron-left"></i> Previous
+        </button>
+        <div id="managerPageNumbers" class="page-numbers"></div>
+        <button id="managerNextPage" class="pagination-btn">
+          Next <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+    <% } else { %>
+      <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+        <i class="bi bi-person-badge" style="font-size: 64px; opacity: 0.3;"></i>
+        <h4 style="margin-top: 20px;">No managers found</h4>
+        <a href="/personnel/create?role=manager" class="btn btn-primary" style="margin-top: 20px;">
+          + Create Manager
+        </a>
+      </div>
+    <% } %>
+  </div>
+
+  <div id="staffView" class="view-section" style="display: <%= activeView === 'staff' ? 'block' : 'none' %>;">
+    <div id="staffControls" class="search-filter-bar" style="display: flex;">
+      <div class="search-controls">
+        <div class="search-box">
+          <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+          </svg>
+          <input type="text" id="staffSearchInput" class="search-input" placeholder="Search staff...">
+        </div>
+
+        <div class="filter-dropdown">
+          <select id="staffSortFilter" class="filter-select">
+            <option value="nameAZ">Sort By (A-Z)</option>
+            <option value="nameZA">Sort By (Z-A)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="create-button-wrapper">
+        <a href="/personnel/create?role=staff" class="btn btn-primary">
+          + Create Staff
+        </a>
+      </div>
+    </div>
+
+    <% if (staff && staff.length > 0) { %>
+      <div class="table-responsive">
+        <table class="table table-dark table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Contact</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="staffTableBody">
+            <% staff.forEach(member => { %>
+              <tr data-name="<%= (member.name || '').toLowerCase() %>">
+                <td><%= member.name || 'N/A' %></td>
+                <td><%= member.username || 'N/A' %></td>
+                <td><%= member.email || 'N/A' %></td>
+                <td><%= member.contact || 'N/A' %></td>
+                <td>
+                  <span class="badge" style="
+                    background-color: <%= member.status === 'Inactive' ? '#6b7280' : '#22c55e' %>;
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                  ">
+                    <%= member.status || 'Active' %>
+                  </span>
+                </td>
+                <td>
+                  <a href="/personnel/edit/staff/<%= member._id %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
+                    Edit
+                  </a>
+                  <form action="/personnel/delete/staff/<%= member._id %>" method="POST" style="display: inline;"
+                        onsubmit="return confirm('Are you sure you want to delete this staff member?');">
+                    <button type="submit" class="btn btn-sm btn-danger">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination-container" style="margin-top: 24px;">
+        <button id="staffPrevPage" class="pagination-btn" disabled>
+          <i class="bi bi-chevron-left"></i> Previous
+        </button>
+        <div id="staffPageNumbers" class="page-numbers"></div>
+        <button id="staffNextPage" class="pagination-btn">
+          Next <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+    <% } else { %>
+      <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+        <i class="bi bi-people" style="font-size: 64px; opacity: 0.3;"></i>
+        <h4 style="margin-top: 20px;">No staff found</h4>
+        <a href="/personnel/create?role=staff" class="btn btn-primary" style="margin-top: 20px;">
+          + Create Staff
+        </a>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const allView = document.getElementById('allView');
+    const managerView = document.getElementById('managerView');
+    const staffView = document.getElementById('staffView');
+
+    const allSearchInput = document.getElementById('allSearchInput');
+    const allSortFilter = document.getElementById('allSortFilter');
+    const allTableBody = document.getElementById('allTableBody');
+    const allRows = allTableBody ? Array.from(allTableBody.querySelectorAll('tr')) : [];
+    const allPrevPageBtn = document.getElementById('allPrevPage');
+    const allNextPageBtn = document.getElementById('allNextPage');
+    const allPageNumbersDiv = document.getElementById('allPageNumbers');
+    let allCurrentPage = 1;
+    const allItemsPerPage = 10;
+
+    const managerSearchInput = document.getElementById('managerSearchInput');
+    const managerSortFilter = document.getElementById('managerSortFilter');
+    const managerTableBody = document.getElementById('managerTableBody');
+    const managerRows = managerTableBody ? Array.from(managerTableBody.querySelectorAll('tr')) : [];
+    const managerPrevPageBtn = document.getElementById('managerPrevPage');
+    const managerNextPageBtn = document.getElementById('managerNextPage');
+    const managerPageNumbersDiv = document.getElementById('managerPageNumbers');
+    let managerCurrentPage = 1;
+    const managerItemsPerPage = 10;
+
+    const staffSearchInput = document.getElementById('staffSearchInput');
+    const staffSortFilter = document.getElementById('staffSortFilter');
+    const staffTableBody = document.getElementById('staffTableBody');
+    const staffRows = staffTableBody ? Array.from(staffTableBody.querySelectorAll('tr')) : [];
+    const staffPrevPageBtn = document.getElementById('staffPrevPage');
+    const staffNextPageBtn = document.getElementById('staffNextPage');
+    const staffPageNumbersDiv = document.getElementById('staffPageNumbers');
+    let staffCurrentPage = 1;
+    const staffItemsPerPage = 10;
+
+    function paginateRows(rows, currentPage, itemsPerPage, prevBtn, nextBtn, pageNumbersDiv) {
+      const visibleRows = rows.filter(row => row.dataset.visible === 'true');
+      const totalPages = Math.max(1, Math.ceil(visibleRows.length / itemsPerPage));
+      const safePage = Math.min(Math.max(1, currentPage), totalPages);
+      const startIndex = (safePage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+
+      rows.forEach(row => { row.style.display = 'none'; });
+      visibleRows.slice(startIndex, endIndex).forEach(row => { row.style.display = ''; });
+
+      if (prevBtn) prevBtn.disabled = safePage === 1;
+      if (nextBtn) nextBtn.disabled = safePage === totalPages;
+      if (pageNumbersDiv) {
+        pageNumbersDiv.innerHTML = '';
+        const pageInfo = document.createElement('span');
+        pageInfo.className = 'page-info';
+        pageInfo.textContent = `Page ${safePage} of ${totalPages}`;
+        pageNumbersDiv.appendChild(pageInfo);
+      }
+
+      return safePage;
+    }
+
+    function applyManagerFilters() {
+      if (!managerTableBody) return;
+      const searchTerm = (managerSearchInput.value || '').toLowerCase().trim();
+
+      const visibleRows = managerRows.filter(row => {
+        const name = row.getAttribute('data-name') || '';
+        return !searchTerm || name.includes(searchTerm);
+      });
+
+      const sortValue = managerSortFilter.value;
+      visibleRows.sort((a, b) => {
+        const nameA = a.getAttribute('data-name') || '';
+        const nameB = b.getAttribute('data-name') || '';
+        return sortValue === 'nameZA'
+          ? nameB.localeCompare(nameA)
+          : nameA.localeCompare(nameB);
+      });
+
+      managerRows.forEach(row => {
+        row.style.display = 'none';
+        row.dataset.visible = 'false';
+      });
+      visibleRows.forEach(row => {
+        row.dataset.visible = 'true';
+        managerTableBody.appendChild(row);
+      });
+
+      managerCurrentPage = paginateRows(
+        managerRows,
+        managerCurrentPage,
+        managerItemsPerPage,
+        managerPrevPageBtn,
+        managerNextPageBtn,
+        managerPageNumbersDiv
+      );
+    }
+
+    if (managerSearchInput) {
+      managerSearchInput.addEventListener('input', applyManagerFilters);
+    }
+    if (managerSortFilter) {
+      managerSortFilter.addEventListener('change', applyManagerFilters);
+    }
+    if (managerPrevPageBtn) {
+      managerPrevPageBtn.addEventListener('click', function () {
+        managerCurrentPage = Math.max(1, managerCurrentPage - 1);
+        managerCurrentPage = paginateRows(managerRows, managerCurrentPage, managerItemsPerPage, managerPrevPageBtn, managerNextPageBtn, managerPageNumbersDiv);
+      });
+    }
+    if (managerNextPageBtn) {
+      managerNextPageBtn.addEventListener('click', function () {
+        managerCurrentPage += 1;
+        managerCurrentPage = paginateRows(managerRows, managerCurrentPage, managerItemsPerPage, managerPrevPageBtn, managerNextPageBtn, managerPageNumbersDiv);
+      });
+    }
+    applyManagerFilters();
+
+    function applyStaffFilters() {
+      if (!staffTableBody) return;
+      const searchTerm = (staffSearchInput.value || '').toLowerCase().trim();
+
+      const visibleRows = staffRows.filter(row => {
+        const name = row.getAttribute('data-name') || '';
+        return !searchTerm || name.includes(searchTerm);
+      });
+
+      const sortValue = staffSortFilter.value;
+      visibleRows.sort((a, b) => {
+        const nameA = a.getAttribute('data-name') || '';
+        const nameB = b.getAttribute('data-name') || '';
+        return sortValue === 'nameZA'
+          ? nameB.localeCompare(nameA)
+          : nameA.localeCompare(nameB);
+      });
+
+      staffRows.forEach(row => {
+        row.style.display = 'none';
+        row.dataset.visible = 'false';
+      });
+      visibleRows.forEach(row => {
+        row.dataset.visible = 'true';
+        staffTableBody.appendChild(row);
+      });
+
+      staffCurrentPage = paginateRows(
+        staffRows,
+        staffCurrentPage,
+        staffItemsPerPage,
+        staffPrevPageBtn,
+        staffNextPageBtn,
+        staffPageNumbersDiv
+      );
+    }
+
+    if (staffSearchInput) {
+      staffSearchInput.addEventListener('input', applyStaffFilters);
+    }
+    if (staffSortFilter) {
+      staffSortFilter.addEventListener('change', applyStaffFilters);
+    }
+    if (staffPrevPageBtn) {
+      staffPrevPageBtn.addEventListener('click', function () {
+        staffCurrentPage = Math.max(1, staffCurrentPage - 1);
+        staffCurrentPage = paginateRows(staffRows, staffCurrentPage, staffItemsPerPage, staffPrevPageBtn, staffNextPageBtn, staffPageNumbersDiv);
+      });
+    }
+    if (staffNextPageBtn) {
+      staffNextPageBtn.addEventListener('click', function () {
+        staffCurrentPage += 1;
+        staffCurrentPage = paginateRows(staffRows, staffCurrentPage, staffItemsPerPage, staffPrevPageBtn, staffNextPageBtn, staffPageNumbersDiv);
+      });
+    }
+    applyStaffFilters();
+
+    function applyAllFilters() {
+      if (!allTableBody) return;
+      const searchTerm = (allSearchInput.value || '').toLowerCase().trim();
+
+      const visibleRows = allRows.filter(row => {
+        const name = row.getAttribute('data-name') || '';
+        const searchMatch = !searchTerm || name.includes(searchTerm);
+        return searchMatch;
+      });
+
+      const sortValue = allSortFilter.value;
+      visibleRows.sort((a, b) => {
+        const nameA = a.getAttribute('data-name') || '';
+        const nameB = b.getAttribute('data-name') || '';
+        return sortValue === 'nameZA'
+          ? nameB.localeCompare(nameA)
+          : nameA.localeCompare(nameB);
+      });
+
+      allRows.forEach(row => {
+        row.style.display = 'none';
+        row.dataset.visible = 'false';
+      });
+      visibleRows.forEach(row => {
+        row.dataset.visible = 'true';
+        allTableBody.appendChild(row);
+      });
+
+      allCurrentPage = paginateRows(
+        allRows,
+        allCurrentPage,
+        allItemsPerPage,
+        allPrevPageBtn,
+        allNextPageBtn,
+        allPageNumbersDiv
+      );
+    }
+
+    if (allSearchInput) allSearchInput.addEventListener('input', applyAllFilters);
+    if (allSortFilter) allSortFilter.addEventListener('change', applyAllFilters);
+    if (allPrevPageBtn) {
+      allPrevPageBtn.addEventListener('click', function () {
+        allCurrentPage = Math.max(1, allCurrentPage - 1);
+        allCurrentPage = paginateRows(allRows, allCurrentPage, allItemsPerPage, allPrevPageBtn, allNextPageBtn, allPageNumbersDiv);
+      });
+    }
+    if (allNextPageBtn) {
+      allNextPageBtn.addEventListener('click', function () {
+        allCurrentPage += 1;
+        allCurrentPage = paginateRows(allRows, allCurrentPage, allItemsPerPage, allPrevPageBtn, allNextPageBtn, allPageNumbersDiv);
+      });
+    }
+    applyAllFilters();
+
+    filterButtons.forEach(button => {
+      button.addEventListener('click', function () {
+        const selectedView = this.getAttribute('data-view');
+
+        filterButtons.forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+
+        allView.style.display = selectedView === 'all' ? 'block' : 'none';
+        managerView.style.display = selectedView === 'manager' ? 'block' : 'none';
+        staffView.style.display = selectedView === 'staff' ? 'block' : 'none';
+        window.history.replaceState(null, '', `/personnel?view=${selectedView}`);
+      });
+    });
+  });
+</script>

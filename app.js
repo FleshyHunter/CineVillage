@@ -12,6 +12,8 @@ const authRoutes = require("./routes/authRoutes");
 const movieRoutes = require("./routes/movieRoutes")
 const hallRoutes = require("./routes/hallRoutes");
 const screeningRoutes = require("./routes/screeningRoutes");
+const profileRoutes = require("./routes/profileRoutes");
+const personnelRoutes = require("./routes/personnelRoutes");
 
 // const hallRoutes = requrire("./routes/")
 
@@ -37,6 +39,8 @@ app.use("/auth", authRoutes);
 app.use("/movies", movieRoutes);
 app.use("/halls", hallRoutes);
 app.use("/screenings", screeningRoutes);
+app.use("/profile", profileRoutes);
+app.use("/personnel", personnelRoutes);
 
 //routing
 app.get("/", (req,res) => {

@@ -17,6 +17,9 @@
             <button class="filter-btn" data-filter="VIP">
                 <i class="bi bi-star"></i> VIP
             </button>
+            <button class="filter-btn" data-filter="maintenance">
+                <i class="bi bi-tools"></i> Maintenance
+            </button>
         </div>
 
         <!-- Search and Filter Controls -->
@@ -59,6 +62,7 @@
                 <a href="/halls/<%= hall._id %>" 
                    class="movie-card-link hall-card-link" 
                    data-type="<%= hall.type || 'all' %>"
+                   data-status="<%= hall.configuredStatus || hall.status || '' %>"
                    data-name="<%= hall.name ? hall.name.toLowerCase() : '' %>"
                    data-capacity="<%= hall.capacity || 0 %>">
                     <div class="movie-card card">
@@ -80,15 +84,44 @@
                                 </svg>
                                 <%= hall.capacity || 'N/A' %> seats
                             </div>
-                            <!-- Wheelchair accessibility tag -->
+                            <!-- Hall status tag -->
                             <% 
+                            const hallStatus = hall.configuredStatus || hall.status || 'Unknown';
+                            const maintenanceStart = hall.maintenanceStartDate || '';
+                            const maintenanceEnd = hall.maintenanceEndDate || '';
+                            const formatDateShort = (dateStr) => {
+                                if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+                                const [yyyy, mm, dd] = dateStr.split('-');
+                                return `${dd}/${mm}/${yyyy.slice(2)}`;
+                            };
+                            const maintenanceRange = (maintenanceStart && maintenanceEnd)
+                                ? ` (${formatDateShort(maintenanceStart)} - ${formatDateShort(maintenanceEnd)})`
+                                : '';
+                            let hallStatusClass = 'hall-status-unknown';
+                            let hallStatusText = hallStatus;
+                            if (hallStatus === 'Available') {
+                                hallStatusClass = 'hall-status-available';
+                                hallStatusText = 'Available';
+                            } else {
+                                hallStatusClass = 'hall-status-maintenance';
+                                hallStatusText = `Under Maintenance${maintenanceRange}`;
+                            }
+                            %>
+                            <div class="genre-tags">
+                                <span class="genre-tag hall-status-tag <%= hallStatusClass %>">
+                                    <i class="bi bi-circle-fill"></i> <%= hallStatusText %>
+                                </span>
+                            </div>
+
+                            <!-- Wheelchair accessibility tag -->
+                            <%
                             let hasWheelchair = false;
                             if (hall.seatConfig && typeof hall.seatConfig === 'object') {
                                 hasWheelchair = Object.values(hall.seatConfig).some(state => state === 'wheelchair');
                             }
                             if (hasWheelchair) { %>
                                 <div class="genre-tags">
-                                    <span class="genre-tag" style="background-color: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid #3b82f6;">
+                                    <span class="genre-tag hall-wheelchair-tag">
                                         <i class="bi bi-universal-access"></i> Wheelchair Accessible
                                     </span>
                                 </div>
@@ -171,9 +204,12 @@
 
                 return hallCards.filter(card => {
                     const type = card.getAttribute('data-type');
+                    const status = card.getAttribute('data-status');
                     const name = card.getAttribute('data-name');
 
-                    const typeMatch = activeTypeFilter === 'all' || type === activeTypeFilter;
+                    const typeMatch = activeTypeFilter === 'all'
+                        || type === activeTypeFilter
+                        || (activeTypeFilter === 'maintenance' && status === 'Under Maintenance');
                     const searchMatch = !searchTerm || name.includes(searchTerm);
 
                     return typeMatch && searchMatch;

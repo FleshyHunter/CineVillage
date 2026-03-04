@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { loginAdmin } = require("../controllers/authControllers");
+const { loginAccount } = require("../controllers/authControllers");
 
 // Login page
 router.get("/login", (req, res) => {
@@ -12,13 +12,19 @@ router.get("/login", (req, res) => {
 // Login POST
 router.post("/login", async (req, res) => {
     const { email, password } = req.body;
-    const result = await loginAdmin(email, password);
+    console.log("[AUTH] Login attempt", { email: (email || "").toString().trim() });
+    const result = await loginAccount(email, password);
 
     if (result.error) {
+        console.log("[AUTH] Login response error", { email: (email || "").toString().trim(), error: result.error });
         // Redirect back to login with a query param (or flash message)
         return res.redirect(`/auth/login?error=${encodeURIComponent(result.error)}`);
     }
 
+    console.log("[AUTH] Login response success", {
+        email: (email || "").toString().trim(),
+        role: result.role
+    });
     //redirect expects a url not a path, render expects a path
     res.redirect("/dashboard");
 });
