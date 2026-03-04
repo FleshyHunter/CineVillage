@@ -8,6 +8,11 @@ router.get("/login", (req, res) => {
     res.render("auth/login", { error, layout: false });
 });
 
+// Logout
+router.get("/logout", (req, res) => {
+    res.redirect("/auth/login");
+});
+
 
 // Login POST
 router.post("/login", async (req, res) => {
