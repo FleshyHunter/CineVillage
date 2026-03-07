@@ -108,7 +108,11 @@ app.get("/dashboard", async (req, res) => {
                 return dt >= startOfToday && dt <= endOfToday;
             }).length,
             impacted: screenings.filter(s => s.status === "paused").length,
-            discontinued: screenings.filter(s => s.status === "completed").length
+            completedToday: screenings.filter(s => {
+                if (s.status !== "completed" || !s.endDateTime) return false;
+                const end = new Date(s.endDateTime);
+                return end >= startOfToday && end <= endOfToday;
+            }).length
         };
 
         const newMovies = movies
