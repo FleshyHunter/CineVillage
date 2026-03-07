@@ -28,19 +28,29 @@ function initializeHallForm() {
     maintenanceEndInput.addEventListener('change', syncMaintenanceDateBounds);
     maintenanceStartInput.addEventListener('change', updateHallStatusDisplay);
     maintenanceEndInput.addEventListener('change', updateHallStatusDisplay);
+    maintenanceStartInput.addEventListener('change', () => validateMaintenanceRange(false));
+    maintenanceEndInput.addEventListener('change', () => validateMaintenanceRange(false));
+    maintenanceStartInput.addEventListener('input', () => validateMaintenanceRange(false));
+    maintenanceEndInput.addEventListener('input', () => validateMaintenanceRange(false));
   }
 
   if (statusSelect) {
     statusSelect.addEventListener('change', syncMaintenanceDurationState);
     statusSelect.addEventListener('change', syncMaintenanceDateBounds);
     statusSelect.addEventListener('change', updateHallStatusDisplay);
+    statusSelect.addEventListener('change', () => validateMaintenanceRange(false));
     syncMaintenanceDurationState();
     syncMaintenanceDateBounds();
     updateHallStatusDisplay();
+    validateMaintenanceRange(false);
   }
 
   // Save seat configuration before form submit
   document.querySelector('form').addEventListener('submit', (e) => {
+    if (!validateMaintenanceRange(true)) {
+      e.preventDefault();
+      return;
+    }
     syncMaintenanceDurationState();
     document.getElementById('seatConfig').value = JSON.stringify(seatData);
   });
@@ -78,15 +88,37 @@ function syncMaintenanceDateBounds() {
   const startInput = document.getElementById('maintenanceStartDate');
   const endInput = document.getElementById('maintenanceEndDate');
   if (!startInput || !endInput) return;
+  // Do not set endInput.min dynamically because some browsers
+  // aggressively reset partially typed date values.
+  endInput.removeAttribute('min');
+}
 
-  if (startInput.value) {
-    endInput.min = startInput.value;
-    if (endInput.value && endInput.value < startInput.value) {
-      endInput.value = startInput.value;
-    }
-  } else {
-    endInput.min = '';
+function validateMaintenanceRange(showMessage = false) {
+  const statusSelect = document.getElementById('status');
+  const startInput = document.getElementById('maintenanceStartDate');
+  const endInput = document.getElementById('maintenanceEndDate');
+  if (!statusSelect || !startInput || !endInput) return true;
+
+  endInput.setCustomValidity('');
+
+  if (statusSelect.value !== 'Under Maintenance') {
+    return true;
   }
+
+  if (!startInput.value || !endInput.value) {
+    return true;
+  }
+
+  if (endInput.value < startInput.value) {
+    const message = 'End date cannot be earlier than start date.';
+    endInput.setCustomValidity(message);
+    if (showMessage && typeof endInput.reportValidity === 'function') {
+      endInput.reportValidity();
+    }
+    return false;
+  }
+
+  return true;
 }
 
 function formatDateShort(dateStr) {

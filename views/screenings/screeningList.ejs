@@ -632,8 +632,8 @@
     <!-- DATE VIEW: Select date to view screenings -->
     <div id="dateView" class="view-section" style="display: <%= activeView === 'date' ? 'block' : 'none' %>;">
         <div id="dateMoviesContainer">
-            <% if (dateMovies && dateMovies.length > 0) { %>
-                <div id="dateCardsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+            <div id="dateCardsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+                <% if (dateMovies && dateMovies.length > 0) { %>
                     <% dateMovies.forEach(movie => { %>
                         <div class="movie-card card" data-name="<%= movie.name.toLowerCase() %>" style="height: 650px; display: flex; flex-direction: column;">
                             <div class="movie-card-img-wrapper" style="position: relative;">
@@ -685,24 +685,24 @@
                             </div>
                         </div>
                     <% }); %>
-                </div>
+                <% } %>
+            </div>
 
-                <!-- Pagination Controls for Date View -->
-                <div class="pagination-container" style="margin-top: 24px;">
-                    <button id="datePrevPage" class="pagination-btn" disabled>
-                        <i class="bi bi-chevron-left"></i> Previous
-                    </button>
-                    <div id="datePageNumbers" class="page-numbers"></div>
-                    <button id="dateNextPage" class="pagination-btn">
-                        Next <i class="bi bi-chevron-right"></i>
-                    </button>
-                </div>
-            <% } else { %>
-                <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
-                    <i class="bi bi-film" style="font-size: 64px; opacity: 0.3;"></i>
-                    <h4 style="margin-top: 20px;">No screenings for this date</h4>
-                </div>
-            <% } %>
+            <div id="dateEmptyState" style="text-align: center; padding: 60px 20px; color: var(--text-muted); display: <%= (dateMovies && dateMovies.length > 0) ? 'none' : 'block' %>;">
+                <i class="bi bi-film" style="font-size: 64px; opacity: 0.3;"></i>
+                <h4 style="margin-top: 20px;">No screenings for this date</h4>
+            </div>
+
+            <!-- Pagination Controls for Date View -->
+            <div id="datePaginationContainer" class="pagination-container" style="margin-top: 24px; display: <%= (dateMovies && dateMovies.length > 0) ? 'flex' : 'none' %>;">
+                <button id="datePrevPage" class="pagination-btn" disabled>
+                    <i class="bi bi-chevron-left"></i> Previous
+                </button>
+                <div id="datePageNumbers" class="page-numbers"></div>
+                <button id="dateNextPage" class="pagination-btn">
+                    Next <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -765,11 +765,6 @@
         });
     });
 
-    // Date selector change - use traditional navigation instead of API
-    function navigateToDate(selectedDate) {
-        window.location.href = '/screenings?view=date&date=' + selectedDate;
-    }
-
     function formatDateForInput(dateObj) {
         const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -789,13 +784,12 @@
         if ((minDate && nextDate < minDate) || (maxDate && nextDate > maxDate)) return;
 
         dateSelector.value = nextDate;
-        navigateToDate(nextDate);
+        fetchDateMoviesForSelectedDate();
     }
 
     if (dateSelector) {
         dateSelector.addEventListener('change', function() {
-            const selectedDate = this.value;
-            navigateToDate(selectedDate);
+            fetchDateMoviesForSelectedDate();
         });
     }
 
@@ -1499,17 +1493,117 @@
     }
 
     // Date view pagination
-    const dateCards = Array.from(document.querySelectorAll('#dateMoviesContainer .movie-card'));
+    const dateCardsGrid = document.getElementById('dateCardsGrid');
+    const dateEmptyState = document.getElementById('dateEmptyState');
+    const datePaginationContainer = document.getElementById('datePaginationContainer');
+    let dateCards = Array.from(document.querySelectorAll('#dateMoviesContainer .movie-card'));
     const datePrevPageBtn = document.getElementById('datePrevPage');
     const dateNextPageBtn = document.getElementById('dateNextPage');
     const datePageNumbersDiv = document.getElementById('datePageNumbers');
     let dateCurrentPage = 1;
     const dateItemsPerPage = 12;
 
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function renderDateCards(movies) {
+        if (!dateCardsGrid) return;
+        const selectedDate = dateSelector ? dateSelector.value : '<%= selectedDate %>';
+        const returnToEncoded = encodeURIComponent(`/screenings?view=date&date=${selectedDate}`);
+
+        const html = (movies || []).map(movie => {
+            const hallTypeEntries = Object.entries(movie.screeningsByHallType || {});
+            const hallTypeHtml = hallTypeEntries.map(([hallType, screenings]) => {
+                const timeslotHtml = (screenings || []).map(screening => `
+                    <a href="/screenings/view/${escapeHtml(screening.screeningId)}?returnTo=${returnToEncoded}"
+                       style="background-color: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s; text-decoration: none; display: inline-block;"
+                       onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'; this.style.transform='scale(1.05)'"
+                       onmouseout="this.style.backgroundColor='rgba(59, 130, 246, 0.1)'; this.style.transform='scale(1)'"
+                       title="View screening in ${escapeHtml(screening.hallName)}">
+                        <span style="color: #3b82f6; font-size: 13px; font-weight: 600;">
+                            ${escapeHtml(screening.time)}
+                        </span>
+                    </a>
+                `).join('');
+
+                return `
+                    <div style="margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #334155;">
+                            <i class="bi bi-house-door" style="color: #3b82f6; font-size: 14px;"></i>
+                            <span style="color: var(--text-main); font-size: 13px; font-weight: 600;">${escapeHtml(hallType)}</span>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            ${timeslotHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="movie-card card" data-name="${escapeHtml((movie.name || '').toLowerCase())}" style="height: 650px; display: flex; flex-direction: column;">
+                    <div class="movie-card-img-wrapper" style="position: relative;">
+                        <img src="${escapeHtml(movie.pictureUrl || '/images/placeholder.jpg')}"
+                             alt="${escapeHtml(movie.name || 'Movie')}"
+                             class="movie-card-img"
+                             style="height: 280px; object-fit: cover;">
+                        ${movie.ageRestriction ? `<div class="age-badge">${escapeHtml(movie.ageRestriction)}</div>` : ''}
+                    </div>
+                    <div class="movie-card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
+                        <div class="movie-name" style="margin-bottom: 8px;">
+                            ${escapeHtml(movie.name || 'Untitled Movie')}
+                        </div>
+                        <div class="movie-duration" style="margin-bottom: 16px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;">
+                                <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"></path>
+                                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"></path>
+                            </svg>
+                            ${escapeHtml(movie.duration || 'N/A')} min
+                        </div>
+                        <div style="flex-grow: 1;">
+                            ${hallTypeHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        dateCardsGrid.innerHTML = html;
+        dateCards = Array.from(document.querySelectorAll('#dateMoviesContainer .movie-card'));
+    }
+
+    async function fetchDateMoviesForSelectedDate() {
+        if (!dateSelector || !dateSelector.value) return;
+
+        const selectedDate = dateSelector.value;
+        const params = new URLSearchParams({ date: selectedDate });
+
+        try {
+            const response = await fetch(`/screenings/api/date-screenings?${params.toString()}`);
+            if (!response.ok) throw new Error('Failed to fetch date screenings');
+            const movies = await response.json();
+
+            window.history.replaceState({}, '', `/screenings?view=date&date=${selectedDate}`);
+            renderDateCards(Array.isArray(movies) ? movies : []);
+            dateCurrentPage = 1;
+            updateDatePagination();
+        } catch (error) {
+            console.error('Error loading date screenings:', error);
+            renderDateCards([]);
+            dateCurrentPage = 1;
+            updateDatePagination();
+        }
+    }
+
     function updateDatePagination() {
         const searchTerm = dateMovieSearchInput ? dateMovieSearchInput.value.toLowerCase().trim() : '';
         const sortValue = dateSortFilter ? dateSortFilter.value : 'none';
-        const dateCardsGrid = document.getElementById('dateCardsGrid');
         let filteredDateCards = dateCards.filter(card => {
             const movieName = card.getAttribute('data-name') || '';
             return !searchTerm || movieName.includes(searchTerm);
@@ -1522,6 +1616,14 @@
             if (sortValue === 'nameZA') return nameB.localeCompare(nameA);
             return 0;
         });
+
+        const hasResults = filteredDateCards.length > 0;
+        if (dateEmptyState) {
+            dateEmptyState.style.display = hasResults ? 'none' : 'block';
+        }
+        if (datePaginationContainer) {
+            datePaginationContainer.style.display = hasResults ? 'flex' : 'none';
+        }
 
         const totalPages = Math.ceil(filteredDateCards.length / dateItemsPerPage);
         if (dateCurrentPage > Math.max(1, totalPages)) {
@@ -1573,7 +1675,12 @@
 
     if (dateNextPageBtn) {
         dateNextPageBtn.addEventListener('click', function() {
-            const totalPages = Math.ceil(dateCards.length / dateItemsPerPage);
+            const searchTerm = dateMovieSearchInput ? dateMovieSearchInput.value.toLowerCase().trim() : '';
+            const totalFiltered = dateCards.filter(card => {
+                const movieName = card.getAttribute('data-name') || '';
+                return !searchTerm || movieName.includes(searchTerm);
+            }).length;
+            const totalPages = Math.ceil(totalFiltered / dateItemsPerPage);
             if (dateCurrentPage < totalPages) {
                 dateCurrentPage++;
                 updateDatePagination();
@@ -1581,9 +1688,7 @@
         });
     }
 
-    if (dateCards.length > 0) {
-        updateDatePagination();
-    }
+    updateDatePagination();
 
     if (dateMovieSearchInput) {
         dateMovieSearchInput.addEventListener('input', function() {
