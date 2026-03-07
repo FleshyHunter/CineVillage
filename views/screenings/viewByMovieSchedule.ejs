@@ -49,9 +49,9 @@
                             <!-- Timings Grid -->
                             <div class="schedule-time-grid">
                                 <% screeningsByDate[date].forEach(screening => { %>
-                                    <a href="/screenings/edit/<%= screening.screeningId %>?returnTo=<%= encodeURIComponent('/screenings/movie/' + movie._id) %>"
+                                    <a href="/screenings/view/<%= screening.screeningId %>?returnTo=<%= encodeURIComponent('/screenings/movie/' + movie._id) %>"
                                        class="schedule-time-chip <%= screening.status === 'paused' ? 'schedule-time-chip-paused' : '' %>"
-                                       title="Edit screening in <%= screening.hallName %>">
+                                       title="View screening in <%= screening.hallName %>">
                                         <div class="schedule-time-value">
                                             <%= screening.time %>
                                         </div>

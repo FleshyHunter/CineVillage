@@ -1,0 +1,82 @@
+<%- include('../layouts/header') %>
+
+<div class="container">
+  <h2 style="margin-bottom: 30px;">View Screening</h2>
+
+  <div class="movie-detail-container">
+    <div class="movie-detail-poster">
+      <img
+        src="<%= screening && screening.movieId && screening.movieId.pictureUrl ? screening.movieId.pictureUrl : '/images/placeholder.jpg' %>"
+        alt="Movie poster"
+        style="width: 100%; border-radius: 8px; object-fit: cover; min-height: 400px;">
+      <div style="text-align: center; margin-top: 15px;">
+        <h4 style="color: var(--text-main); margin-bottom: 6px;">
+          <%= screening && screening.movieId && screening.movieId.name ? screening.movieId.name : 'N/A' %>
+        </h4>
+        <p style="color: var(--text-muted); font-size: 13px; margin: 0;">
+          <%= screening && screening.movieId && screening.movieId.duration ? screening.movieId.duration : '-' %> mins
+        </p>
+      </div>
+    </div>
+
+    <div class="movie-detail-info">
+      <div class="form-group">
+        <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">MOVIE</label>
+        <div class="form-control form-control-readonly">
+          <%= screening && screening.movieId && screening.movieId.name ? screening.movieId.name : 'N/A' %>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">HALL</label>
+        <div class="form-control form-control-readonly">
+          <%= screening && screening.hallId && screening.hallId.name ? screening.hallId.name : 'N/A' %>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">DATE</label>
+          <div class="form-control form-control-readonly">
+            <%= screening && screening.startDateTime ? new Date(screening.startDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A' %>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">TIME</label>
+          <div class="form-control form-control-readonly">
+            <% if (screening && screening.startDateTime && screening.endDateTime) { %>
+              <%= new Date(screening.startDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %> -
+              <%= new Date(screening.endDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %>
+            <% } else { %>
+              N/A
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">PRICE</label>
+          <div class="form-control form-control-readonly">
+            $<%= screening && screening.price ? Number(screening.price).toFixed(2) : '0.00' %>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">STATUS</label>
+          <div class="form-control form-control-readonly" style="text-transform: capitalize;">
+            <%= screening && screening.status ? screening.status : 'N/A' %>
+          </div>
+        </div>
+      </div>
+
+      <div class="movie-detail-actions">
+        <a href="<%= (typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/screenings' %>" class="btn btn-secondary">
+          ← Back to Screenings
+        </a>
+        <a href="/screenings/edit/<%= screening._id %>?returnTo=<%= encodeURIComponent('/screenings/view/' + screening._id + '?returnTo=' + encodeURIComponent((typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/screenings')) %>" class="btn btn-primary">
+          Edit Screening
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

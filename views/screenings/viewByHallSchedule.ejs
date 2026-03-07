@@ -231,8 +231,8 @@
             paginatedSchedule.forEach(block => {
                 const item = document.createElement('a');
                 item.className = 'selected-screening-item';
-                item.href = `/screenings/edit/${block.screeningId}?returnTo=${encodeURIComponent(`/screenings/hall/${hallId}?date=${dateInput.value}`)}`;
-                item.title = `Edit ${block.movieName}`;
+                item.href = `/screenings/view/${block.screeningId}?returnTo=${encodeURIComponent(`/screenings/hall/${hallId}?date=${dateInput.value}`)}`;
+                item.title = `View ${block.movieName}`;
 
                 const movieName = document.createElement('div');
                 movieName.className = 'selected-screening-name';

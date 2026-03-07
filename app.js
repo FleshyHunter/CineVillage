@@ -2,6 +2,7 @@
 const express = require("express");
 const mongodb = require("mongodb");
 const {disconnect, initDBIfNecessary} = require("./config/database");
+const { getCollectionMovie, getCollectionHall, getCollectionScreening } = require("./config/database");
 
 const expressLayouts = require('express-ejs-layouts');
 
@@ -51,9 +52,95 @@ app.get("/", (req,res) => {
 });
 
 //no views as view engine already declares to look at views for all ejs
-app.get("/dashboard", (req,res) => {
-    res.render("dashboard/dashboard", { pageTitle: "Dashboard" });
-})
+function getMaintenanceWindow(hall) {
+    if (!hall || hall.status !== "Under Maintenance" || !hall.maintenanceStartDate || !hall.maintenanceEndDate) {
+        return null;
+    }
+    const start = new Date(`${hall.maintenanceStartDate}T00:00:00`);
+    const end = new Date(`${hall.maintenanceEndDate}T23:59:59.999`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return null;
+    }
+    return { start, end };
+}
+
+function isHallUnderMaintenanceNow(hall, now) {
+    if (!hall) return false;
+    const window = getMaintenanceWindow(hall);
+    if (!window) return hall.status === "Under Maintenance";
+    return now >= window.start && now <= window.end;
+}
+
+app.get("/dashboard", async (req, res) => {
+    try {
+        await initDBIfNecessary();
+        const collectionMovie = getCollectionMovie();
+        const collectionHall = getCollectionHall();
+        const collectionScreening = getCollectionScreening();
+
+        const [movies, halls, screenings] = await Promise.all([
+            collectionMovie.find({}).toArray(),
+            collectionHall.find({}).toArray(),
+            collectionScreening.find({}).toArray()
+        ]);
+
+        const now = new Date();
+        const startOfToday = new Date(now);
+        startOfToday.setHours(0, 0, 0, 0);
+        const endOfToday = new Date(now);
+        endOfToday.setHours(23, 59, 59, 999);
+
+        const movieStats = {
+            nowShowing: movies.filter(m => m.status === "Now Showing").length,
+            comingSoon: movies.filter(m => m.status === "Coming Soon").length,
+            discontinued: movies.filter(m => m.status === "Discontinued").length
+        };
+
+        const hallStats = {
+            active: halls.filter(h => !isHallUnderMaintenanceNow(h, now)).length,
+            maintenance: halls.filter(h => isHallUnderMaintenanceNow(h, now)).length
+        };
+
+        const screeningStats = {
+            today: screenings.filter(s => {
+                if (!s.startDateTime) return false;
+                const dt = new Date(s.startDateTime);
+                return dt >= startOfToday && dt <= endOfToday;
+            }).length,
+            impacted: screenings.filter(s => s.status === "paused").length,
+            discontinued: screenings.filter(s => s.status === "completed").length
+        };
+
+        const newMovies = movies
+            .filter(m => m.releaseDate)
+            .sort((a, b) => new Date(b.releaseDate) - new Date(a.releaseDate))
+            .slice(0, 5);
+
+        const movieMap = new Map(movies.map(m => [String(m._id), m]));
+        const hallMap = new Map(halls.map(h => [String(h._id), h]));
+
+        const activeScreenings = screenings
+            .filter(s => ["scheduled", "ongoing", "paused"].includes(s.status))
+            .sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime))
+            .map(s => ({
+                ...s,
+                movie: movieMap.get(String(s.movieId)) || null,
+                hall: hallMap.get(String(s.hallId)) || null
+            }));
+
+        res.render("dashboard/dashboard", {
+            pageTitle: "Dashboard",
+            movieStats,
+            hallStats,
+            screeningStats,
+            newMovies,
+            upcomingScreenings: activeScreenings
+        });
+    } catch (error) {
+        console.error("Error loading dashboard:", error);
+        res.status(500).send("Error loading dashboard");
+    }
+});
 
 // Start server
 async function startServer() {

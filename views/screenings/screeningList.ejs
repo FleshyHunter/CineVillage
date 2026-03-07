@@ -202,7 +202,7 @@
         <!-- Create Button -->
         <div class="create-button-wrapper">
             <a href="/screenings/create" class="btn btn-primary">
-                + Create New Screening
+                <i class="bi bi-calendar-plus"></i> Create New Screening
             </a>
         </div>
     </div>
@@ -271,7 +271,10 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="/screenings/edit/<%= screening._id %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
+                                    <a href="/screenings/view/<%= screening._id %>?returnTo=<%= encodeURIComponent('/screenings?view=all') %>" class="btn btn-sm btn-secondary" style="margin-right: 8px;">
+                                        View
+                                    </a>
+                                    <a href="/screenings/edit/<%= screening._id %>?returnTo=<%= encodeURIComponent('/screenings?view=all') %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
                                         Edit
                                     </a>
                                     <form action="/screenings/delete/<%= screening._id %>" method="POST" style="display: inline;"
@@ -303,7 +306,7 @@
                 <h4 style="margin-top: 20px;">No screenings found</h4>
                 <p>Create your first screening to get started</p>
                 <a href="/screenings/create" class="btn btn-primary" style="margin-top: 20px;">
-                    + Create Screening
+                    <i class="bi bi-calendar-plus"></i> Create New Screening
                 </a>
             </div>
         <% } %>
@@ -370,7 +373,10 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="/screenings/edit/<%= screening._id %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
+                                    <a href="/screenings/view/<%= screening._id %>?returnTo=<%= encodeURIComponent('/screenings?view=paused') %>" class="btn btn-sm btn-secondary" style="margin-right: 8px;">
+                                        View
+                                    </a>
+                                    <a href="/screenings/edit/<%= screening._id %>?returnTo=<%= encodeURIComponent('/screenings?view=paused') %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
                                         Edit
                                     </a>
                                     <form action="/screenings/delete/<%= screening._id %>" method="POST" style="display: inline;"
@@ -469,7 +475,10 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="/screenings/edit/<%= screening._id %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
+                                    <a href="/screenings/view/<%= screening._id %>?returnTo=<%= encodeURIComponent('/screenings?view=completed') %>" class="btn btn-sm btn-secondary" style="margin-right: 8px;">
+                                        View
+                                    </a>
+                                    <a href="/screenings/edit/<%= screening._id %>?returnTo=<%= encodeURIComponent('/screenings?view=completed') %>" class="btn btn-sm btn-primary" style="margin-right: 8px;">
                                         Edit
                                     </a>
                                     <form action="/screenings/delete/<%= screening._id %>" method="POST" style="display: inline;"
@@ -659,11 +668,11 @@
                                             
                                             <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                                                 <% movie.screeningsByHallType[hallType].forEach(screening => { %>
-                                                    <a href="/screenings/edit/<%= screening.screeningId %>?returnTo=<%= encodeURIComponent('/screenings?view=date&date=' + selectedDate) %>"
+                                                    <a href="/screenings/view/<%= screening.screeningId %>?returnTo=<%= encodeURIComponent('/screenings?view=date&date=' + selectedDate) %>"
                                                        style="background-color: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s; text-decoration: none; display: inline-block;"
                                                        onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.2)'; this.style.transform='scale(1.05)'"
                                                        onmouseout="this.style.backgroundColor='rgba(59, 130, 246, 0.1)'; this.style.transform='scale(1)'"
-                                                       title="Edit screening in <%= screening.hallName %>">
+                                                       title="View screening in <%= screening.hallName %>">
                                                         <span style="color: #3b82f6; font-size: 13px; font-weight: 600;">
                                                             <%= screening.time %>
                                                         </span>
@@ -940,6 +949,40 @@
     let allCurrentPage = 1;
     const allItemsPerPage = 15;
 
+    function parseDisplayDateTime(row) {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 2) return new Date(0);
+
+        const dateText = cells[0].textContent.trim();
+        const timeText = cells[1].textContent.trim().split(' - ')[0];
+        const parts = dateText.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
+
+        if (!parts) return new Date(0);
+
+        const months = {
+            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3,
+            'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7,
+            'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+        };
+
+        const dt = new Date(parts[3], months[parts[2]], parts[1]);
+        if (timeText !== 'N/A') {
+            const [hours, minutes] = timeText.split(':');
+            dt.setHours(parseInt(hours || '0', 10), parseInt(minutes || '0', 10), 0, 0);
+        }
+        return dt;
+    }
+
+    function sortRowsByDateTime(rows, sortValue) {
+        const sortedRows = [...rows];
+        if (sortValue === 'earliest') {
+            sortedRows.sort((a, b) => parseDisplayDateTime(a) - parseDisplayDateTime(b));
+        } else if (sortValue === 'latest') {
+            sortedRows.sort((a, b) => parseDisplayDateTime(b) - parseDisplayDateTime(a));
+        }
+        return sortedRows;
+    }
+
     function applyAllFilters() {
         const searchTerm = allSearchInput ? allSearchInput.value.toLowerCase() : '';
         const selectedDate = allDateFilter ? allDateFilter.value : '';
@@ -993,64 +1036,16 @@
             }
         });
 
-        // Sort visible rows
-        if (sortValue !== 'none') {
-            const tbody = document.querySelector('#allView tbody');
-            const visibleRows = allTableRows.filter(row => row.dataset.visible === 'true');
-            
-            visibleRows.sort((a, b) => {
-                const timeA = a.querySelectorAll('td')[1].textContent.trim().split(' - ')[0]; // Get start time
-                const timeB = b.querySelectorAll('td')[1].textContent.trim().split(' - ')[0];
-                const dateA = a.querySelectorAll('td')[0].textContent.trim();
-                const dateB = b.querySelectorAll('td')[0].textContent.trim();
-                
-                // Parse dates for comparison
-                const parseDateStr = (dateStr) => {
-                    const parts = dateStr.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
-                    if (parts) {
-                        const months = {
-                            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3,
-                            'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7,
-                            'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-                        };
-                        return new Date(parts[3], months[parts[2]], parts[1]);
-                    }
-                    return new Date(0);
-                };
-                
-                const fullDateA = parseDateStr(dateA);
-                const fullDateB = parseDateStr(dateB);
-                
-                // Add time to date
-                if (timeA !== 'N/A') {
-                    const [hours, minutes] = timeA.split(':');
-                    fullDateA.setHours(parseInt(hours), parseInt(minutes));
-                }
-                if (timeB !== 'N/A') {
-                    const [hours, minutes] = timeB.split(':');
-                    fullDateB.setHours(parseInt(hours), parseInt(minutes));
-                }
-                
-                if (sortValue === 'earliest') {
-                    return fullDateA - fullDateB;
-                } else if (sortValue === 'latest') {
-                    return fullDateB - fullDateA;
-                }
-                return 0;
-            });
-            
-            // Reorder rows in DOM
-            visibleRows.forEach(row => tbody.appendChild(row));
-        }
-
-        // Get visible rows after sorting
         const visibleRows = allTableRows.filter(row => row.dataset.visible === 'true');
+        const sortedRows = sortRowsByDateTime(visibleRows, sortValue);
+        const tbody = document.querySelector('#allView tbody');
+        sortedRows.forEach(row => tbody.appendChild(row));
         
         // Pagination
-        const totalPages = Math.ceil(visibleRows.length / allItemsPerPage);
+        const totalPages = Math.ceil(sortedRows.length / allItemsPerPage);
         const startIndex = (allCurrentPage - 1) * allItemsPerPage;
         const endIndex = startIndex + allItemsPerPage;
-        const paginatedRows = visibleRows.slice(startIndex, endIndex);
+        const paginatedRows = sortedRows.slice(startIndex, endIndex);
         
         // Update pagination controls
         if (allPrevPageBtn) allPrevPageBtn.disabled = allCurrentPage === 1;
@@ -1200,57 +1195,15 @@
             }
         });
 
-        if (sortValue !== 'none') {
-            const tbody = document.querySelector('#completedView tbody');
-            const visibleRows = completedTableRows.filter(row => row.dataset.visible === 'true');
-
-            visibleRows.sort((a, b) => {
-                const timeA = a.querySelectorAll('td')[1].textContent.trim().split(' - ')[0];
-                const timeB = b.querySelectorAll('td')[1].textContent.trim().split(' - ')[0];
-                const dateA = a.querySelectorAll('td')[0].textContent.trim();
-                const dateB = b.querySelectorAll('td')[0].textContent.trim();
-
-                const parseDateStr = (dateStr) => {
-                    const parts = dateStr.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
-                    if (parts) {
-                        const months = {
-                            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3,
-                            'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7,
-                            'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-                        };
-                        return new Date(parts[3], months[parts[2]], parts[1]);
-                    }
-                    return new Date(0);
-                };
-
-                const fullDateA = parseDateStr(dateA);
-                const fullDateB = parseDateStr(dateB);
-
-                if (timeA !== 'N/A') {
-                    const [hours, minutes] = timeA.split(':');
-                    fullDateA.setHours(parseInt(hours), parseInt(minutes));
-                }
-                if (timeB !== 'N/A') {
-                    const [hours, minutes] = timeB.split(':');
-                    fullDateB.setHours(parseInt(hours), parseInt(minutes));
-                }
-
-                if (sortValue === 'earliest') {
-                    return fullDateA - fullDateB;
-                } else if (sortValue === 'latest') {
-                    return fullDateB - fullDateA;
-                }
-                return 0;
-            });
-
-            visibleRows.forEach(row => tbody.appendChild(row));
-        }
-
         const visibleRows = completedTableRows.filter(row => row.dataset.visible === 'true');
-        const totalPages = Math.ceil(visibleRows.length / completedItemsPerPage);
+        const sortedRows = sortRowsByDateTime(visibleRows, sortValue);
+        const tbody = document.querySelector('#completedView tbody');
+        sortedRows.forEach(row => tbody.appendChild(row));
+
+        const totalPages = Math.ceil(sortedRows.length / completedItemsPerPage);
         const startIndex = (completedCurrentPage - 1) * completedItemsPerPage;
         const endIndex = startIndex + completedItemsPerPage;
-        const paginatedRows = visibleRows.slice(startIndex, endIndex);
+        const paginatedRows = sortedRows.slice(startIndex, endIndex);
         
         // Update pagination controls
         if (completedPrevPageBtn) completedPrevPageBtn.disabled = completedCurrentPage === 1;
@@ -1325,57 +1278,15 @@
             }
         });
 
-        if (sortValue !== 'none') {
-            const tbody = document.querySelector('#pausedView tbody');
-            const visibleRows = pausedTableRows.filter(row => row.dataset.visible === 'true');
-
-            visibleRows.sort((a, b) => {
-                const timeA = a.querySelectorAll('td')[1].textContent.trim().split(' - ')[0];
-                const timeB = b.querySelectorAll('td')[1].textContent.trim().split(' - ')[0];
-                const dateA = a.querySelectorAll('td')[0].textContent.trim();
-                const dateB = b.querySelectorAll('td')[0].textContent.trim();
-
-                const parseDateStr = (dateStr) => {
-                    const parts = dateStr.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
-                    if (parts) {
-                        const months = {
-                            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3,
-                            'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7,
-                            'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-                        };
-                        return new Date(parts[3], months[parts[2]], parts[1]);
-                    }
-                    return new Date(0);
-                };
-
-                const fullDateA = parseDateStr(dateA);
-                const fullDateB = parseDateStr(dateB);
-
-                if (timeA !== 'N/A') {
-                    const [hours, minutes] = timeA.split(':');
-                    fullDateA.setHours(parseInt(hours), parseInt(minutes));
-                }
-                if (timeB !== 'N/A') {
-                    const [hours, minutes] = timeB.split(':');
-                    fullDateB.setHours(parseInt(hours), parseInt(minutes));
-                }
-
-                if (sortValue === 'earliest') {
-                    return fullDateA - fullDateB;
-                } else if (sortValue === 'latest') {
-                    return fullDateB - fullDateA;
-                }
-                return 0;
-            });
-
-            visibleRows.forEach(row => tbody.appendChild(row));
-        }
-
         const visibleRows = pausedTableRows.filter(row => row.dataset.visible === 'true');
-        const totalPages = Math.ceil(visibleRows.length / pausedItemsPerPage);
+        const sortedRows = sortRowsByDateTime(visibleRows, sortValue);
+        const tbody = document.querySelector('#pausedView tbody');
+        sortedRows.forEach(row => tbody.appendChild(row));
+
+        const totalPages = Math.ceil(sortedRows.length / pausedItemsPerPage);
         const startIndex = (pausedCurrentPage - 1) * pausedItemsPerPage;
         const endIndex = startIndex + pausedItemsPerPage;
-        const paginatedRows = visibleRows.slice(startIndex, endIndex);
+        const paginatedRows = sortedRows.slice(startIndex, endIndex);
 
         if (pausedPrevPageBtn) pausedPrevPageBtn.disabled = pausedCurrentPage === 1;
         if (pausedNextPageBtn) pausedNextPageBtn.disabled = pausedCurrentPage === totalPages || totalPages === 0;

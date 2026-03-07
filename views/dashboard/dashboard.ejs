@@ -1,7 +1,221 @@
-<h2>Dashboard</h2>
-<p>Welcome to CineVillage Management System</p>
+<%- include('../layouts/header') %>
 
-<div class="card">
-  <h3>System Overview</h3>
-  <p>This is a test content to verify the layout is working.</p>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="page-title mb-0">Dashboard</h2>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-12 col-lg-4">
+      <div class="card h-100 p-3">
+        <h4 class="mb-3"><i class="bi bi-film"></i> Movie</h4>
+        <div class="d-flex justify-content-between py-2 border-top border-secondary-subtle">
+          <span>Now Showing</span><strong><%= movieStats.nowShowing %></strong>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-top border-secondary-subtle">
+          <span>Coming Soon</span><strong><%= movieStats.comingSoon %></strong>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-top border-secondary-subtle">
+          <span>Discontinued</span><strong><%= movieStats.discontinued %></strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card h-100 p-3">
+        <h4 class="mb-3"><i class="bi bi-door-open"></i> Hall</h4>
+        <div class="d-flex justify-content-between py-2 border-top border-secondary-subtle">
+          <span>Active</span><strong><%= hallStats.active %></strong>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-top border-secondary-subtle">
+          <span>Under Maintenance</span><strong><%= hallStats.maintenance %></strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card h-100 p-3">
+        <h4 class="mb-3"><i class="bi bi-calendar-event"></i> Screening</h4>
+        <div class="d-flex justify-content-between py-2 border-top border-secondary-subtle">
+          <span>Today</span><strong><%= screeningStats.today %></strong>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-top border-secondary-subtle">
+          <span>Impacted</span><strong><%= screeningStats.impacted %></strong>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-top border-secondary-subtle">
+          <span>Discontinued</span><strong><%= screeningStats.discontinued %></strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-stars"></i> New</h4>
+    <div class="d-flex gap-2">
+      <a href="/movies" class="btn btn-primary btn-sm"><i class="bi bi-film"></i> Movies</a>
+      <a href="/movies/create" class="btn btn-primary btn-sm"><i class="bi bi-plus-square"></i> Create New Movie</a>
+    </div>
+  </div>
+
+  <% if (newMovies && newMovies.length > 0) { %>
+    <div class="movies-grid mb-4" id="dashboardNewMoviesGrid">
+      <% newMovies.forEach(movie => { %>
+        <a href="/movies/<%= movie._id %>" class="movie-card-link">
+          <div class="movie-card card">
+            <div class="movie-card-img-wrapper">
+              <img src="<%= movie.pictureUrl || '/images/placeholder.jpg' %>" alt="<%= movie.name %>" class="movie-card-img">
+              <% if (movie.ageRestriction) { %>
+                <div class="age-badge"><%= movie.ageRestriction %></div>
+              <% } %>
+            </div>
+            <div class="movie-card-content">
+              <div class="movie-name"><%= movie.name %></div>
+              <div class="movie-duration">
+                <i class="bi bi-clock" style="margin-right: 4px;"></i>
+                <%= movie.duration %> min
+              </div>
+              <% if (movie.releaseDate) { %>
+                <div class="movie-duration">
+                  <i class="bi bi-calendar3" style="margin-right: 4px;"></i>
+                  <%= new Date(movie.releaseDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) %>
+                </div>
+              <% } %>
+              <div class="genre-tags">
+                <span class="genre-tag">New</span>
+              </div>
+            </div>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+  <% } else { %>
+    <div class="card p-4 mb-4">
+      <p class="mb-0 text-secondary">No new movies found.</p>
+    </div>
+  <% } %>
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-list-ul"></i> Upcoming Screenings</h4>
+    <div class="d-flex gap-2">
+      <a href="/screenings?view=all" class="btn btn-primary btn-sm"><i class="bi bi-calendar-event"></i> Screenings</a>
+      <a href="/screenings/create" class="btn btn-primary btn-sm"><i class="bi bi-calendar-plus"></i> Create New Screening</a>
+    </div>
+  </div>
+
+  <% if (upcomingScreenings && upcomingScreenings.length > 0) { %>
+    <div class="table-responsive">
+      <table class="table table-dark table-hover">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Name</th>
+            <th>Hall</th>
+            <th>Price</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="dashboardScreeningsTbody">
+          <% upcomingScreenings.forEach(screening => { %>
+            <tr class="dashboard-screening-row">
+              <td>
+                <%= screening.startDateTime ? new Date(screening.startDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A' %>
+              </td>
+              <td>
+                <% if (screening.startDateTime && screening.endDateTime) { %>
+                  <%= new Date(screening.startDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %> -
+                  <%= new Date(screening.endDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) %>
+                <% } else { %>
+                  N/A
+                <% } %>
+              </td>
+              <td><%= screening.movie && screening.movie.name ? screening.movie.name : 'N/A' %></td>
+              <td><%= screening.hall && screening.hall.name ? screening.hall.name : 'N/A' %></td>
+              <td>$<%= screening.price ? Number(screening.price).toFixed(2) : '0.00' %></td>
+              <td>
+                <span class="badge" style="
+                  background-color: <%= screening.status === 'scheduled' ? '#3b82f6' :
+                                      screening.status === 'ongoing' ? '#22c55e' :
+                                      screening.status === 'paused' ? '#f59e0b' : '#6b7280' %>;
+                  color: #fff;
+                  padding: 4px 12px;
+                  border-radius: 12px;
+                  font-size: 12px;">
+                  <%= screening.status %>
+                </span>
+              </td>
+              <td>
+                <a href="/screenings/edit/<%= screening._id %>?returnTo=<%= encodeURIComponent('/dashboard') %>" class="btn btn-sm btn-primary">
+                  Edit
+                </a>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination-container" style="margin-top: 24px;">
+      <button id="dashboardPrevPage" class="pagination-btn" disabled>
+        <i class="bi bi-chevron-left"></i> Previous
+      </button>
+      <div id="dashboardPageNumbers" class="page-numbers"></div>
+      <button id="dashboardNextPage" class="pagination-btn">
+        Next <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  <% } else { %>
+    <div class="card p-4">
+      <p class="mb-0 text-secondary">No screenings found.</p>
+    </div>
+  <% } %>
 </div>
+
+<script>
+  (function () {
+    const rows = Array.from(document.querySelectorAll('.dashboard-screening-row'));
+    const prevBtn = document.getElementById('dashboardPrevPage');
+    const nextBtn = document.getElementById('dashboardNextPage');
+    const pageNumbers = document.getElementById('dashboardPageNumbers');
+    const perPage = 10;
+    let currentPage = 1;
+
+    if (!rows.length || !prevBtn || !nextBtn || !pageNumbers) return;
+
+    function render() {
+      const totalPages = Math.ceil(rows.length / perPage);
+      const start = (currentPage - 1) * perPage;
+      const end = start + perPage;
+
+      rows.forEach((row, index) => {
+        row.style.display = index >= start && index < end ? '' : 'none';
+      });
+
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = currentPage >= totalPages;
+      pageNumbers.innerHTML = '';
+      const pageInfo = document.createElement('span');
+      pageInfo.className = 'page-info';
+      pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+      pageNumbers.appendChild(pageInfo);
+    }
+
+    prevBtn.addEventListener('click', function () {
+      if (currentPage > 1) {
+        currentPage -= 1;
+        render();
+      }
+    });
+
+    nextBtn.addEventListener('click', function () {
+      const totalPages = Math.ceil(rows.length / perPage);
+      if (currentPage < totalPages) {
+        currentPage += 1;
+        render();
+      }
+    });
+
+    render();
+  })();
+</script>

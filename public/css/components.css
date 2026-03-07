@@ -244,14 +244,22 @@ textarea.form-control {
   color-scheme: dark;
 }
 
-#allDateFilter {
+#allDateFilter,
+#dateSelector {
   color-scheme: dark;
 }
 
-#allDateFilter::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 1;
-  cursor: pointer;
+/* Force white calendar icon for screening date filters */
+.search-filter-bar #allDateFilter::-webkit-calendar-picker-indicator,
+.search-filter-bar #dateSelector::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(200%) !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+}
+
+.search-filter-bar #allDateFilter,
+.search-filter-bar #dateSelector {
+  color-scheme: dark !important;
 }
 
 .create-button-wrapper {

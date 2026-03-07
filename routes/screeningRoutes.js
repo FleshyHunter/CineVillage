@@ -203,6 +203,46 @@ router.get("/edit/:id", async (req, res) => {
   });
 });
 
+// GET view-only detail page
+router.get("/view/:id", async (req, res) => {
+  await initDBIfNecessary();
+  const returnTo = sanitizeReturnTo(req.query.returnTo);
+
+  // Auto-update statuses before fetching
+  await updateScreeningStatuses();
+
+  const collectionScreening = getCollectionScreening();
+  const screening = await collectionScreening.findOne({
+    _id: new ObjectId(req.params.id)
+  });
+
+  if (!screening) return res.send("Screening not found");
+
+  // Populate movie and hall details
+  const collectionMovie = getCollectionMovie();
+  const collectionHall = getCollectionHall();
+
+  if (screening.movieId) {
+    screening.movieId = await collectionMovie.findOne({ _id: new ObjectId(screening.movieId) });
+  }
+  if (screening.hallId) {
+    screening.hallId = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
+  }
+
+  // Extract date and time from startDateTime using local timezone
+  if (screening.startDateTime) {
+    const date = new Date(screening.startDateTime);
+    screening.date = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    screening.startTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  res.render("screenings/screeningDetail", {
+    screening,
+    title: "View Screening",
+    returnTo
+  });
+});
+
 // POST update
 router.post("/edit/:id", async (req, res) => {
   const returnTo = sanitizeReturnTo(req.query.returnTo);
@@ -260,31 +300,8 @@ router.get("/api/schedule/:hallId/:date", async (req, res) => {
 
 // GET single screening details
 router.get("/:id", async (req, res) => {
-  await initDBIfNecessary();
-  
-  // Auto-update statuses before fetching
-  await updateScreeningStatuses();
-  
-  const collectionScreening = getCollectionScreening();
-  const screening = await collectionScreening.findOne({
-    _id: new ObjectId(req.params.id)
-  });
-
-  if (!screening) return res.send("Screening not found");
-
-  // Populate movie and hall details
-  const collectionMovie = getCollectionMovie();
-  const collectionHall = getCollectionHall();
-  
-  if (screening.movieId) {
-    screening.movieId = await collectionMovie.findOne({ _id: new ObjectId(screening.movieId) });
-  }
-  if (screening.hallId) {
-    screening.hallId = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
-  }
-
-  // Redirect to screenings list (no detail view exists)
-  res.redirect('/screenings');
+  const returnTo = sanitizeReturnTo(req.query.returnTo);
+  res.redirect(`/screenings/view/${req.params.id}?returnTo=${encodeURIComponent(returnTo)}`);
 });
 
 module.exports = router;
