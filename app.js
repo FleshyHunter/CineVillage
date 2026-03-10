@@ -1,8 +1,12 @@
 //express init
 const express = require("express");
-const mongodb = require("mongodb");
 const {disconnect, initDBIfNecessary} = require("./config/database");
-const { getCollectionMovie, getCollectionHall, getCollectionScreening } = require("./config/database");
+const {
+    getCollectionMovie,
+    getCollectionHall,
+    getCollectionScreening
+} = require("./config/database");
+const { attachCurrentAccount } = require("./config/session");
 
 const expressLayouts = require('express-ejs-layouts');
 
@@ -30,6 +34,7 @@ app.use("/uploads", express.static("uploads"));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(expressLayouts);
+app.use(attachCurrentAccount);
 
 //ejs template setting
 app.set("view engine" , "ejs");

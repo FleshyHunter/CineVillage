@@ -1,4 +1,6 @@
 const { initDBIfNecessary, getCollectionAdmin } = require("../config/database");
+const bcrypt = require("bcrypt");
+const ADMIN_BCRYPT_ROUNDS = 10;
 
 async function getPrimaryAdmin() {
   await initDBIfNecessary();
@@ -46,6 +48,8 @@ async function updateProfile(req, res) {
     contact: (req.body.contact || "").toString().trim(),
     role: (admin.role || "Admin")
   };
+  const changePassword = (req.body.changePassword || "").toString();
+  const confirmPassword = (req.body.confirmPassword || "").toString();
 
   if (req.file) {
     payload.pictureUrl = "/uploads/" + req.file.filename;
@@ -57,6 +61,15 @@ async function updateProfile(req, res) {
       pageTitle: "Edit Profile",
       admin: { ...admin, ...payload },
       error: "Name, username, email and contact are required"
+    });
+  }
+
+  if ((changePassword || confirmPassword) && changePassword !== confirmPassword) {
+    return res.render("profile/profileForm", {
+      title: "Edit Profile",
+      pageTitle: "Edit Profile",
+      admin: { ...admin, ...payload },
+      error: "Change password and confirm password must match"
     });
   }
 
@@ -72,6 +85,10 @@ async function updateProfile(req, res) {
       admin: { ...admin, ...payload },
       error: "Email or username is already in use"
     });
+  }
+
+  if (changePassword) {
+    payload.password = await bcrypt.hash(changePassword, ADMIN_BCRYPT_ROUNDS);
   }
 
   await collectionAdmin.updateOne(

@@ -1,5 +1,7 @@
-<div class="container" style="width: 100%; max-width: none;">
-  <h2 class="mb-30">Edit Profile</h2>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="page-title mb-0">Edit Profile</h2>
+  </div>
 
   <% if (typeof error !== 'undefined' && error) { %>
     <div class="error-banner"><%= error %></div>
@@ -49,6 +51,17 @@
             <div class="form-control form-control-readonly"><%= admin.role || 'Admin' %></div>
           </div>
 
+          <div class="form-row">
+            <div class="form-group">
+              <label for="changePassword" class="form-label-compact">CHANGE PASSWORD</label>
+              <input id="changePassword" name="changePassword" type="password" class="form-control" autocomplete="new-password">
+            </div>
+            <div class="form-group">
+              <label for="confirmPassword" class="form-label-compact">CONFIRM PASSWORD</label>
+              <input id="confirmPassword" name="confirmPassword" type="password" class="form-control" autocomplete="new-password">
+            </div>
+          </div>
+
           <div class="movie-detail-actions mt-30">
             <a href="/profile" class="btn btn-secondary">← Back to Profile</a>
             <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -70,5 +83,23 @@
         profilePreview.src = URL.createObjectURL(file);
       }
     });
+  }
+
+  const changePasswordInput = document.getElementById('changePassword');
+  const confirmPasswordInput = document.getElementById('confirmPassword');
+
+  function syncPasswordValidity() {
+    if (!changePasswordInput || !confirmPasswordInput) return;
+    const changePassword = changePasswordInput.value || '';
+    const confirmPassword = confirmPasswordInput.value || '';
+    confirmPasswordInput.setCustomValidity('');
+    if ((changePassword || confirmPassword) && changePassword !== confirmPassword) {
+      confirmPasswordInput.setCustomValidity('Passwords do not match.');
+    }
+  }
+
+  if (changePasswordInput && confirmPasswordInput) {
+    changePasswordInput.addEventListener('input', syncPasswordValidity);
+    confirmPasswordInput.addEventListener('input', syncPasswordValidity);
   }
 </script>

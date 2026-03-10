@@ -1,0 +1,46 @@
+<html lang="en">
+  <%- include('../layouts/header') %>
+  <body>
+    <div class="auth-login-page">
+      <div class="auth-login-shell">
+        <section class="auth-login-hero">
+          <div class="sidebar-brand">
+            <img src="/images/CVLogo2.png" alt="CineVillage Logo" class="sidebar-brand-logo">
+            <div class="sidebar-brand-text">
+              <h2 class="sidebar-title">CineVillage</h2>
+              <p class="sidebar-subtitle">Operations Console</p>
+            </div>
+          </div>
+
+          <p class="auth-login-kicker">Recovery Access</p>
+          <h1 class="auth-login-heading">Reset Your Account Password.</h1>
+          <p class="auth-login-subtext">
+            Enter your email to start the password recovery flow.
+          </p>
+        </section>
+
+        <section class="auth-login-panel">
+          <h2 class="auth-login-title">Reset Password</h2>
+          <p class="auth-login-caption">UI and routing are ready. Reset logic will be added next.</p>
+
+          <% if (typeof sent !== 'undefined' && sent) { %>
+            <div class="auth-login-info">Reset request captured (placeholder). Actual email logic is not enabled yet.</div>
+          <% } %>
+
+          <form action="/auth/reset" method="POST">
+            <div class="auth-login-field-lg">
+              <label for="email" class="auth-login-label">Email</label>
+              <input type="email" id="email" name="email" class="auth-login-input" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary auth-login-submit">Send Reset Link</button>
+          </form>
+
+          <p class="auth-login-help">
+            Back to login? <a href="/auth/login">Sign in here</a>
+          </p>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>

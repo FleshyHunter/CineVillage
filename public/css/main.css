@@ -329,15 +329,66 @@ a:hover {
 /* === Page Header === */
 .page-header {
   background-color: var(--bg-card);
-  padding: 20px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
   margin: -20px -20px 20px -20px;
   border-bottom: 1px solid #334155;
 }
 
 .page-title {
   margin: 0;
-  font-size: 24px;
+  font-size: 32px;
   color: var(--text-main);
+}
+
+.header-title {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1;
+}
+
+.header-title-logo {
+  height: 28px;
+  width: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.header-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text-main);
+}
+
+.header-account:hover {
+  color: var(--text-main);
+  opacity: 0.9;
+}
+
+.header-account-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #3b82f6;
+  background: #0f172a;
+}
+
+.header-account-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #ffffff !important;
 }
 
 /* === Page Footer === */

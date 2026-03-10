@@ -1,5 +1,6 @@
 const { MongoClient } = require("mongodb");
 const bcrypt = require("bcrypt");
+const ADMIN_BCRYPT_ROUNDS = 10;
 const PERSONNEL_BCRYPT_ROUNDS = 10;
 let client = null;
 //this is the collection object for querying the
@@ -61,7 +62,7 @@ async function createAdmin() {
         if (adminAccount == null) {
             await insertAdmin({
                 ...defaultAdminProfile,
-                password: await bcrypt.hash("admin", 31),
+                password: await bcrypt.hash("admin", ADMIN_BCRYPT_ROUNDS),
             });
             console.log("Admin account created");
         } else {

@@ -69,10 +69,20 @@
     <div class="main-content">
       <!-- Header -->
       <header class="page-header">
-        <h1 class="page-title">
-          <img src="/images/CVLogo2.png" alt="CineVillage Logo" style="height: 40px; width: 40px; margin-right: 12px; vertical-align: middle; object-fit: contain;">
+        <h1 class="header-title">
+          <img src="/images/CVLogo2.png" alt="CineVillage Logo" class="header-title-logo">
           <%= typeof pageTitle !== 'undefined' ? pageTitle : 'CineVillage Management' %>
         </h1>
+        <a href="/profile" class="header-account" title="View profile">
+          <img
+            src="<%= (currentAccount && currentAccount.pictureUrl) ? currentAccount.pictureUrl : '/images/cameraplaceholder.jpg' %>"
+            alt="Current account profile"
+            class="header-account-avatar"
+          >
+          <span class="header-account-name">
+            <%= (currentAccount && currentAccount.name) ? currentAccount.name : 'Account' %>
+          </span>
+        </a>
       </header>
 
       <!-- Page Content (n ratio area) -->

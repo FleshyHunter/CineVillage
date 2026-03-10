@@ -60,25 +60,25 @@
         <div class="movies-grid">
             <% halls.forEach(hall=> { %>
                 <a href="/halls/<%= hall._id %>" 
-                   class="movie-card-link hall-card-link" 
+                   class="hall-card-link" 
                    data-type="<%= hall.type || 'all' %>"
                    data-status="<%= hall.configuredStatus || hall.status || '' %>"
                    data-name="<%= hall.name ? hall.name.toLowerCase() : '' %>"
                    data-capacity="<%= hall.capacity || 0 %>">
-                    <div class="movie-card card">
-                        <div class="movie-card-img-wrapper">
+                    <div class="hall-card card">
+                        <div class="hall-card-img-wrapper">
                             <img src="<%='/images/hallPlaceHolder.jpg' %>" alt="<%= hall.name %>"
-                                class="movie-card-img">
+                                class="hall-card-img">
                             <!-- Hall type badge overlay -->
                             <% if (hall.type) { %>
                                 <div class="age-badge"><%= hall.type %></div>
                             <% } %>
                         </div>
-                        <div class="movie-card-content">
-                            <div class="movie-name">
+                        <div class="hall-card-content">
+                            <div class="hall-name">
                                 <%= hall.name || 'Unnamed Hall' %>
                             </div>
-                            <div class="movie-duration">
+                            <div class="hall-capacity">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;">
                                     <path d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2zM1 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V7zM1 12a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-2z"/>
                                 </svg>

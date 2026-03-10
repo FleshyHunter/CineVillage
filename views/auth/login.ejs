@@ -1,46 +1,51 @@
-<html>
+<html lang="en">
   <%- include('../layouts/header') %>
-  <div class="container" style="max-width: 400px; margin-top: 80px;">
-    <div class="card" style="padding: 30px;">
-      <h2 style="text-align: center; margin-bottom: 20px;">Admin Login</h2>
+  <body>
+    <div class="auth-login-page">
+      <div class="auth-login-shell">
+        <section class="auth-login-hero">
+          <div class="sidebar-brand">
+            <img src="/images/CVLogo2.png" alt="CineVillage Logo" class="sidebar-brand-logo">
+            <div class="sidebar-brand-text">
+              <h2 class="sidebar-title">CineVillage</h2>
+              <p class="sidebar-subtitle">Operations Console</p>
+            </div>
+          </div>
 
-      <!-- Display error message if present -->
-      <% if (typeof error !=='undefined' ) { %>
-        <div class="alert" style="color: #dc2626; text-align: center; margin-bottom: 15px;">
-          <%= error %>
-        </div>
-        <% } %>
+          <p class="auth-login-kicker">Management Access</p>
+          <h1 class="auth-login-heading">Run Daily Cinema Operations With Confidence.</h1>
+          <p class="auth-login-subtext">
+            Manage movies, halls, screenings, and personnel from one centralized dashboard.
+          </p>
+        </section>
+
+        <section class="auth-login-panel">
+          <h2 class="auth-login-title">Sign In</h2>
+          <p class="auth-login-caption">Use your CineVillage account credentials.</p>
+
+          <% if (typeof error !== 'undefined' && error) { %>
+            <div class="auth-login-error"><%= error %></div>
+          <% } %>
 
           <form action="/auth/login" method="POST">
-            <div style="margin-bottom: 15px;">
-              <label for="email">Email</label>
-              <input type="text" id="email" name="email" required
-                style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #94a3b8;">
+            <div class="auth-login-field">
+              <label for="email" class="auth-login-label">Email</label>
+              <input type="text" id="email" name="email" class="auth-login-input" required>
             </div>
 
-            <div style="margin-bottom: 20px;">
-              <label for="password">Password</label>
-              <input type="password" id="password" name="password" required
-                style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #94a3b8;">
+            <div class="auth-login-field-lg">
+              <label for="password" class="auth-login-label">Password</label>
+              <input type="password" id="password" name="password" class="auth-login-input" required>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+            <button type="submit" class="btn btn-primary auth-login-submit">Login</button>
           </form>
 
-          <p style="text-align: center; margin-top: 15px;">
-            Forgot your password? <a href="/auth/reset" style="color: #2563eb;">Reset here</a>
+          <p class="auth-login-help">
+            Forgot your password? <a href="/auth/reset">Reset here</a>
           </p>
+        </section>
+      </div>
     </div>
-  </div>
-
-  <script>
-  <% if (typeof error !== 'undefined') { %>
-      alert("<%= error %>");
-  <% } %>
-  </script>
-
-
-
-  <%- include('../layouts/footer') %>
-
+  </body>
 </html>
