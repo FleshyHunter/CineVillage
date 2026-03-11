@@ -1,0 +1,213 @@
+<%- include('../layouts/header') %>
+
+<div class="container">
+  <h2 class="page-title">History</h2>
+
+  <div class="movie-filters" id="historyRoleFilters" style="margin-bottom: 20px;">
+    <button class="filter-btn active" data-role="all"><i class="bi bi-list-ul"></i> All</button>
+    <button class="filter-btn" data-role="admin"><i class="bi bi-shield-lock"></i> Admin</button>
+    <button class="filter-btn" data-role="manager"><i class="bi bi-person-badge"></i> Manager</button>
+    <button class="filter-btn" data-role="staff"><i class="bi bi-people"></i> Staff</button>
+  </div>
+
+  <div class="search-filter-bar">
+    <div class="search-controls">
+      <div class="movie-filters" id="historyModuleFilters" style="margin-bottom: 0; align-items: center;">
+        <button class="filter-btn active" data-module="all"><i class="bi bi-grid-3x3-gap"></i> All</button>
+        <button class="filter-btn" data-module="movie"><i class="bi bi-film"></i> Movie</button>
+        <button class="filter-btn" data-module="hall"><i class="bi bi-door-open"></i> Hall</button>
+        <button class="filter-btn" data-module="screening"><i class="bi bi-calendar-event"></i> Screening</button>
+      </div>
+
+      <div class="filter-dropdown">
+        <input type="date" id="historyDateFilter" class="filter-select date-input">
+      </div>
+    </div>
+    <% if (currentRole === 'Admin') { %>
+      <div class="create-button-wrapper">
+        <form action="/history/clear" method="POST" onsubmit="return confirm('Clear all history logs? This cannot be undone.');">
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash3"></i> Clear Logs
+          </button>
+        </form>
+      </div>
+    <% } %>
+  </div>
+
+  <% if (logs && logs.length > 0) { %>
+    <div class="table-responsive">
+      <table class="table table-dark table-hover">
+        <thead>
+          <tr>
+            <th><i class="bi bi-calendar3"></i> Date</th>
+            <th><i class="bi bi-clock"></i> Time</th>
+            <th><i class="bi bi-gear"></i> Operation</th>
+            <th><i class="bi bi-tag"></i> Item</th>
+            <th><i class="bi bi-person"></i> User Name</th>
+            <th><i class="bi bi-person-badge"></i> Role</th>
+          </tr>
+        </thead>
+        <tbody id="historyTbody">
+          <% logs.forEach(log => { %>
+            <% const actionDate = log.createdAt ? new Date(log.createdAt) : null; %>
+            <tr
+              data-role="<%= (log.actorRole || '').toLowerCase() %>"
+              data-module="<%= (log.module || '').toLowerCase() %>"
+              data-date="<%= actionDate ? actionDate.toISOString().split('T')[0] : '' %>"
+            >
+              <td>
+                <%= actionDate ? actionDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A' %>
+              </td>
+              <td>
+                <%= actionDate ? actionDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : 'N/A' %>
+              </td>
+              <td><%= log.operation ? (log.operation.charAt(0).toUpperCase() + log.operation.slice(1)) : 'N/A' %></td>
+              <td><%= log.item || 'N/A' %></td>
+              <td><%= log.actorName || 'Unknown' %></td>
+              <td><%= log.actorRole || 'Unknown' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination-container" style="margin-top: 24px;">
+      <button id="historyPrevPage" class="pagination-btn" disabled>
+        <i class="bi bi-chevron-left"></i> Previous
+      </button>
+      <div id="historyPageNumbers" class="page-numbers"></div>
+      <button id="historyNextPage" class="pagination-btn">
+        Next <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  <% } else { %>
+    <div class="card p-4">
+      <p class="mb-0 text-secondary">No history records yet.</p>
+    </div>
+  <% } %>
+</div>
+
+<script>
+  (() => {
+    const rows = Array.from(document.querySelectorAll('#historyTbody tr'));
+    if (!rows.length) return;
+
+    const roleButtons = Array.from(document.querySelectorAll('#historyRoleFilters .filter-btn'));
+    const moduleButtons = Array.from(document.querySelectorAll('#historyModuleFilters .filter-btn'));
+    const dateInput = document.getElementById('historyDateFilter');
+    const prevBtn = document.getElementById('historyPrevPage');
+    const nextBtn = document.getElementById('historyNextPage');
+    const pageNumbers = document.getElementById('historyPageNumbers');
+
+    let activeRole = 'all';
+    let activeModule = 'all';
+    let currentPage = 1;
+    const itemsPerPage = 15;
+
+    function updatePagination(visibleRows) {
+      const totalPages = Math.max(1, Math.ceil(visibleRows.length / itemsPerPage));
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+
+      visibleRows.forEach((row, idx) => {
+        row.style.display = idx >= start && idx < end ? '' : 'none';
+      });
+
+      if (prevBtn) prevBtn.disabled = currentPage === 1;
+      if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+      if (pageNumbers) {
+        pageNumbers.innerHTML = '';
+        const info = document.createElement('span');
+        info.className = 'page-info';
+        info.textContent = `Page ${currentPage} of ${totalPages}`;
+        pageNumbers.appendChild(info);
+      }
+    }
+
+    function applyFilters() {
+      const selectedDate = (dateInput && dateInput.value) ? dateInput.value : '';
+      const visibleRows = [];
+
+      rows.forEach((row) => {
+        const role = row.dataset.role || '';
+        const module = row.dataset.module || '';
+        const date = row.dataset.date || '';
+
+        const roleOk = activeRole === 'all' || role === activeRole;
+        const moduleOk = activeModule === 'all' || module === activeModule;
+        const dateOk = !selectedDate || date === selectedDate;
+
+        if (roleOk && moduleOk && dateOk) {
+          visibleRows.push(row);
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      updatePagination(visibleRows);
+    }
+
+    roleButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        roleButtons.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeRole = btn.dataset.role || 'all';
+        currentPage = 1;
+        applyFilters();
+      });
+    });
+
+    moduleButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        moduleButtons.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeModule = btn.dataset.module || 'all';
+        currentPage = 1;
+        applyFilters();
+      });
+    });
+
+    if (dateInput) {
+      dateInput.addEventListener('change', () => {
+        currentPage = 1;
+        applyFilters();
+      });
+    }
+
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage -= 1;
+          applyFilters();
+        }
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        const selectedDate = (dateInput && dateInput.value) ? dateInput.value : '';
+        const visibleRows = rows.filter((row) => {
+          const role = row.dataset.role || '';
+          const module = row.dataset.module || '';
+          const date = row.dataset.date || '';
+          const roleOk = activeRole === 'all' || role === activeRole;
+          const moduleOk = activeModule === 'all' || module === activeModule;
+          const dateOk = !selectedDate || date === selectedDate;
+          return roleOk && moduleOk && dateOk;
+        });
+        const totalPages = Math.max(1, Math.ceil(visibleRows.length / itemsPerPage));
+        if (currentPage < totalPages) {
+          currentPage += 1;
+          applyFilters();
+        }
+      });
+    }
+
+    applyFilters();
+  })();
+</script>
+
+<%- include('../layouts/footer') %>

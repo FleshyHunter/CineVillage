@@ -70,9 +70,11 @@
 
             <!-- Create Button -->
             <div class="create-button-wrapper">
-                <a href="/movies/create" class="btn btn-primary">
-                    <i class="bi bi-plus-square"></i> Create New Movie
-                </a>
+                <% if (currentRole !== 'Staff') { %>
+                    <a href="/movies/create" class="btn btn-primary">
+                        <i class="bi bi-plus-square"></i> Create New Movie
+                    </a>
+                <% } %>
             </div>
         </div>
         <div class="movies-grid">

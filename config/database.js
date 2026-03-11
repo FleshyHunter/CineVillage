@@ -11,6 +11,7 @@ let collectionScreening = null;
 let collectionAdmin = null;
 let collectionManager = null;
 let collectionStaff = null;
+let collectionAuditLog = null;
 
 //function to connect to db and get the collection object
 async function initDBIfNecessary() {
@@ -30,6 +31,7 @@ async function initDBIfNecessary() {
         collectionAdmin = db.collection("admin");
         collectionManager = db.collection("manager");
         collectionStaff = db.collection("staff");
+        collectionAuditLog = db.collection("audit_logs");
 
     }
 } // end initDBIfNecessary
@@ -156,6 +158,11 @@ function getCollectionStaff() {
     if (!collectionStaff) throw new Error("DB not initialized");
     return collectionStaff;
 }
+
+function getCollectionAuditLog() {
+    if (!collectionAuditLog) throw new Error("DB not initialized");
+    return collectionAuditLog;
+}
 //export the functions so they can be used in other files
 module.exports = {
     initDBIfNecessary,
@@ -167,4 +174,5 @@ module.exports = {
     getCollectionScreening,
     getCollectionManager,
     getCollectionStaff,
+    getCollectionAuditLog,
 };

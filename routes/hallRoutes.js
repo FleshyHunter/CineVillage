@@ -4,6 +4,8 @@ const { createHall, getAllHalls, getHallbyId, updateHall, deleteHall } = require
 const { updateScreeningStatuses } = require("../controllers/screeningController");
 const { initDBIfNecessary, getCollectionHall, getCollectionScreening } = require("../config/database");
 const { ObjectId } = require("mongodb");
+const { requireRoles } = require("../config/session");
+const { logAction } = require("../config/audit");
 
 const multer = require("multer");
 const path = require("path");
@@ -22,7 +24,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // GET hall creation form
-router.get("/create", (req, res) => {
+router.get("/create", requireRoles(["Admin", "Manager"]), (req, res) => {
   res.render("halls/hallForm", {
     hall: null,
     isEdit: false,
@@ -32,7 +34,7 @@ router.get("/create", (req, res) => {
 });
 
 // POST form submission
-router.post("/create", upload.single("picture"), async (req, res) => {
+router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("picture"), async (req, res) => {
   try {
     await initDBIfNecessary();
     const collectionHall = getCollectionHall();
@@ -59,6 +61,11 @@ router.post("/create", upload.single("picture"), async (req, res) => {
     }
 
     await createHall(hallData);
+    await logAction(req, {
+      module: "hall",
+      operation: "create",
+      item: hallData.name || ""
+    });
     res.redirect("/halls");
   } catch (err) {
     console.error(err);
@@ -67,7 +74,7 @@ router.post("/create", upload.single("picture"), async (req, res) => {
 });
 
 // GET edit form
-router.get("/edit/:id", async (req, res) => {
+router.get("/edit/:id", requireRoles(["Admin", "Manager"]), async (req, res) => {
   await initDBIfNecessary();
 
   const collectionHall = getCollectionHall();
@@ -87,7 +94,7 @@ router.get("/edit/:id", async (req, res) => {
 
 // POST update
 
-router.post("/edit/:id", upload.single("picture"), async (req, res) => {
+router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("picture"), async (req, res) => {
   try {
     await initDBIfNecessary();
     const collectionHall = getCollectionHall();
@@ -118,6 +125,12 @@ router.post("/edit/:id", upload.single("picture"), async (req, res) => {
     }
 
     await updateHall(req.params.id, hallData);
+    await logAction(req, {
+      module: "hall",
+      operation: "update",
+      targetId: req.params.id,
+      item: hallData.name || ""
+    });
     await updateScreeningStatuses();
     res.redirect(`/halls/${req.params.id}`);
   } catch (err) {
@@ -127,9 +140,20 @@ router.post("/edit/:id", upload.single("picture"), async (req, res) => {
 });
 
 // delete
-router.post("/delete/:id", async (req, res) => {
+router.post("/delete/:id", requireRoles(["Admin", "Manager"]), async (req, res) => {
   try {
+    await initDBIfNecessary();
+    const collectionHall = getCollectionHall();
+    const existingHall = ObjectId.isValid(req.params.id)
+      ? await collectionHall.findOne({ _id: new ObjectId(req.params.id) })
+      : null;
     await deleteHall(req.params.id);
+    await logAction(req, {
+      module: "hall",
+      operation: "delete",
+      targetId: req.params.id,
+      item: existingHall?.name || ""
+    });
     res.redirect("/halls");
   } catch (err) {
     console.error(err);
@@ -141,10 +165,10 @@ router.post("/delete/:id", async (req, res) => {
 });
 
 // GET all halls (list/grid)
-router.get("/", getAllHalls);
+router.get("/", requireRoles(["Admin", "Manager", "Staff"]), getAllHalls);
 
 // GET single hall details
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   await initDBIfNecessary();
   const hall = await getHallbyId(req.params.id);
   const collectionScreening = getCollectionScreening();

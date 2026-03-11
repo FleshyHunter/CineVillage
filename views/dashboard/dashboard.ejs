@@ -50,7 +50,9 @@
     <h4 class="mb-0"><i class="bi bi-stars"></i> New</h4>
     <div class="d-flex gap-2">
       <a href="/movies" class="btn btn-primary btn-sm"><i class="bi bi-film"></i> Movies</a>
-      <a href="/movies/create" class="btn btn-primary btn-sm"><i class="bi bi-plus-square"></i> Create New Movie</a>
+      <% if (currentRole !== 'Staff') { %>
+        <a href="/movies/create" class="btn btn-primary btn-sm"><i class="bi bi-plus-square"></i> Create New Movie</a>
+      <% } %>
     </div>
   </div>
 

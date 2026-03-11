@@ -91,9 +91,11 @@
         <a href="/movies" class="btn btn-secondary">
           ← Back to Movies
         </a>
-        <a href="/movies/edit/<%= movie._id %>" class="btn btn-primary">
-          <i class="bi bi-pencil-square"></i> Edit Movie
-        </a>
+        <% if (currentRole !== 'Staff') { %>
+          <a href="/movies/edit/<%= movie._id %>" class="btn btn-primary">
+            <i class="bi bi-pencil-square"></i> Edit Movie
+          </a>
+        <% } %>
       </div>
 
     </div>

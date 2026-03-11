@@ -13,6 +13,8 @@ const {
 } = require("../controllers/screeningController");
 const { initDBIfNecessary, getCollectionScreening, getCollectionMovie, getCollectionHall } = require("../config/database");
 const { ObjectId } = require("mongodb");
+const { requireRoles } = require("../config/session");
+const { logAction } = require("../config/audit");
 
 function sanitizeReturnTo(returnTo) {
   if (typeof returnTo !== "string" || !returnTo.startsWith("/")) {
@@ -25,13 +27,13 @@ function sanitizeReturnTo(returnTo) {
 }
 
 // View by Hall schedule (individual hall)
-router.get("/hall/:hallId", getHallSchedulePage);
+router.get("/hall/:hallId", requireRoles(["Admin", "Manager"]), getHallSchedulePage);
 
 // View by Movie routes
-router.get("/movie/:movieId", getMovieScreenings);
+router.get("/movie/:movieId", requireRoles(["Admin", "Manager"]), getMovieScreenings);
 
 // API endpoint for date screenings (AJAX)
-router.get("/api/date-screenings", async (req, res) => {
+router.get("/api/date-screenings", requireRoles(["Admin", "Manager"]), async (req, res) => {
   try {
     const selectedDate = req.query.date || new Date().toISOString().split('T')[0];
     
@@ -104,7 +106,7 @@ router.get("/api/date-screenings", async (req, res) => {
 });
 
 // GET screening creation form
-router.get("/create", async (req, res) => {
+router.get("/create", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   await initDBIfNecessary();
   
   // Fetch movies and halls for dropdowns
@@ -128,10 +130,20 @@ router.get("/create", async (req, res) => {
 });
 
 // POST form submission
-router.post("/create", async (req, res) => {
+router.post("/create", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   try {
+    await initDBIfNecessary();
     const screeningData = req.body;
+    const collectionMovie = getCollectionMovie();
+    const movieDoc = (screeningData.movieId && ObjectId.isValid(screeningData.movieId))
+      ? await collectionMovie.findOne({ _id: new ObjectId(screeningData.movieId) })
+      : null;
     await createScreening(screeningData);
+    await logAction(req, {
+      module: "screening",
+      operation: "create",
+      item: movieDoc?.name || ""
+    });
     res.redirect("/screenings");
   } catch (err) {
     console.error(err);
@@ -154,7 +166,7 @@ router.post("/create", async (req, res) => {
 });
 
 // GET edit form
-router.get("/edit/:id", async (req, res) => {
+router.get("/edit/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   await initDBIfNecessary();
   const returnTo = sanitizeReturnTo(req.query.returnTo);
   
@@ -204,7 +216,7 @@ router.get("/edit/:id", async (req, res) => {
 });
 
 // GET view-only detail page
-router.get("/view/:id", async (req, res) => {
+router.get("/view/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   await initDBIfNecessary();
   const returnTo = sanitizeReturnTo(req.query.returnTo);
 
@@ -244,11 +256,22 @@ router.get("/view/:id", async (req, res) => {
 });
 
 // POST update
-router.post("/edit/:id", async (req, res) => {
+router.post("/edit/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   const returnTo = sanitizeReturnTo(req.query.returnTo);
   try {
+    await initDBIfNecessary();
     const screeningData = req.body;
+    const collectionMovie = getCollectionMovie();
+    const movieDoc = (screeningData.movieId && ObjectId.isValid(screeningData.movieId))
+      ? await collectionMovie.findOne({ _id: new ObjectId(screeningData.movieId) })
+      : null;
     await updateScreening(req.params.id, screeningData);
+    await logAction(req, {
+      module: "screening",
+      operation: "update",
+      targetId: req.params.id,
+      item: movieDoc?.name || ""
+    });
     res.redirect(returnTo);
   } catch (err) {
     console.error(err);
@@ -273,9 +296,24 @@ router.post("/edit/:id", async (req, res) => {
 });
 
 // POST delete
-router.post("/delete/:id", async (req, res) => {
+router.post("/delete/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   try {
+    await initDBIfNecessary();
+    const collectionScreening = getCollectionScreening();
+    const collectionMovie = getCollectionMovie();
+    const existingScreening = ObjectId.isValid(req.params.id)
+      ? await collectionScreening.findOne({ _id: new ObjectId(req.params.id) })
+      : null;
+    const movieDoc = (existingScreening && existingScreening.movieId)
+      ? await collectionMovie.findOne({ _id: new ObjectId(existingScreening.movieId) })
+      : null;
     await deleteScreening(req.params.id);
+    await logAction(req, {
+      module: "screening",
+      operation: "delete",
+      targetId: req.params.id,
+      item: movieDoc?.name || ""
+    });
     res.redirect("/screenings");
   } catch (err) {
     console.error(err);
@@ -284,10 +322,10 @@ router.post("/delete/:id", async (req, res) => {
 });
 
 // GET all screenings (list/grid)
-router.get("/", getAllScreenings);
+router.get("/", requireRoles(["Admin", "Manager", "Staff"]), getAllScreenings);
 
 // API endpoint: Get hall schedule for timeline visualization
-router.get("/api/schedule/:hallId/:date", async (req, res) => {
+router.get("/api/schedule/:hallId/:date", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   try {
     const { hallId, date } = req.params;
     const schedule = await getHallSchedule(hallId, date);
@@ -299,7 +337,7 @@ router.get("/api/schedule/:hallId/:date", async (req, res) => {
 });
 
 // GET single screening details
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   const returnTo = sanitizeReturnTo(req.query.returnTo);
   res.redirect(`/screenings/view/${req.params.id}?returnTo=${encodeURIComponent(returnTo)}`);
 });

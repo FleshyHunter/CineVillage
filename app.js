@@ -6,7 +6,7 @@ const {
     getCollectionHall,
     getCollectionScreening
 } = require("./config/database");
-const { attachCurrentAccount } = require("./config/session");
+const { attachCurrentAccount, requireAuth, requireRoles } = require("./config/session");
 
 const expressLayouts = require('express-ejs-layouts');
 
@@ -19,6 +19,7 @@ const hallRoutes = require("./routes/hallRoutes");
 const screeningRoutes = require("./routes/screeningRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const personnelRoutes = require("./routes/personnelRoutes");
+const historyRoutes = require("./routes/historyRoutes");
 
 // const hallRoutes = requrire("./routes/")
 
@@ -42,11 +43,12 @@ app.set('layout', 'layouts/layout2');
 
 //route mounting
 app.use("/auth", authRoutes);
-app.use("/movies", movieRoutes);
-app.use("/halls", hallRoutes);
-app.use("/screenings", screeningRoutes);
-app.use("/profile", profileRoutes);
-app.use("/personnel", personnelRoutes);
+app.use("/movies", requireAuth, movieRoutes);
+app.use("/halls", requireAuth, hallRoutes);
+app.use("/screenings", requireAuth, screeningRoutes);
+app.use("/profile", requireAuth, profileRoutes);
+app.use("/personnel", requireRoles(["Admin"]), personnelRoutes);
+app.use("/history", requireRoles(["Admin", "Manager"]), historyRoutes);
 
 //routing
 app.get("/", (req,res) => {
@@ -76,7 +78,7 @@ function isHallUnderMaintenanceNow(hall, now) {
     return now >= window.start && now <= window.end;
 }
 
-app.get("/dashboard", async (req, res) => {
+app.get("/dashboard", requireAuth, async (req, res) => {
     try {
         await initDBIfNecessary();
         const collectionMovie = getCollectionMovie();

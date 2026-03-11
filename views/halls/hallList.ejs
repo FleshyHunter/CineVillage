@@ -52,9 +52,11 @@
 
             <!-- Create Button -->
             <div class="create-button-wrapper">
-                <a href="/halls/create" class="btn btn-primary">
-                    <i class="bi bi-building-add"></i> Create New Hall
-                </a>
+                <% if (currentRole !== 'Staff') { %>
+                    <a href="/halls/create" class="btn btn-primary">
+                        <i class="bi bi-building-add"></i> Create New Hall
+                    </a>
+                <% } %>
             </div>
         </div>
         <div class="movies-grid">
