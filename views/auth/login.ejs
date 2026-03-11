@@ -23,6 +23,10 @@
           <h2 class="auth-login-title">Sign In</h2>
           <p class="auth-login-caption">Use your CineVillage account credentials.</p>
 
+          <% if (typeof info !== 'undefined' && info) { %>
+            <div class="auth-login-info"><%= info %></div>
+          <% } %>
+
           <% if (typeof error !== 'undefined' && error) { %>
             <div class="auth-login-error"><%= error %></div>
           <% } %>

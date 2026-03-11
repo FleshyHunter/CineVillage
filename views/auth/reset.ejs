@@ -21,10 +21,19 @@
 
         <section class="auth-login-panel">
           <h2 class="auth-login-title">Reset Password</h2>
-          <p class="auth-login-caption">UI and routing are ready. Reset logic will be added next.</p>
+          <p class="auth-login-caption">Enter your account email to receive a reset link.</p>
 
           <% if (typeof sent !== 'undefined' && sent) { %>
-            <div class="auth-login-info">Reset request captured (placeholder). Actual email logic is not enabled yet.</div>
+            <div class="auth-login-info">
+              If this email exists, a reset link has been sent.
+              <% if (typeof preview !== 'undefined' && preview) { %>
+                <br>
+                <a href="<%= preview %>" target="_blank" rel="noopener noreferrer">Open Ethereal test email</a>
+              <% } else if (typeof fallback !== 'undefined' && fallback) { %>
+                <br>
+                Email transport unavailable. Check server terminal for the dev reset link log.
+              <% } %>
+            </div>
           <% } %>
 
           <form action="/auth/reset" method="POST">
