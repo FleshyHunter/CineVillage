@@ -18,9 +18,8 @@ router.get("/login", (req, res) => {
 // Request reset link page
 router.get("/reset", (req, res) => {
     const sent = req.query.sent === "1";
-    const preview = req.query.preview ? decodeURIComponent(req.query.preview) : "";
-    const fallback = req.query.fallback === "1";
-    res.render("auth/reset", { sent, preview, fallback, layout: false });
+    const error = req.query.error ? decodeURIComponent(req.query.error) : "";
+    res.render("auth/reset", { sent, error, layout: false });
 });
 
 // Reset password form page
@@ -69,14 +68,11 @@ router.post("/reset", async (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     const result = await requestPasswordReset(email, baseUrl);
 
-    let redirectUrl = "/auth/reset?sent=1";
-    if (result.previewUrl) {
-        redirectUrl += `&preview=${encodeURIComponent(result.previewUrl)}`;
+    if (result.error) {
+        return res.redirect(`/auth/reset?error=${encodeURIComponent(result.error)}`);
     }
-    if (result.fallback) {
-        redirectUrl += "&fallback=1";
-    }
-    res.redirect(redirectUrl);
+
+    res.redirect("/auth/reset?sent=1");
 });
 
 // Submit new password using token

@@ -37,40 +37,27 @@ async function withTimeout(promise, ms, label) {
 async function getMailer() {
     if (cachedMailer) return cachedMailer;
 
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-        cachedMailer = {
-            transporter: nodemailer.createTransport({
-                host: process.env.SMTP_HOST,
-                port: Number(process.env.SMTP_PORT || 587),
-                secure: String(process.env.SMTP_SECURE || "false") === "true",
-                auth: {
-                    user: process.env.SMTP_USER,
-                    pass: process.env.SMTP_PASS
-                }
-            }),
-            fromAddress: process.env.SMTP_FROM || process.env.SMTP_USER,
-            isEthereal: false
-        };
-        return cachedMailer;
+    const requiredEnvKeys = ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"];
+    const missingKeys = requiredEnvKeys.filter((key) => {
+        const value = process.env[key];
+        return !value || !value.toString().trim();
+    });
+
+    if (missingKeys.length > 0) {
+        throw new Error(`SMTP configuration missing: ${missingKeys.join(", ")}`);
     }
 
-    const testAccount = await withTimeout(
-        nodemailer.createTestAccount(),
-        MAIL_TIMEOUT_MS,
-        "createTestAccount"
-    );
     cachedMailer = {
         transporter: nodemailer.createTransport({
-            host: "smtp.ethereal.email",
-            port: 587,
-            secure: false,
+            host: process.env.SMTP_HOST,
+            port: Number(process.env.SMTP_PORT || 587),
+            secure: String(process.env.SMTP_SECURE || "false") === "true",
             auth: {
-                user: testAccount.user,
-                pass: testAccount.pass
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
             }
         }),
-        fromAddress: `"CineVillage" <${testAccount.user}>`,
-        isEthereal: true
+        fromAddress: process.env.SMTP_FROM || process.env.SMTP_USER
     };
     return cachedMailer;
 }
@@ -190,7 +177,7 @@ async function requestPasswordReset(email, baseUrl) {
     const found = await findAccountByEmail(normalizedEmail);
     if (!found) {
         console.log("[AUTH] Reset requested for non-existing email", { email: normalizedEmail || "(empty)" });
-        return { sent: true };
+        return { error: "No such user." };
     }
 
     const rawToken = crypto.randomBytes(RESET_TOKEN_BYTES).toString("hex");
@@ -212,8 +199,8 @@ async function requestPasswordReset(email, baseUrl) {
     const resetLink = `${safeBaseUrl}/auth/reset/${rawToken}`;
 
     try {
-        const { transporter, fromAddress, isEthereal } = await getMailer();
-        const info = await withTimeout(
+        const { transporter, fromAddress } = await getMailer();
+        await withTimeout(
             transporter.sendMail({
             from: fromAddress,
             to: normalizedEmail,
@@ -229,25 +216,16 @@ async function requestPasswordReset(email, baseUrl) {
             "sendMail"
         );
 
-        const previewUrl = nodemailer.getTestMessageUrl(info);
         console.log("[AUTH] Reset email sent", {
             email: normalizedEmail,
             role: found.role,
-            accountId: found.account._id?.toString(),
-            previewUrl: previewUrl || "(none)",
-            transport: isEthereal ? "ethereal" : "smtp"
+            accountId: found.account._id?.toString()
         });
 
-        return { sent: true, previewUrl: previewUrl || null };
+        return { sent: true };
     } catch (error) {
         console.error("[AUTH] Reset email send failed:", error.message);
-        console.log("[AUTH] Dev fallback reset link", {
-            email: normalizedEmail,
-            accountId: found.account._id?.toString(),
-            resetLink
-        });
-        // Keep token persisted so reset flow still works even if mail transport is unavailable.
-        return { sent: true, fallback: true };
+        return { error: `Unable to send reset email: ${error.message}` };
     }
 }
 
