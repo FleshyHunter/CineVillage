@@ -4,7 +4,7 @@
     <h2 class="mb-30"><%= isEdit ? 'Edit Movie' : 'Create Movie' %></h2>
 
     <div class="movie-detail-container">
-      <form action="<%= isEdit ? '/movies/edit/' + movie._id : '/movies/create' %>" method="POST"
+      <form id="movieForm" action="<%= isEdit ? '/movies/edit/' + movie._id : '/movies/create' %>" method="POST"
         enctype="multipart/form-data" style="display: contents;">
 
         <!-- Left Side: Movie Poster Upload -->
@@ -17,6 +17,7 @@
           </label>
           <input type="file" id="picture" name="picture" accept="image/*" style="display: none;">
           <input type="hidden" id="pictureUrl" name="pictureUrl" value="<%= movie && movie.pictureUrl ? movie.pictureUrl : '' %>">
+          <input type="hidden" id="imdbId" name="imdbId" value="<%= movie && movie.imdbId ? movie.imdbId : '' %>">
           <p class="form-help-text">Click to upload poster</p>
         </div>
 
@@ -48,7 +49,7 @@
           <div class="form-row">
             <div class="form-group">
               <label for="duration" class="form-label">Duration (mins)</label>
-              <input type="number" id="duration" name="duration" class="form-control" value="<%= movie ? movie.duration : '' %>" min="1" step="1">
+              <input type="number" id="duration" name="duration" class="form-control" value="<%= movie ? movie.duration : '' %>" min="1" step="1" required>
             </div>
 
             <div class="form-group">
@@ -89,10 +90,13 @@
           <div class="form-row">
             <div class="form-group">
               <label for="language" class="form-label">Language</label>
-              <select id="language" name="language" class="form-control">
+              <select id="language" name="language" class="form-control" required>
                 <option value="">Select</option>
                 <option value="English" <%=movie && movie.language==='English' ? 'selected' : '' %>>English</option>
                 <option value="Mandarin" <%=movie && movie.language==='Mandarin' ? 'selected' : '' %>>Mandarin</option>
+                <option value="Malay" <%=movie && movie.language==='Malay' ? 'selected' : '' %>>Malay</option>
+                <option value="Tamil" <%=movie && movie.language==='Tamil' ? 'selected' : '' %>>Tamil</option>
+                <option value="Hindi" <%=movie && movie.language==='Hindi' ? 'selected' : '' %>>Hindi</option>
               </select>
             </div>
 
@@ -102,6 +106,9 @@
                 <option value="">Select</option>
                 <option value="English" <%=movie && movie.subtitle==='English' ? 'selected' : '' %>>English</option>
                 <option value="Mandarin" <%=movie && movie.subtitle==='Mandarin' ? 'selected' : '' %>>Mandarin</option>
+                <option value="Malay" <%=movie && movie.subtitle==='Malay' ? 'selected' : '' %>>Malay</option>
+                <option value="Tamil" <%=movie && movie.subtitle==='Tamil' ? 'selected' : '' %>>Tamil</option>
+                <option value="Hindi" <%=movie && movie.subtitle==='Hindi' ? 'selected' : '' %>>Hindi</option>
               </select>
             </div>
           </div>
@@ -135,9 +142,10 @@
 
           <!-- Description (Full Width) -->
           <div class="form-group">
-            <label for="description" class="form-label">Synopsis <span style="font-size: 10px; font-weight: 400;">(max 150 characters)</span></label>
+            <label for="description" class="form-label">Synopsis <span style="font-size: 10px; font-weight: 400;">(max 150 words)</span></label>
             <textarea id="description" name="description" rows="5"
-              class="form-control" style="resize: vertical;" maxlength="150"><%= movie ? movie.description : '' %></textarea>
+              class="form-control" style="resize: vertical;"><%= movie ? movie.description : '' %></textarea>
+            <p id="descriptionWordCount" class="form-help-text" style="margin-top: 6px;">0/150 words</p>
           </div>
 
           <!-- Action Buttons -->
@@ -159,12 +167,187 @@
   <script>
     const pictureInput = document.getElementById('picture');
     const pictureUrlInput = document.getElementById('pictureUrl');
+    const imdbIdInput = document.getElementById('imdbId');
     const placeholderImg = document.getElementById('placeholderImg');
+    const movieForm = document.getElementById('movieForm');
     const nameInput = document.getElementById('name');
+    const durationInput = document.getElementById('duration');
+    const ratingInput = document.getElementById('rating');
+    const ageRestrictionInput = document.getElementById('ageRestriction');
+    const languageInput = document.getElementById('language');
+    const subtitleInput = document.getElementById('subtitle');
+    const releaseDateInput = document.getElementById('releaseDate');
+    const statusInput = document.getElementById('status');
+    const descriptionInput = document.getElementById('description');
+    const descriptionWordCount = document.getElementById('descriptionWordCount');
     const omdbSearchBtn = document.getElementById('omdbSearchBtn');
     const omdbSearchStatus = document.getElementById('omdbSearchStatus');
     const omdbPicker = document.getElementById('omdbPicker');
     const fallbackPoster = '/images/cameraplaceholder.jpg';
+    const synopsisMaxWords = 150;
+    const allowedAgeRestrictions = new Set(['', 'G', 'PG', 'PG13', 'NC16', 'M18', 'R21']);
+    const allowedLanguages = new Set(['English', 'Mandarin', 'Malay', 'Tamil', 'Hindi']);
+    const allowedSubtitles = new Set(['', 'English', 'Mandarin', 'Malay', 'Tamil', 'Hindi']);
+    const allowedStatuses = new Set(['', 'Now Showing', 'Coming Soon', 'Discontinued']);
+    const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+    const uploadPathPattern = /^\/uploads\/[A-Za-z0-9._-]+$/;
+
+    function getWordCount(value) {
+      const text = (value || '').trim();
+      if (!text) return 0;
+      return text.split(/\s+/).length;
+    }
+
+    function validateSynopsisLimit() {
+      if (!descriptionInput) return true;
+      const words = getWordCount(descriptionInput.value);
+      const isValid = words <= synopsisMaxWords;
+      descriptionInput.setCustomValidity(
+        isValid ? '' : `Synopsis cannot exceed ${synopsisMaxWords} words.`
+      );
+      return isValid;
+    }
+
+    function updateSynopsisWordCount() {
+      if (!descriptionInput || !descriptionWordCount) return;
+      const words = getWordCount(descriptionInput.value);
+      descriptionWordCount.textContent = `${words}/${synopsisMaxWords} words`;
+      descriptionWordCount.style.color = words > synopsisMaxWords ? '#dc3545' : '#6b7280';
+      validateSynopsisLimit();
+    }
+
+    function isValidIsoDate(value) {
+      if (!value) return true;
+      if (!isoDatePattern.test(value)) return false;
+      const date = new Date(`${value}T00:00:00.000Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    }
+
+    function isValidPictureUrl(value) {
+      if (!value) return true;
+      if (uploadPathPattern.test(value)) return true;
+      try {
+        const url = new URL(value);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch (_error) {
+        return false;
+      }
+    }
+
+    function validateSelectValue(field, allowedValues, requiredMessage, invalidMessage) {
+      if (!field) return true;
+      const value = (field.value || '').trim();
+
+      if (requiredMessage && !value) {
+        field.setCustomValidity(requiredMessage);
+        return false;
+      }
+
+      if (!allowedValues.has(value)) {
+        field.setCustomValidity(invalidMessage);
+        return false;
+      }
+
+      field.setCustomValidity('');
+      return true;
+    }
+
+    function validateFormFields() {
+      let firstInvalidField = null;
+
+      if (nameInput) {
+        const trimmedName = (nameInput.value || '').trim();
+        nameInput.value = trimmedName;
+        if (!trimmedName) {
+          nameInput.setCustomValidity('Movie name is required.');
+          firstInvalidField = firstInvalidField || nameInput;
+        } else if (trimmedName.length > 50) {
+          nameInput.setCustomValidity('Movie name cannot exceed 50 characters.');
+          firstInvalidField = firstInvalidField || nameInput;
+        } else {
+          nameInput.setCustomValidity('');
+        }
+      }
+
+      if (durationInput) {
+        const rawDuration = (durationInput.value || '').trim();
+        durationInput.value = rawDuration;
+        if (!rawDuration || !/^\d+$/.test(rawDuration) || Number.parseInt(rawDuration, 10) <= 0) {
+          durationInput.setCustomValidity('Duration must be a whole number greater than 0.');
+          firstInvalidField = firstInvalidField || durationInput;
+        } else {
+          durationInput.setCustomValidity('');
+        }
+      }
+
+      if (ratingInput) {
+        const rawRating = (ratingInput.value || '').trim();
+        ratingInput.value = rawRating;
+        if (rawRating) {
+          const parsedRating = Number(rawRating);
+          if (!Number.isFinite(parsedRating) || parsedRating < 0 || parsedRating > 5) {
+            ratingInput.setCustomValidity('Rating must be a number between 0 and 5.');
+            firstInvalidField = firstInvalidField || ratingInput;
+          } else {
+            ratingInput.setCustomValidity('');
+          }
+        } else {
+          ratingInput.setCustomValidity('');
+        }
+      }
+
+      if (!validateSelectValue(ageRestrictionInput, allowedAgeRestrictions, '', 'Invalid age restriction selected.')) {
+        firstInvalidField = firstInvalidField || ageRestrictionInput;
+      }
+
+      if (!validateSelectValue(languageInput, allowedLanguages, 'Please select a valid language.', 'Please select a valid language.')) {
+        firstInvalidField = firstInvalidField || languageInput;
+      }
+
+      if (!validateSelectValue(subtitleInput, allowedSubtitles, '', 'Invalid subtitle selected.')) {
+        firstInvalidField = firstInvalidField || subtitleInput;
+      }
+
+      if (!validateSelectValue(statusInput, allowedStatuses, '', 'Invalid status selected.')) {
+        firstInvalidField = firstInvalidField || statusInput;
+      }
+
+      if (releaseDateInput) {
+        const dateValue = (releaseDateInput.value || '').trim();
+        releaseDateInput.value = dateValue;
+        if (!isValidIsoDate(dateValue)) {
+          releaseDateInput.setCustomValidity('Invalid release date.');
+          firstInvalidField = firstInvalidField || releaseDateInput;
+        } else {
+          releaseDateInput.setCustomValidity('');
+        }
+      }
+
+      if (pictureUrlInput) {
+        const urlValue = (pictureUrlInput.value || '').trim();
+        pictureUrlInput.value = urlValue;
+        if (!isValidPictureUrl(urlValue)) {
+          pictureUrlInput.setCustomValidity('Poster URL must be a valid URL or uploaded file path.');
+          firstInvalidField = firstInvalidField || pictureUrlInput;
+        } else {
+          pictureUrlInput.setCustomValidity('');
+        }
+      }
+
+      if (imdbIdInput) {
+        imdbIdInput.value = (imdbIdInput.value || '').trim();
+      }
+
+      if (descriptionInput) {
+        descriptionInput.value = (descriptionInput.value || '').trim();
+      }
+
+      if (!validateSynopsisLimit()) {
+        firstInvalidField = firstInvalidField || descriptionInput;
+      }
+
+      return firstInvalidField;
+    }
 
     function setPosterPreview(src) {
       if (!placeholderImg) return;
@@ -204,6 +387,8 @@
       setFieldValue('status', movieData.status || '');
       setFieldValue('cast', movieData.cast || '');
       setFieldValue('description', movieData.description || '');
+      setFieldValue('imdbId', movieData.imdbId || '');
+      updateSynopsisWordCount();
 
       if (pictureInput) {
         pictureInput.value = '';
@@ -327,6 +512,21 @@
 
     if (omdbSearchBtn) {
       omdbSearchBtn.addEventListener('click', searchOmdbByTitle);
+    }
+
+    if (descriptionInput) {
+      descriptionInput.addEventListener('input', updateSynopsisWordCount);
+      updateSynopsisWordCount();
+    }
+
+    if (movieForm) {
+      movieForm.addEventListener('submit', (event) => {
+        const firstInvalidField = validateFormFields();
+        if (firstInvalidField) {
+          event.preventDefault();
+          firstInvalidField.reportValidity();
+        }
+      });
     }
   </script>
 

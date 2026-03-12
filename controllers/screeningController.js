@@ -245,8 +245,13 @@ async function updateScreeningStatuses() {
     const hall = screening.hallId ? hallMap.get(screening.hallId.toString()) : null;
     
     // Pause takes precedence if screening is inside hall maintenance window.
+    // Addition: once a paused screening's end time has passed, mark it as incomplete.
     if (hall && doesScreeningOverlapMaintenance(hall, startTime, endTime)) {
-      newStatus = 'paused';
+      if (now >= endTime) {
+        newStatus = 'incomplete';
+      } else {
+        newStatus = 'paused';
+      }
     } else {
       // Determine status based on current time
       if (now < startTime) {
@@ -403,26 +408,14 @@ async function getAllScreenings(req, res) {
     };
   });
 
-  // Get completed screenings based on time passed (same local Date handling as scheduling/status logic)
-  const now = new Date();
+  // Get paused and completed/incomplete groups for dedicated views
   const pausedScreenings = allScreenings
     .filter(s => s.status === 'paused')
     .sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime));
 
   const completedScreenings = allScreenings
-    .filter(s => s.endDateTime && new Date(s.endDateTime) < now)
+    .filter(s => ['completed', 'incomplete'].includes(s.status))
     .sort((a, b) => new Date(b.startDateTime) - new Date(a.startDateTime));
-
-  // Ensure all screenings shown in Completed view are marked as completed
-  for (const screening of completedScreenings) {
-    if (screening.status !== 'completed') {
-      await collectionScreening.updateOne(
-        { _id: screening._id },
-        { $set: { status: 'completed' } }
-      );
-    }
-    screening.status = 'completed';
-  }
 
   // Populate movie and hall details for completed screenings
   for (let screening of completedScreenings) {

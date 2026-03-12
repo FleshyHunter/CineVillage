@@ -2,8 +2,7 @@ const { ObjectId } = require("mongodb");
 const bcrypt = require("bcrypt");
 const {
   initDBIfNecessary,
-  getCollectionManager,
-  getCollectionStaff
+  getCollectionUser
 } = require("../config/database");
 const { findEmailConflict } = require("./accountUniqueness");
 const PERSONNEL_BCRYPT_ROUNDS = 10;
@@ -17,6 +16,14 @@ function sanitizeRole(role) {
   return "manager";
 }
 
+function roleKeyToLabel(roleKey) {
+  return roleKey === "manager" ? "Manager" : "Staff";
+}
+
+function normalizeEmail(email) {
+  return (email || "").toString().trim().toLowerCase();
+}
+
 function sanitizeView(view) {
   if (Array.isArray(view)) {
     view = view[view.length - 1];
@@ -26,18 +33,11 @@ function sanitizeView(view) {
   return "all";
 }
 
-function getCollectionByRole(role) {
-  return role === "manager" ? getCollectionManager() : getCollectionStaff();
-}
-
 async function getAllPersonnel(req, res) {
   await initDBIfNecessary();
-
-  const managerCollection = getCollectionManager();
-  const staffCollection = getCollectionStaff();
-
-  const managers = await managerCollection.find({}).sort({ created: -1 }).toArray();
-  const staff = await staffCollection.find({}).sort({ created: -1 }).toArray();
+  const collectionUser = getCollectionUser();
+  const managers = await collectionUser.find({ role: "Manager" }).sort({ created: -1 }).toArray();
+  const staff = await collectionUser.find({ role: "Staff" }).sort({ created: -1 }).toArray();
   const allPersonnel = [
     ...managers.map(person => ({ ...person, collectionRole: "manager" })),
     ...staff.map(person => ({ ...person, collectionRole: "staff" }))
@@ -72,26 +72,36 @@ async function createPersonnel(req, res) {
   try {
     await initDBIfNecessary();
     const role = sanitizeRole(req.body.role || req.query.role);
-    const collection = getCollectionByRole(role);
+    const collectionUser = getCollectionUser();
     const defaultPersonnelPasswordHash = await bcrypt.hash("personnel", PERSONNEL_BCRYPT_ROUNDS);
 
     const personnelData = {
       name: (req.body.name || "").toString().trim(),
       username: (req.body.username || "").toString().trim(),
       email: (req.body.email || "").toString().trim(),
+      emailNormalized: normalizeEmail(req.body.email),
       contact: (req.body.contact || "").toString().trim(),
-      role: role === "manager" ? "Manager" : "Staff",
+      role: roleKeyToLabel(role),
       status: (req.body.status || "Active").toString().trim(),
       password: defaultPersonnelPasswordHash,
       created: new Date()
     };
+
+    if (!personnelData.name || !personnelData.username || !personnelData.email || !personnelData.contact) {
+      throw new Error("Name, username, email and contact are required");
+    }
+
+    const duplicateUsername = await collectionUser.findOne({ username: personnelData.username });
+    if (duplicateUsername) {
+      throw new Error("Username is already in use");
+    }
 
     const emailConflict = await findEmailConflict(personnelData.email);
     if (emailConflict) {
       throw new Error("Email is already in use");
     }
 
-    await collection.insertOne(personnelData);
+    await collectionUser.insertOne(personnelData);
     res.redirect(`/personnel?view=${role}`);
   } catch (err) {
     console.error(err);
@@ -109,10 +119,14 @@ async function createPersonnel(req, res) {
 async function getEditPersonnelForm(req, res) {
   await initDBIfNecessary();
   const role = sanitizeRole(req.params.role);
-  const collection = getCollectionByRole(role);
+  const collectionUser = getCollectionUser();
+  const expectedRole = roleKeyToLabel(role);
 
   if (!ObjectId.isValid(req.params.id)) return res.send("Personnel not found");
-  const personnel = await collection.findOne({ _id: new ObjectId(req.params.id) });
+  const personnel = await collectionUser.findOne({
+    _id: new ObjectId(req.params.id),
+    role: expectedRole
+  });
   if (!personnel) return res.send("Personnel not found");
 
   res.render("staff/personnelForm", {
@@ -130,43 +144,51 @@ async function updatePersonnel(req, res) {
     await initDBIfNecessary();
     const sourceRole = sanitizeRole(req.params.role);
     const targetRole = sanitizeRole(req.body.role || req.params.role);
-    const sourceCollection = getCollectionByRole(sourceRole);
-    const targetCollection = getCollectionByRole(targetRole);
+    const sourceRoleLabel = roleKeyToLabel(sourceRole);
+    const targetRoleLabel = roleKeyToLabel(targetRole);
+    const collectionUser = getCollectionUser();
 
     if (!ObjectId.isValid(req.params.id)) return res.send("Personnel not found");
     const personnelId = new ObjectId(req.params.id);
-    const existingPersonnel = await sourceCollection.findOne({ _id: personnelId });
+    const existingPersonnel = await collectionUser.findOne({
+      _id: personnelId,
+      role: sourceRoleLabel
+    });
     if (!existingPersonnel) return res.send("Personnel not found");
 
     const personnelData = {
       name: (req.body.name || "").toString().trim(),
       username: (req.body.username || "").toString().trim(),
       email: (req.body.email || "").toString().trim(),
+      emailNormalized: normalizeEmail(req.body.email),
       contact: (req.body.contact || "").toString().trim(),
-      role: targetRole === "manager" ? "Manager" : "Staff",
+      role: targetRoleLabel,
       status: (req.body.status || "Active").toString().trim()
     };
 
+    if (!personnelData.name || !personnelData.username || !personnelData.email || !personnelData.contact) {
+      throw new Error("Name, username, email and contact are required");
+    }
+
+    const duplicateUsername = await collectionUser.findOne({
+      _id: { $ne: personnelId },
+      username: personnelData.username
+    });
+    if (duplicateUsername) {
+      throw new Error("Username is already in use");
+    }
+
     const emailConflict = await findEmailConflict(personnelData.email, {
-      exclude: { role: sourceRole, id: personnelId }
+      exclude: { id: personnelId }
     });
     if (emailConflict) {
       throw new Error("Email is already in use");
     }
 
-    if (sourceRole === targetRole) {
-      await sourceCollection.updateOne(
-        { _id: personnelId },
-        { $set: personnelData }
-      );
-    } else {
-      await sourceCollection.deleteOne({ _id: personnelId });
-      await targetCollection.insertOne({
-        _id: personnelId,
-        ...personnelData,
-        created: existingPersonnel.created || new Date()
-      });
-    }
+    await collectionUser.updateOne(
+      { _id: personnelId },
+      { $set: personnelData }
+    );
 
     res.redirect(`/personnel?view=${targetRole}`);
   } catch (err) {
@@ -186,10 +208,14 @@ async function deletePersonnel(req, res) {
   try {
     await initDBIfNecessary();
     const role = sanitizeRole(req.params.role);
-    const collection = getCollectionByRole(role);
+    const roleLabel = roleKeyToLabel(role);
+    const collectionUser = getCollectionUser();
     if (!ObjectId.isValid(req.params.id)) return res.send("Personnel not found");
 
-    await collection.deleteOne({ _id: new ObjectId(req.params.id) });
+    await collectionUser.deleteOne({
+      _id: new ObjectId(req.params.id),
+      role: roleLabel
+    });
     res.redirect(`/personnel?view=${role}`);
   } catch (err) {
     console.error(err);

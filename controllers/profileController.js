@@ -1,19 +1,19 @@
 const { ObjectId } = require("mongodb");
 const {
   initDBIfNecessary,
-  getCollectionAdmin,
-  getCollectionManager,
-  getCollectionStaff
+  getCollectionUser
 } = require("../config/database");
 const bcrypt = require("bcrypt");
 const { findEmailConflict } = require("./accountUniqueness");
 const ADMIN_BCRYPT_ROUNDS = 10;
 
 function getCollectionByRole(role) {
-  if (role === "Admin") return getCollectionAdmin();
-  if (role === "Manager") return getCollectionManager();
-  if (role === "Staff") return getCollectionStaff();
+  if (role === "Admin" || role === "Manager" || role === "Staff") return getCollectionUser();
   return null;
+}
+
+function normalizeEmail(email) {
+  return (email || "").toString().trim().toLowerCase();
 }
 
 async function getCurrentAccountContext(req) {
@@ -26,7 +26,10 @@ async function getCurrentAccountContext(req) {
     return null;
   }
 
-  const account = await collection.findOne({ _id: new ObjectId(accountId) });
+  const account = await collection.findOne({
+    _id: new ObjectId(accountId),
+    role
+  });
   if (!account) return null;
 
   return { role, collection, account };
@@ -68,6 +71,7 @@ async function updateProfile(req, res) {
     name: (req.body.name || "").toString().trim(),
     username: (req.body.username || "").toString().trim(),
     email: (req.body.email || "").toString().trim(),
+    emailNormalized: normalizeEmail(req.body.email),
     contact: (req.body.contact || "").toString().trim(),
     role: (account.role || role)
   };

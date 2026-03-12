@@ -261,7 +261,8 @@
                                         background-color: <%= screening.status === 'scheduled' ? '#3b82f6' : 
                                                             screening.status === 'ongoing' ? '#22c55e' : 
                                                             screening.status === 'paused' ? '#f59e0b' :
-                                                            screening.status === 'completed' ? '#6b7280' : '#ef4444' %>;
+                                                            screening.status === 'completed' ? '#6b7280' :
+                                                            screening.status === 'incomplete' ? '#ef4444' : '#ef4444' %>;
                                         color: white;
                                         padding: 4px 12px;
                                         border-radius: 12px;
@@ -465,7 +466,8 @@
                                         background-color: <%= screening.status === 'scheduled' ? '#3b82f6' : 
                                                             screening.status === 'ongoing' ? '#22c55e' : 
                                                             screening.status === 'paused' ? '#f59e0b' :
-                                                            screening.status === 'completed' ? '#6b7280' : '#ef4444' %>;
+                                                            screening.status === 'completed' ? '#6b7280' :
+                                                            screening.status === 'incomplete' ? '#ef4444' : '#ef4444' %>;
                                         color: white;
                                         padding: 4px 12px;
                                         border-radius: 12px;

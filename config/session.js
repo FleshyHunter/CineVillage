@@ -1,9 +1,7 @@
 const mongodb = require("mongodb");
 const {
   initDBIfNecessary,
-  getCollectionAdmin,
-  getCollectionManager,
-  getCollectionStaff
+  getCollectionUser
 } = require("./database");
 
 const ACCOUNT_ID_COOKIE = "cv_account_id";
@@ -44,9 +42,7 @@ function hasValidAuthCookies(req) {
 }
 
 function getCollectionByRole(role) {
-  if (role === "Admin") return getCollectionAdmin();
-  if (role === "Manager") return getCollectionManager();
-  if (role === "Staff") return getCollectionStaff();
+  if (VALID_ROLES.has(role)) return getCollectionUser();
   return null;
 }
 
@@ -106,7 +102,10 @@ async function attachCurrentAccount(req, res, next) {
       return next();
     }
 
-    const account = await collection.findOne({ _id: new mongodb.ObjectId(accountId) });
+    const account = await collection.findOne({
+      _id: new mongodb.ObjectId(accountId),
+      role
+    });
     res.locals.currentAccount = {
       name: account?.name || account?.username || "Account",
       pictureUrl: account?.pictureUrl || "/images/cameraplaceholder.jpg",

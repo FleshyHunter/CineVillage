@@ -1,47 +1,42 @@
 const {
   initDBIfNecessary,
-  getCollectionAdmin,
-  getCollectionManager,
-  getCollectionStaff
+  getCollectionUser
 } = require("../config/database");
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function normalizeRoleKey(role) {
-  return (role || "").toString().trim().toLowerCase();
+function normalizeEmail(email) {
+  return (email || "").toString().trim().toLowerCase();
 }
 
-function isExcludedAccount(foundRole, foundAccount, exclude) {
-  if (!exclude || !exclude.id || !exclude.role) return false;
-  return (
-    normalizeRoleKey(exclude.role) === foundRole &&
-    String(exclude.id) === String(foundAccount._id)
-  );
+function isExcludedAccount(foundAccount, exclude) {
+  if (!exclude || !exclude.id) return false;
+  return String(exclude.id) === String(foundAccount._id);
 }
 
 async function findEmailConflict(email, options = {}) {
   await initDBIfNecessary();
-  const normalizedEmail = (email || "").toString().trim();
+  const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) return null;
 
+  const collectionUser = getCollectionUser();
   const escapedEmail = escapeRegex(normalizedEmail);
-  const emailQuery = { email: { $regex: new RegExp(`^${escapedEmail}$`, "i") } };
-  const collections = [
-    { role: "admin", collection: getCollectionAdmin() },
-    { role: "manager", collection: getCollectionManager() },
-    { role: "staff", collection: getCollectionStaff() }
-  ];
+  const account = await collectionUser.findOne({
+    $or: [
+      { emailNormalized: normalizedEmail },
+      { email: { $regex: new RegExp(`^${escapedEmail}$`, "i") } }
+    ]
+  });
 
-  for (const entry of collections) {
-    const account = await entry.collection.findOne(emailQuery);
-    if (!account) continue;
-    if (isExcludedAccount(entry.role, account, options.exclude)) continue;
-    return { role: entry.role, account };
+  if (!account) return null;
+  const foundRole = (account.role || "").toString().trim().toLowerCase();
+  if (isExcludedAccount(account, options.exclude)) {
+    return null;
   }
 
-  return null;
+  return { role: foundRole, account };
 }
 
 module.exports = {

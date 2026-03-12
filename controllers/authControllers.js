@@ -4,9 +4,7 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const {
     initDBIfNecessary,
-    getCollectionAdmin,
-    getCollectionManager,
-    getCollectionStaff
+    getCollectionUser
 } = require("../config/database");
 
 const PASSWORD_BCRYPT_ROUNDS = 10;
@@ -18,6 +16,14 @@ let cachedMailer = null;
 
 function hashResetToken(rawToken) {
     return crypto.createHash("sha256").update(rawToken).digest("hex");
+}
+
+function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeEmail(email) {
+    return (email || "").toString().trim().toLowerCase();
 }
 
 async function withTimeout(promise, ms, label) {
@@ -62,23 +68,30 @@ async function getMailer() {
     return cachedMailer;
 }
 
+async function findAccountsByEmail(email) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) return [];
+
+    const collectionUser = getCollectionUser();
+    const escapedEmail = escapeRegex(normalizedEmail);
+    const emailQuery = {
+        $or: [
+            { emailNormalized: normalizedEmail },
+            { email: { $regex: new RegExp(`^${escapedEmail}$`, "i") } }
+        ]
+    };
+
+    const accounts = await collectionUser.find(emailQuery).toArray();
+    return accounts.map((account) => ({
+        role: (account.role || "").toString().trim(),
+        account,
+        collection: collectionUser
+    }));
+}
+
 async function findAccountByEmail(email) {
-    const normalizedEmail = (email || "").toString().trim();
-    if (!normalizedEmail) return null;
-
-    const collectionAdmin = getCollectionAdmin();
-    const collectionManager = getCollectionManager();
-    const collectionStaff = getCollectionStaff();
-
-    const admin = await collectionAdmin.findOne({ email: normalizedEmail });
-    if (admin) return { role: "Admin", account: admin, collection: collectionAdmin };
-
-    const manager = await collectionManager.findOne({ email: normalizedEmail });
-    if (manager) return { role: "Manager", account: manager, collection: collectionManager };
-
-    const staff = await collectionStaff.findOne({ email: normalizedEmail });
-    if (staff) return { role: "Staff", account: staff, collection: collectionStaff };
-
+    const matches = await findAccountsByEmail(email);
+    if (matches.length === 1) return matches[0];
     return null;
 }
 
@@ -86,55 +99,46 @@ async function findAccountByResetToken(rawToken) {
     if (!rawToken) return null;
     const tokenHash = hashResetToken(rawToken);
     const now = new Date();
-
-    const collectionAdmin = getCollectionAdmin();
-    const collectionManager = getCollectionManager();
-    const collectionStaff = getCollectionStaff();
-
-    const admin = await collectionAdmin.findOne({
+    const collectionUser = getCollectionUser();
+    const account = await collectionUser.findOne({
         passwordResetTokenHash: tokenHash,
         passwordResetExpiresAt: { $gt: now }
     });
-    if (admin) return { role: "Admin", account: admin, collection: collectionAdmin };
+    if (!account) return null;
 
-    const manager = await collectionManager.findOne({
-        passwordResetTokenHash: tokenHash,
-        passwordResetExpiresAt: { $gt: now }
-    });
-    if (manager) return { role: "Manager", account: manager, collection: collectionManager };
-
-    const staff = await collectionStaff.findOne({
-        passwordResetTokenHash: tokenHash,
-        passwordResetExpiresAt: { $gt: now }
-    });
-    if (staff) return { role: "Staff", account: staff, collection: collectionStaff };
-
-    return null;
+    return {
+        role: (account.role || "").toString().trim(),
+        account,
+        collection: collectionUser
+    };
 }
 
 async function loginAccount(email, password) {
     await initDBIfNecessary();
 
-    const normalizedEmail = (email || "").toString().trim();
+    const normalizedEmail = normalizeEmail(email);
     if (!normalizedEmail || !password) {
         console.log("[AUTH] Login failed: missing email or password", { email: normalizedEmail || "(empty)" });
         return { error: "Invalid email or password" };
     }
 
-    const collectionAdmin = getCollectionAdmin();
-    const collectionManager = getCollectionManager();
-    const collectionStaff = getCollectionStaff();
-
-    // Priority: Admin > Manager > Staff (if duplicate emails exist).
-    const admin = await collectionAdmin.findOne({ email: normalizedEmail });
-    const manager = admin ? null : await collectionManager.findOne({ email: normalizedEmail });
-    const staff = (!admin && !manager) ? await collectionStaff.findOne({ email: normalizedEmail }) : null;
-
-    const account = admin || manager || staff;
-    if (!account) {
+    const matches = await findAccountsByEmail(normalizedEmail);
+    if (matches.length === 0) {
         console.log("[AUTH] Login failed: email not found", { email: normalizedEmail });
         return { error: "Invalid email or password" };
     }
+    if (matches.length > 1) {
+        console.log("[AUTH] Login blocked: duplicate email across accounts", {
+            email: normalizedEmail,
+            matches: matches.map((m) => ({ role: m.role, accountId: m.account._id?.toString() }))
+        });
+        return { error: "Multiple accounts share this email. Please contact admin." };
+    }
+
+    const found = matches[0];
+    const account = found.account;
+    const role = found.role;
+
     if (!account.password) {
         console.log("[AUTH] Login failed: account missing password hash", {
             email: normalizedEmail,
@@ -152,7 +156,6 @@ async function loginAccount(email, password) {
         return { error: "Invalid email or password" };
     }
 
-    const role = admin ? "Admin" : manager ? "Manager" : "Staff";
     if ((role === "Manager" || role === "Staff") && account.status === "Inactive") {
         console.log("[AUTH] Login blocked: inactive account", {
             email: normalizedEmail,
@@ -173,12 +176,21 @@ async function loginAccount(email, password) {
 async function requestPasswordReset(email, baseUrl) {
     await initDBIfNecessary();
 
-    const normalizedEmail = (email || "").toString().trim();
-    const found = await findAccountByEmail(normalizedEmail);
-    if (!found) {
+    const normalizedEmail = normalizeEmail(email);
+    const matches = await findAccountsByEmail(normalizedEmail);
+    if (matches.length === 0) {
         console.log("[AUTH] Reset requested for non-existing email", { email: normalizedEmail || "(empty)" });
         return { error: "No such user." };
     }
+    if (matches.length > 1) {
+        console.log("[AUTH] Reset blocked: duplicate email across accounts", {
+            email: normalizedEmail,
+            matches: matches.map((m) => ({ role: m.role, accountId: m.account._id?.toString() }))
+        });
+        return { error: "Multiple accounts share this email. Please contact admin." };
+    }
+
+    const found = matches[0];
 
     const rawToken = crypto.randomBytes(RESET_TOKEN_BYTES).toString("hex");
     const tokenHash = hashResetToken(rawToken);

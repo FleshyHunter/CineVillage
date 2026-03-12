@@ -1,4 +1,9 @@
-const { getCollectionMovie, getCollectionHall, initDBIfNecessary } = require("../config/database");
+const {
+  getCollectionMovie,
+  getCollectionHall,
+  getCollectionScreening,
+  initDBIfNecessary
+} = require("../config/database");
 const { ObjectId } = require("mongodb");
 
 async function createMovie(movieData) {
@@ -72,8 +77,18 @@ async function deleteMovie(id) {
   await initDBIfNecessary();
   if (!ObjectId.isValid(id)) throw new Error("Invalid movie ID");
 
+  const movieObjectId = new ObjectId(id);
+  const collectionScreening = getCollectionScreening();
+  const linkedScreeningsCount = await collectionScreening.countDocuments({
+    movieId: movieObjectId
+  });
+
+  if (linkedScreeningsCount > 0) {
+    throw new Error(`Cannot delete movie: ${linkedScreeningsCount} screening(s) are tied to this movie`);
+  }
+
   const collectionMovie = getCollectionMovie();
-  const result = await collectionMovie.deleteOne({ _id: new ObjectId(id) });
+  const result = await collectionMovie.deleteOne({ _id: movieObjectId });
 
   if (result.deletedCount === 0) {
     throw new Error("Movie not found");

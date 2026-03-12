@@ -2,7 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const router = express.Router();
 const { createMovie, getAllMovies, getMoviebyId, updateMovie, deleteMovie } = require("../controllers/movieController");
-const { initDBIfNecessary, getCollectionMovie } = require("../config/database");
+const { initDBIfNecessary, getCollectionMovie, getCollectionScreening } = require("../config/database");
 const { ObjectId } = require("mongodb");
 const { requireRoles } = require("../config/session");
 const { logAction } = require("../config/audit");
@@ -12,6 +12,16 @@ const path = require("path");
 
 const OMDB_BASE_URL = "https://www.omdbapi.com/";
 const OMDB_RESULT_LIMIT = 8;
+const SYNOPSIS_MAX_WORDS = 150;
+const MOVIE_NAME_MAX_LENGTH = 50;
+
+const ALLOWED_AGE_RESTRICTIONS = new Set(["G", "PG", "PG13", "NC16", "M18", "R21"]);
+const ALLOWED_LANGUAGES = new Set(["English", "Mandarin", "Malay", "Tamil", "Hindi"]);
+const ALLOWED_SUBTITLES = new Set(["English", "Mandarin", "Malay", "Tamil", "Hindi"]);
+const ALLOWED_STATUSES = new Set(["Now Showing", "Coming Soon", "Discontinued"]);
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const IMDB_ID_PATTERN = /^tt\d+$/i;
+const UPLOAD_PICTURE_PATH_PATTERN = /^\/uploads\/[A-Za-z0-9._-]+$/;
 
 //store user photo uploads:
 const storage = multer.diskStorage({
@@ -40,6 +50,157 @@ function truncate(value, maxLength) {
   const text = (value || "").toString();
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength);
+}
+
+function normalizeText(value) {
+  return (value || "").toString().trim();
+}
+
+function normalizeMovieData(rawMovieData = {}) {
+  return {
+    ...rawMovieData,
+    name: normalizeText(rawMovieData.name),
+    duration: normalizeText(rawMovieData.duration),
+    rating: normalizeText(rawMovieData.rating),
+    ageRestriction: normalizeText(rawMovieData.ageRestriction),
+    producer: normalizeText(rawMovieData.producer),
+    genre: normalizeText(rawMovieData.genre),
+    language: normalizeText(rawMovieData.language),
+    subtitle: normalizeText(rawMovieData.subtitle),
+    releaseDate: normalizeText(rawMovieData.releaseDate),
+    status: normalizeText(rawMovieData.status),
+    cast: normalizeText(rawMovieData.cast),
+    description: normalizeText(rawMovieData.description),
+    pictureUrl: normalizeText(rawMovieData.pictureUrl),
+    imdbId: normalizeText(rawMovieData.imdbId)
+  };
+}
+
+function getWordCount(value) {
+  const text = (value || "").toString().trim();
+  if (!text) return 0;
+  return text.split(/\s+/).length;
+}
+
+function truncateWords(value, maxWords) {
+  const text = (value || "").toString().trim();
+  if (!text) return "";
+
+  const words = text.split(/\s+/);
+  if (words.length <= maxWords) return text;
+  return words.slice(0, maxWords).join(" ");
+}
+
+function isValidIsoDate(value) {
+  if (!value) return true;
+  if (!ISO_DATE_PATTERN.test(value)) return false;
+  const parsedDate = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsedDate.getTime()) && parsedDate.toISOString().slice(0, 10) === value;
+}
+
+function isValidPictureUrl(value) {
+  if (!value) return true;
+  if (UPLOAD_PICTURE_PATH_PATTERN.test(value)) return true;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function validateMovieData(movieData) {
+  if (!movieData.name) return "Movie name is required.";
+  if (movieData.name.length > MOVIE_NAME_MAX_LENGTH) {
+    return `Movie name cannot exceed ${MOVIE_NAME_MAX_LENGTH} characters.`;
+  }
+
+  if (!movieData.duration) return "Duration is required.";
+  if (!/^\d+$/.test(movieData.duration)) return "Duration must be a whole number greater than 0.";
+  const parsedDuration = Number.parseInt(movieData.duration, 10);
+  if (!Number.isInteger(parsedDuration) || parsedDuration <= 0) {
+    return "Duration must be a whole number greater than 0.";
+  }
+
+  if (movieData.rating) {
+    const parsedRating = Number(movieData.rating);
+    if (!Number.isFinite(parsedRating) || parsedRating < 0 || parsedRating > 5) {
+      return "Rating must be a number between 0 and 5.";
+    }
+  }
+
+  if (movieData.ageRestriction && !ALLOWED_AGE_RESTRICTIONS.has(movieData.ageRestriction)) {
+    return "Invalid age restriction selected.";
+  }
+
+  if (!ALLOWED_LANGUAGES.has(movieData.language)) {
+    return "Please select a valid language.";
+  }
+
+  if (movieData.subtitle && !ALLOWED_SUBTITLES.has(movieData.subtitle)) {
+    return "Invalid subtitle selected.";
+  }
+
+  if (movieData.status && !ALLOWED_STATUSES.has(movieData.status)) {
+    return "Invalid status selected.";
+  }
+
+  if (!isValidIsoDate(movieData.releaseDate)) {
+    return "Invalid release date.";
+  }
+
+  if (getWordCount(movieData.description) > SYNOPSIS_MAX_WORDS) {
+    return `Synopsis cannot exceed ${SYNOPSIS_MAX_WORDS} words.`;
+  }
+
+  if (movieData.imdbId && !IMDB_ID_PATTERN.test(movieData.imdbId)) {
+    return "Invalid IMDb ID format.";
+  }
+
+  if (!isValidPictureUrl(movieData.pictureUrl)) {
+    return "Poster URL must be a valid URL or uploaded file path.";
+  }
+
+  return null;
+}
+
+function coerceMovieDataForPersistence(movieData) {
+  return {
+    ...movieData,
+    duration: Number.parseInt(movieData.duration, 10),
+    rating: movieData.rating === "" ? "" : Number(movieData.rating)
+  };
+}
+
+async function findDuplicateMovieError(collectionMovie, movieData, excludeMovieId = null) {
+  const excludeFilter = {};
+  if (excludeMovieId && ObjectId.isValid(excludeMovieId)) {
+    excludeFilter._id = { $ne: new ObjectId(excludeMovieId) };
+  }
+
+  if (movieData.imdbId) {
+    const escapedImdbId = escapeRegex(movieData.imdbId);
+    const existingByImdbId = await collectionMovie.findOne({
+      imdbId: { $regex: new RegExp(`^${escapedImdbId}$`, "i") },
+      ...excludeFilter
+    });
+    if (existingByImdbId) {
+      return "A movie with this IMDb ID already exists.";
+    }
+  }
+
+  const escapedName = escapeRegex(movieData.name);
+  const existingByName = await collectionMovie.findOne({
+    name: { $regex: new RegExp(`^${escapedName}$`, "i") },
+    ...excludeFilter
+  });
+
+  if (existingByName) {
+    return "A movie with this name already exists. Please choose a different name.";
+  }
+
+  return null;
 }
 
 function getTodayIsoDate() {
@@ -127,23 +288,39 @@ function mapOmdbLanguageAndSubtitle(rawLanguage) {
     .map((part) => part.trim().toLowerCase())
     .filter(Boolean);
 
-  const hasEnglish = parts.some((part) => part.includes("english"));
-  const hasMandarin = parts.some((part) => part.includes("mandarin") || part.includes("chinese"));
+  const detectedLanguages = [];
+  const addDetectedLanguage = (language) => {
+    if (language && !detectedLanguages.includes(language)) {
+      detectedLanguages.push(language);
+    }
+  };
 
-  let language = "";
-  let subtitle = "";
+  parts.forEach((part) => {
+    if (part.includes("english")) {
+      addDetectedLanguage("English");
+      return;
+    }
+    if (part.includes("mandarin") || part.includes("chinese")) {
+      addDetectedLanguage("Mandarin");
+      return;
+    }
+    if (/\bmalay\b/.test(part)) {
+      addDetectedLanguage("Malay");
+      return;
+    }
+    if (part.includes("tamil")) {
+      addDetectedLanguage("Tamil");
+      return;
+    }
+    if (part.includes("hindi")) {
+      addDetectedLanguage("Hindi");
+    }
+  });
 
-  if (hasEnglish) {
-    language = "English";
-  } else if (hasMandarin) {
-    language = "Mandarin";
-  }
-
-  if (hasEnglish && hasMandarin) {
-    subtitle = language === "English" ? "Mandarin" : "English";
-  }
-
-  return { language, subtitle };
+  return {
+    language: detectedLanguages[0] || "",
+    subtitle: detectedLanguages[1] || ""
+  };
 }
 
 function normalizeOmdbPosterUrl(rawPoster) {
@@ -173,7 +350,7 @@ function mapOmdbMovieToFormPayload(omdbMovie) {
     releaseDate,
     status,
     cast: normalizeOmdbText(omdbMovie.Actors),
-    description: truncate(normalizeOmdbText(omdbMovie.Plot), 150),
+    description: truncateWords(normalizeOmdbText(omdbMovie.Plot), SYNOPSIS_MAX_WORDS),
     pictureUrl: normalizeOmdbPosterUrl(omdbMovie.Poster),
     imdbId: normalizeOmdbText(omdbMovie.imdbID)
   };
@@ -198,33 +375,38 @@ router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("pictur
   try {
     await initDBIfNecessary();
     const collectionMovie = getCollectionMovie();
-
-    const movieName = (req.body.name || "").toString().trim();
-    const escapedName = escapeRegex(movieName);
-    const existingMovie = await collectionMovie.findOne({
-      name: { $regex: new RegExp(`^${escapedName}$`, "i") }
-    });
-
-    if (existingMovie) {
-      return res.render("movies/movieForm", {
-        movie: req.body,
-        isEdit: false,
-        title: "Movies",
-        error: "A movie with this name already exists. Please choose a different name."
-      });
-    }
-
-    const movieData = req.body;
+    const movieData = normalizeMovieData(req.body);
 
     if (req.file) {
       movieData.pictureUrl = "/uploads/" + req.file.filename;
     }
 
-    await createMovie(movieData);
+    const validationError = validateMovieData(movieData);
+    if (validationError) {
+      return res.render("movies/movieForm", {
+        movie: movieData,
+        isEdit: false,
+        title: "Movies",
+        error: validationError
+      });
+    }
+
+    const duplicateError = await findDuplicateMovieError(collectionMovie, movieData);
+    if (duplicateError) {
+      return res.render("movies/movieForm", {
+        movie: movieData,
+        isEdit: false,
+        title: "Movies",
+        error: duplicateError
+      });
+    }
+
+    const movieDataToPersist = coerceMovieDataForPersistence(movieData);
+    await createMovie(movieDataToPersist);
     await logAction(req, {
       module: "movie",
       operation: "create",
-      item: movieData.name || ""
+      item: movieDataToPersist.name || ""
     });
     res.redirect("/movies");
   } catch (err) {
@@ -257,38 +439,39 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("pict
   try {
     await initDBIfNecessary();
     const collectionMovie = getCollectionMovie();
-
-    const movieName = (req.body.name || "").toString().trim();
-    const escapedName = escapeRegex(movieName);
-    const existingMovie = await collectionMovie.findOne({
-      name: { $regex: new RegExp(`^${escapedName}$`, "i") },
-      _id: { $ne: new ObjectId(req.params.id) }
-    });
-
-    if (existingMovie) {
-      const currentMovie = await collectionMovie.findOne({
-        _id: new ObjectId(req.params.id)
-      });
-      return res.render("movies/movieForm", {
-        movie: { ...currentMovie, ...req.body, _id: req.params.id },
-        isEdit: true,
-        title: "Movies",
-        error: "A movie with this name already exists. Please choose a different name."
-      });
-    }
-
-    const movieData = req.body;
+    const movieData = normalizeMovieData(req.body);
 
     if (req.file) {
       movieData.pictureUrl = "/uploads/" + req.file.filename;
     }
 
-    await updateMovie(req.params.id, movieData);
+    const validationError = validateMovieData(movieData);
+    if (validationError) {
+      return res.render("movies/movieForm", {
+        movie: { ...movieData, _id: req.params.id },
+        isEdit: true,
+        title: "Movies",
+        error: validationError
+      });
+    }
+
+    const duplicateError = await findDuplicateMovieError(collectionMovie, movieData, req.params.id);
+    if (duplicateError) {
+      return res.render("movies/movieForm", {
+        movie: { ...movieData, _id: req.params.id },
+        isEdit: true,
+        title: "Movies",
+        error: duplicateError
+      });
+    }
+
+    const movieDataToPersist = coerceMovieDataForPersistence(movieData);
+    await updateMovie(req.params.id, movieDataToPersist);
     await logAction(req, {
       module: "movie",
       operation: "update",
       targetId: req.params.id,
-      item: movieData.name || ""
+      item: movieDataToPersist.name || ""
     });
     res.redirect(`/movies/${req.params.id}`);
   } catch (err) {
@@ -315,6 +498,9 @@ router.post("/delete/:id", requireRoles(["Admin", "Manager"]), async (req, res) 
     res.redirect("/movies");
   } catch (err) {
     console.error(err);
+    if (err.message && err.message.includes("Cannot delete movie")) {
+      return res.redirect(`/movies/${req.params.id}?deleteError=${encodeURIComponent(err.message)}`);
+    }
     res.send("Error deleting movie");
   }
 });
@@ -419,8 +605,19 @@ router.get("/omdb/details", requireRoles(["Admin", "Manager"]), async (req, res)
 
 // GET single movie details
 router.get("/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
+  await initDBIfNecessary();
   const movie = await getMoviebyId(req.params.id);
-  res.render("movies/movieDetail", { title: "Movies", isEdit: false, movie });
+  const collectionScreening = getCollectionScreening();
+  const linkedScreeningCount = ObjectId.isValid(req.params.id)
+    ? await collectionScreening.countDocuments({ movieId: new ObjectId(req.params.id) })
+    : 0;
+  res.render("movies/movieDetail", {
+    title: "Movies",
+    isEdit: false,
+    movie,
+    linkedScreeningCount,
+    deleteError: req.query.deleteError || null
+  });
 });
 
 module.exports = router;

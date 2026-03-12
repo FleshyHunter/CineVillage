@@ -4,7 +4,7 @@
   </div>
 
   <div class="card">
-    <h3 class="section-title">Admin Information</h3>
+    <h3 class="section-title">Account Information</h3>
 
     <% if (!admin) { %>
       <div class="error-banner">Profile data is unavailable.</div>
@@ -40,7 +40,7 @@
 
       <div class="form-group">
         <label class="form-label-compact">ROLE</label>
-        <div class="form-control form-control-readonly"><%= admin.role || 'Admin' %></div>
+        <div class="form-control form-control-readonly"><%= admin.role || '-' %></div>
       </div>
 
       <div class="movie-detail-actions mt-30">
