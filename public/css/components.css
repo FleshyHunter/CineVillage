@@ -96,7 +96,7 @@ textarea.form-control {
 /* === Movie Grid === */
 .movies-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr); 
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -365,8 +365,17 @@ textarea.form-control {
 }
 
 .movie-card-link {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  justify-self: stretch;
   text-decoration: none !important;
   color: inherit !important;
+}
+
+.movies-grid .movie-card {
+  width: 100%;
+  height: 100%;
 }
 
 .movie-card-img-wrapper {
@@ -413,8 +422,11 @@ textarea.form-control {
   text-align: left;
   font-size: 16px;
   line-height: 1.3;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text-main);
 }
 
