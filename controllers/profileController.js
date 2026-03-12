@@ -1,52 +1,75 @@
-const { initDBIfNecessary, getCollectionAdmin } = require("../config/database");
+const { ObjectId } = require("mongodb");
+const {
+  initDBIfNecessary,
+  getCollectionAdmin,
+  getCollectionManager,
+  getCollectionStaff
+} = require("../config/database");
 const bcrypt = require("bcrypt");
+const { findEmailConflict } = require("./accountUniqueness");
 const ADMIN_BCRYPT_ROUNDS = 10;
 
-async function getPrimaryAdmin() {
+function getCollectionByRole(role) {
+  if (role === "Admin") return getCollectionAdmin();
+  if (role === "Manager") return getCollectionManager();
+  if (role === "Staff") return getCollectionStaff();
+  return null;
+}
+
+async function getCurrentAccountContext(req) {
   await initDBIfNecessary();
-  const collectionAdmin = getCollectionAdmin();
-  return collectionAdmin.findOne({}, { sort: { created: 1 } });
+  const role = (req.currentActor?.role || "").toString().trim();
+  const accountId = (req.currentActor?.accountId || "").toString().trim();
+  const collection = getCollectionByRole(role);
+
+  if (!collection || !ObjectId.isValid(accountId)) {
+    return null;
+  }
+
+  const account = await collection.findOne({ _id: new ObjectId(accountId) });
+  if (!account) return null;
+
+  return { role, collection, account };
 }
 
 async function getProfilePage(req, res) {
-  const admin = await getPrimaryAdmin();
+  const context = await getCurrentAccountContext(req);
   res.render("profile/profile", {
     title: "Profile",
     pageTitle: "Profile",
-    admin: admin || null
+    admin: context?.account || null
   });
 }
 
 async function getEditProfilePage(req, res) {
-  const admin = await getPrimaryAdmin();
+  const context = await getCurrentAccountContext(req);
   res.render("profile/profileForm", {
     title: "Edit Profile",
     pageTitle: "Edit Profile",
-    admin: admin || null,
-    error: null
+    admin: context?.account || null,
+    error: context ? null : "Profile data is unavailable"
   });
 }
 
 async function updateProfile(req, res) {
-  await initDBIfNecessary();
-  const collectionAdmin = getCollectionAdmin();
-  const admin = await getPrimaryAdmin();
+  const context = await getCurrentAccountContext(req);
 
-  if (!admin) {
+  if (!context) {
     return res.render("profile/profileForm", {
       title: "Edit Profile",
       pageTitle: "Edit Profile",
       admin: null,
-      error: "Admin profile not found"
+      error: "Profile data is unavailable"
     });
   }
 
+  const { role, collection, account } = context;
   const payload = {
     name: (req.body.name || "").toString().trim(),
     username: (req.body.username || "").toString().trim(),
     email: (req.body.email || "").toString().trim(),
     contact: (req.body.contact || "").toString().trim(),
-    role: (admin.role || "Admin")
+    role: (account.role || role)
   };
   const changePassword = (req.body.changePassword || "").toString();
   const confirmPassword = (req.body.confirmPassword || "").toString();
@@ -59,7 +82,7 @@ async function updateProfile(req, res) {
     return res.render("profile/profileForm", {
       title: "Edit Profile",
       pageTitle: "Edit Profile",
-      admin: { ...admin, ...payload },
+      admin: { ...account, ...payload },
       error: "Name, username, email and contact are required"
     });
   }
@@ -68,22 +91,35 @@ async function updateProfile(req, res) {
     return res.render("profile/profileForm", {
       title: "Edit Profile",
       pageTitle: "Edit Profile",
-      admin: { ...admin, ...payload },
+      admin: { ...account, ...payload },
       error: "Change password and confirm password must match"
     });
   }
 
-  const duplicate = await collectionAdmin.findOne({
-    _id: { $ne: admin._id },
-    $or: [{ email: payload.email }, { username: payload.username }]
+  const duplicateUsername = await collection.findOne({
+    _id: { $ne: account._id },
+    username: payload.username
   });
 
-  if (duplicate) {
+  if (duplicateUsername) {
     return res.render("profile/profileForm", {
       title: "Edit Profile",
       pageTitle: "Edit Profile",
-      admin: { ...admin, ...payload },
-      error: "Email or username is already in use"
+      admin: { ...account, ...payload },
+      error: "Username is already in use"
+    });
+  }
+
+  const emailConflict = await findEmailConflict(payload.email, {
+    exclude: { role: role.toLowerCase(), id: account._id }
+  });
+
+  if (emailConflict) {
+    return res.render("profile/profileForm", {
+      title: "Edit Profile",
+      pageTitle: "Edit Profile",
+      admin: { ...account, ...payload },
+      error: "Email is already in use"
     });
   }
 
@@ -91,8 +127,8 @@ async function updateProfile(req, res) {
     payload.password = await bcrypt.hash(changePassword, ADMIN_BCRYPT_ROUNDS);
   }
 
-  await collectionAdmin.updateOne(
-    { _id: admin._id },
+  await collection.updateOne(
+    { _id: account._id },
     { $set: payload }
   );
 

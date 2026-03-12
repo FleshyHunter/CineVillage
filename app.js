@@ -1,3 +1,4 @@
+require("dotenv").config();
 //express init
 const express = require("express");
 const {disconnect, initDBIfNecessary} = require("./config/database");

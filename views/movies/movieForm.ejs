@@ -16,12 +16,13 @@
               style="width: 100%; border-radius: 8px; border: 2px dashed #94a3b8; object-fit: cover; min-height: 400px;">
           </label>
           <input type="file" id="picture" name="picture" accept="image/*" style="display: none;">
+          <input type="hidden" id="pictureUrl" name="pictureUrl" value="<%= movie && movie.pictureUrl ? movie.pictureUrl : '' %>">
           <p class="form-help-text">Click to upload poster</p>
         </div>
 
         <!-- Right Side: Form Fields -->
         <div class="movie-detail-info">
-          
+
           <!-- Movie Name -->
           <div class="form-group">
             <div class="label-row">
@@ -33,6 +34,14 @@
               <% } %>
             </div>
             <input type="text" id="name" name="name" class="form-control" value="<%= movie ? movie.name : '' %>" required maxlength="50">
+          </div>
+
+          <div class="form-group" style="margin-top: -6px;">
+            <button type="button" id="omdbSearchBtn" class="btn btn-secondary">
+              <i class="bi bi-cloud-arrow-down"></i> Search IMDb Cloud
+            </button>
+            <div id="omdbSearchStatus" class="form-help-text" style="margin-top: 8px;"></div>
+            <div id="omdbPicker" class="card" style="display: none; margin-top: 10px; max-height: 320px; overflow-y: auto;"></div>
           </div>
 
           <!-- Row 1: Duration, Rating, Age Restriction -->
@@ -149,14 +158,176 @@
 
   <script>
     const pictureInput = document.getElementById('picture');
+    const pictureUrlInput = document.getElementById('pictureUrl');
     const placeholderImg = document.getElementById('placeholderImg');
+    const nameInput = document.getElementById('name');
+    const omdbSearchBtn = document.getElementById('omdbSearchBtn');
+    const omdbSearchStatus = document.getElementById('omdbSearchStatus');
+    const omdbPicker = document.getElementById('omdbPicker');
+    const fallbackPoster = '/images/cameraplaceholder.jpg';
 
-    pictureInput.addEventListener('change', () => {
-      const file = pictureInput.files[0];
-      if (file) {
-        placeholderImg.src = URL.createObjectURL(file);
+    function setPosterPreview(src) {
+      if (!placeholderImg) return;
+      placeholderImg.src = src || fallbackPoster;
+    }
+
+    function setSearchStatus(message, isError) {
+      if (!omdbSearchStatus) return;
+      omdbSearchStatus.textContent = message || '';
+      omdbSearchStatus.style.color = isError ? '#dc3545' : '#6b7280';
+    }
+
+    function setFieldValue(fieldId, value) {
+      const field = document.getElementById(fieldId);
+      if (!field) return;
+      field.value = value == null ? '' : value;
+    }
+
+    function clearPicker() {
+      if (!omdbPicker) return;
+      omdbPicker.innerHTML = '';
+      omdbPicker.style.display = 'none';
+    }
+
+    function populateMovieForm(movieData) {
+      if (!movieData) return;
+
+      setFieldValue('name', movieData.name || '');
+      setFieldValue('duration', movieData.duration || '');
+      setFieldValue('rating', movieData.rating || '');
+      setFieldValue('ageRestriction', movieData.ageRestriction || '');
+      setFieldValue('producer', movieData.producer || '');
+      setFieldValue('genre', movieData.genre || '');
+      setFieldValue('language', movieData.language || '');
+      setFieldValue('subtitle', movieData.subtitle || '');
+      setFieldValue('releaseDate', movieData.releaseDate || '');
+      setFieldValue('status', movieData.status || '');
+      setFieldValue('cast', movieData.cast || '');
+      setFieldValue('description', movieData.description || '');
+
+      if (pictureInput) {
+        pictureInput.value = '';
       }
-    });
+
+      if (pictureUrlInput) {
+        pictureUrlInput.value = movieData.pictureUrl || '';
+      }
+
+      setPosterPreview(movieData.pictureUrl || fallbackPoster);
+    }
+
+    function buildPickerItem(result) {
+      const itemBtn = document.createElement('button');
+      itemBtn.type = 'button';
+      itemBtn.className = 'btn btn-secondary';
+      itemBtn.style.width = '100%';
+      itemBtn.style.display = 'flex';
+      itemBtn.style.alignItems = 'center';
+      itemBtn.style.gap = '10px';
+      itemBtn.style.marginBottom = '8px';
+      itemBtn.style.textAlign = 'left';
+
+      const thumb = document.createElement('img');
+      thumb.src = result.posterUrl || fallbackPoster;
+      thumb.alt = result.title || 'Movie poster';
+      thumb.style.width = '40px';
+      thumb.style.height = '60px';
+      thumb.style.objectFit = 'cover';
+      thumb.style.borderRadius = '4px';
+
+      const textWrap = document.createElement('div');
+      const titleLine = document.createElement('div');
+      titleLine.textContent = result.title || 'Untitled';
+      titleLine.style.fontWeight = '600';
+
+      const subLine = document.createElement('div');
+      subLine.textContent = `${result.year || ''} ${result.imdbId ? `(${result.imdbId})` : ''}`.trim();
+      subLine.style.fontSize = '12px';
+      subLine.style.opacity = '0.8';
+
+      textWrap.appendChild(titleLine);
+      textWrap.appendChild(subLine);
+
+      itemBtn.appendChild(thumb);
+      itemBtn.appendChild(textWrap);
+
+      itemBtn.addEventListener('click', async () => {
+        try {
+          setSearchStatus('Fetching movie details...', false);
+          omdbSearchBtn.disabled = true;
+
+          const response = await fetch(`/movies/omdb/details?imdbId=${encodeURIComponent(result.imdbId)}`);
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Unable to fetch OMDB details');
+          }
+
+          populateMovieForm(data.movie);
+          clearPicker();
+          setSearchStatus('Form populated from OMDB. You can still edit any field or upload your own poster.', false);
+        } catch (error) {
+          setSearchStatus(error.message || 'Failed to fetch OMDB details', true);
+        } finally {
+          omdbSearchBtn.disabled = false;
+        }
+      });
+
+      return itemBtn;
+    }
+
+    async function searchOmdbByTitle() {
+      const title = (nameInput && nameInput.value ? nameInput.value : '').trim();
+      if (!title) {
+        setSearchStatus('Enter a movie name first.', true);
+        clearPicker();
+        return;
+      }
+
+      try {
+        setSearchStatus('Searching OMDB...', false);
+        clearPicker();
+        omdbSearchBtn.disabled = true;
+
+        const response = await fetch(`/movies/omdb/search?title=${encodeURIComponent(title)}`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Unable to search OMDB');
+        }
+
+        const results = Array.isArray(data.results) ? data.results : [];
+        if (!results.length) {
+          setSearchStatus(data.error || 'No matches found.', true);
+          clearPicker();
+          return;
+        }
+
+        omdbPicker.style.display = 'block';
+        results.forEach((result) => {
+          omdbPicker.appendChild(buildPickerItem(result));
+        });
+
+        setSearchStatus(`Found ${results.length} result(s). Select one to populate the form.`, false);
+      } catch (error) {
+        setSearchStatus(error.message || 'Failed to search OMDB', true);
+        clearPicker();
+      } finally {
+        omdbSearchBtn.disabled = false;
+      }
+    }
+
+    if (pictureInput) {
+      pictureInput.addEventListener('change', () => {
+        const file = pictureInput.files[0];
+        if (file) {
+          setPosterPreview(URL.createObjectURL(file));
+          if (pictureUrlInput) pictureUrlInput.value = '';
+        }
+      });
+    }
+
+    if (omdbSearchBtn) {
+      omdbSearchBtn.addEventListener('click', searchOmdbByTitle);
+    }
   </script>
 
   <%- include('../layouts/footer') %>

@@ -5,6 +5,7 @@ const {
   getCollectionManager,
   getCollectionStaff
 } = require("../config/database");
+const { findEmailConflict } = require("./accountUniqueness");
 const PERSONNEL_BCRYPT_ROUNDS = 10;
 
 function sanitizeRole(role) {
@@ -85,6 +86,11 @@ async function createPersonnel(req, res) {
       created: new Date()
     };
 
+    const emailConflict = await findEmailConflict(personnelData.email);
+    if (emailConflict) {
+      throw new Error("Email is already in use");
+    }
+
     await collection.insertOne(personnelData);
     res.redirect(`/personnel?view=${role}`);
   } catch (err) {
@@ -140,6 +146,13 @@ async function updatePersonnel(req, res) {
       role: targetRole === "manager" ? "Manager" : "Staff",
       status: (req.body.status || "Active").toString().trim()
     };
+
+    const emailConflict = await findEmailConflict(personnelData.email, {
+      exclude: { role: sourceRole, id: personnelId }
+    });
+    if (emailConflict) {
+      throw new Error("Email is already in use");
+    }
 
     if (sourceRole === targetRole) {
       await sourceCollection.updateOne(

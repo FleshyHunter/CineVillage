@@ -1,3 +1,4 @@
+// to do: fix the status handling for maintence, fix the email reset
 const { MongoClient } = require("mongodb");
 const bcrypt = require("bcrypt");
 const ADMIN_BCRYPT_ROUNDS = 10;
