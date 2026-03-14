@@ -250,25 +250,6 @@ body {
   margin: 40px auto;
 }
 
-/* === Navbar === */
-.navbar {
-  background-color: var(--bg-card);
-  padding: 16px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.navbar a {
-  color: var(--text-main);
-  text-decoration: none;
-  margin-left: 20px;
-}
-
-.navbar a:hover {
-  color: var(--accent);
-}
-
 /* === Headings === */
 h1, h2, h3, h4, h5, h6 {
   color: var(--text-main);

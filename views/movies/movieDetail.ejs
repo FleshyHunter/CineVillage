@@ -88,7 +88,7 @@
 
       <!-- Action Buttons -->
       <div class="movie-detail-actions">
-        <a href="/movies" class="btn btn-secondary">
+        <a href="<%= returnTo || '/movies' %>" class="btn btn-secondary">
           ← Back to Movies
         </a>
         <% if (currentRole !== 'Staff') { %>

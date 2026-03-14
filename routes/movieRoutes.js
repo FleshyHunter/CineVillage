@@ -36,6 +36,16 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+function sanitizeReturnTo(returnTo) {
+  if (typeof returnTo !== "string" || !returnTo.startsWith("/")) {
+    return "/movies";
+  }
+  if (returnTo.startsWith("//")) {
+    return "/movies";
+  }
+  return returnTo;
+}
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -362,11 +372,13 @@ function getOmdbKey() {
 
 // GET movie creation form
 router.get("/create", requireRoles(["Admin", "Manager"]), (req, res) => {
+  const returnTo = sanitizeReturnTo(req.query.returnTo);
   res.render("movies/movieForm", {
     movie: null,
     isEdit: false,
     title: "Movies",
-    error: null
+    error: null,
+    returnTo
   });
 });
 
@@ -376,6 +388,7 @@ router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("pictur
     await initDBIfNecessary();
     const collectionMovie = getCollectionMovie();
     const movieData = normalizeMovieData(req.body);
+    const returnTo = sanitizeReturnTo(req.body.returnTo);
 
     if (req.file) {
       movieData.pictureUrl = "/uploads/" + req.file.filename;
@@ -387,7 +400,8 @@ router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("pictur
         movie: movieData,
         isEdit: false,
         title: "Movies",
-        error: validationError
+        error: validationError,
+        returnTo
       });
     }
 
@@ -397,7 +411,8 @@ router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("pictur
         movie: movieData,
         isEdit: false,
         title: "Movies",
-        error: duplicateError
+        error: duplicateError,
+        returnTo
       });
     }
 
@@ -418,6 +433,7 @@ router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("pictur
 // GET edit form
 router.get("/edit/:id", requireRoles(["Admin", "Manager"]), async (req, res) => {
   await initDBIfNecessary();
+  const returnTo = sanitizeReturnTo(req.query.returnTo);
 
   const collectionMovie = getCollectionMovie();
   const movie = await collectionMovie.findOne({
@@ -430,7 +446,8 @@ router.get("/edit/:id", requireRoles(["Admin", "Manager"]), async (req, res) => 
     movie,
     isEdit: true,
     title: "Movies",
-    error: null
+    error: null,
+    returnTo
   });
 });
 
@@ -440,6 +457,7 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("pict
     await initDBIfNecessary();
     const collectionMovie = getCollectionMovie();
     const movieData = normalizeMovieData(req.body);
+    const returnTo = sanitizeReturnTo(req.body.returnTo);
 
     if (req.file) {
       movieData.pictureUrl = "/uploads/" + req.file.filename;
@@ -451,7 +469,8 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("pict
         movie: { ...movieData, _id: req.params.id },
         isEdit: true,
         title: "Movies",
-        error: validationError
+        error: validationError,
+        returnTo
       });
     }
 
@@ -461,7 +480,8 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("pict
         movie: { ...movieData, _id: req.params.id },
         isEdit: true,
         title: "Movies",
-        error: duplicateError
+        error: duplicateError,
+        returnTo
       });
     }
 
@@ -607,6 +627,7 @@ router.get("/omdb/details", requireRoles(["Admin", "Manager"]), async (req, res)
 router.get("/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   await initDBIfNecessary();
   const movie = await getMoviebyId(req.params.id);
+  const returnTo = sanitizeReturnTo(req.query.returnTo);
   const collectionScreening = getCollectionScreening();
   const linkedScreeningCount = ObjectId.isValid(req.params.id)
     ? await collectionScreening.countDocuments({ movieId: new ObjectId(req.params.id) })
@@ -615,6 +636,7 @@ router.get("/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res)
     title: "Movies",
     isEdit: false,
     movie,
+    returnTo,
     linkedScreeningCount,
     deleteError: req.query.deleteError || null
   });

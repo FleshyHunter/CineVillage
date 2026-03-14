@@ -6,6 +6,7 @@
     <div class="movie-detail-container">
       <form id="movieForm" action="<%= isEdit ? '/movies/edit/' + movie._id : '/movies/create' %>" method="POST"
         enctype="multipart/form-data" style="display: contents;">
+        <input type="hidden" name="returnTo" value="<%= returnTo || '/movies' %>">
 
         <!-- Left Side: Movie Poster Upload -->
         <div class="movie-detail-poster">
@@ -150,7 +151,7 @@
 
           <!-- Action Buttons -->
           <div class="movie-detail-actions">
-            <a href="/movies" class="btn btn-secondary">
+            <a href="<%= returnTo || '/movies' %>" class="btn btn-secondary">
               ← Back to Movies
             </a>
             <button type="submit" class="btn btn-primary">

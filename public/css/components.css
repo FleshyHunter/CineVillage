@@ -228,6 +228,10 @@ textarea.form-control {
   font-size: 14px;
   cursor: pointer;
   transition: border-color 0.3s ease;
+}
+
+/* Normalize Safari select rendering and keep a custom dark dropdown arrow for select fields only */
+select.filter-select {
   /* Normalize Safari select rendering and keep a custom dark dropdown arrow */
   -webkit-appearance: none;
   appearance: none;
@@ -242,12 +246,20 @@ textarea.form-control {
   background-repeat: no-repeat;
 }
 
+/* Date inputs should only show the native calendar icon, not a dropdown arrow */
+input.filter-select {
+  -webkit-appearance: auto;
+  appearance: auto;
+  padding-right: 12px;
+  background-image: none;
+}
+
 .filter-select:focus {
   outline: none;
   border-color: #2563eb;
 }
 
-.filter-select option {
+select.filter-select option {
   background-color: var(--bg-card);
   color: var(--text-main);
 }
@@ -257,20 +269,24 @@ textarea.form-control {
 }
 
 #allDateFilter,
-#dateSelector {
+#dateSelector,
+#dateFilter {
   color-scheme: dark;
 }
 
 /* Force white calendar icon for screening date filters */
 .search-filter-bar #allDateFilter::-webkit-calendar-picker-indicator,
-.search-filter-bar #dateSelector::-webkit-calendar-picker-indicator {
+.search-filter-bar #dateSelector::-webkit-calendar-picker-indicator,
+.search-filter-bar #dateFilter::-webkit-calendar-picker-indicator {
   filter: invert(1) brightness(200%) !important;
+  -webkit-filter: invert(1) brightness(200%) !important;
   opacity: 1 !important;
   cursor: pointer !important;
 }
 
 .search-filter-bar #allDateFilter,
-.search-filter-bar #dateSelector {
+.search-filter-bar #dateSelector,
+.search-filter-bar #dateFilter {
   color-scheme: dark !important;
 }
 
@@ -1065,28 +1081,6 @@ textarea.form-control {
   font-size: 13px;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text-muted);
-}
-
-.empty-state i {
-  font-size: 64px;
-  opacity: 0.3;
-  display: block;
-  margin-bottom: 16px;
-}
-
-.empty-state h4 {
-  margin-top: 20px;
-  margin-bottom: 10px;
-}
-
-.empty-state p {
-  margin: 0;
-}
-
 .text-center {
   text-align: center;
 }
@@ -1128,11 +1122,6 @@ textarea.form-control {
 .flex-gap-10 {
   display: flex;
   gap: 10px;
-}
-
-.flex-gap-15 {
-  display: flex;
-  gap: 15px;
 }
 
 .flex-column-gap-12 {
