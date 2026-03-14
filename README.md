@@ -1,10 +1,7 @@
 # CineVillage 
----
 CineVillage is a cinema management system that helps staff manage movies, halls, screenings, and daily operations in one platform. This project show cases CineVillage's Admin Management System
 
 ## Setup Instructions
----
-
 ### 1. Clone this repository
 Clone this repository to a folder of your choice.
 
@@ -13,7 +10,6 @@ git clone https://github.com/lemonishi/dlweek
 ```
 
 ### 2. Running the Application
-
 Install all required dependencies:
 
 ```bash
