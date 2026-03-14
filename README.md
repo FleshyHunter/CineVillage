@@ -11,10 +11,8 @@ git clone https://github.com/FleshyHunter/CineVillage
 
 ### 2. Running the Application
 (a) Install all required dependencies:
-
-```bash
+```
 npm install
-npm run server
 ```
 
 (b) Add `.env` file
@@ -35,13 +33,17 @@ SMTP_FROM="YourAppName <your_email@gmail.com>"
 
 (d) Default Accounts' Information
 
-Admin Email: admin@gmail.com
-Admin Password: admin
+- Admin Email: admin@gmail.com
+- Admin Password: admin
 
-Manager / Staff Email: <To be created>
-Manager / Staff Password: personnel
+- Manager / Staff Email: <To be created>
+- Manager / Staff Password: personnel
 
-`http:localhost:3000`
+(e) Launch App and navigate to the link in the output
+```
+npm run server
+```
+- Output should be `http:localhost:3000`
 
 ## Overview
 ---------------------------
