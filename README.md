@@ -6,7 +6,7 @@ CineVillage is a cinema management system that helps staff manage movies, halls,
 Clone this repository to a folder of your choice.
 
 ```bash
-git clone https://github.com/lemonishi/dlweek
+git clone https://github.com/FleshyHunter/CineVillage
 ```
 
 ### 2. Running the Application
