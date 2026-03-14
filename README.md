@@ -10,24 +10,36 @@ git clone https://github.com/FleshyHunter/CineVillage
 ```
 
 ### 2. Running the Application
-Install all required dependencies:
+(a) Install all required dependencies:
 
 ```bash
 npm install
 npm run server
 ```
 
-Database Configuration
+(b) Add `.env` file
+```
+OMDB_KEY=YOUR_OMDB_API_KEY
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=YOUR_16_CHARACTER_APP_PASSWORD
+
+SMTP_FROM="YourAppName <your_email@gmail.com>"
+```
+(c) Database Configuration
 - Database Type: MongoDB (Localhost)
 - Database Name: assignment1
 
-Default Accounts
+(d) Default Accounts
 
 Admin
 Email: admin@gmail.com
 Password: admin
 
-Personnel
+Manager / Staff
 Default Password: personnel
 
 `http:localhost:3000`
