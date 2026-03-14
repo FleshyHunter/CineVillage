@@ -33,14 +33,13 @@ SMTP_FROM="YourAppName <your_email@gmail.com>"
 - Database Type: MongoDB (Localhost)
 - Database Name: assignment1
 
-(d) Default Accounts
+(d) Default Accounts' Information
 
-Admin
-Email: admin@gmail.com
-Password: admin
+Admin Email: admin@gmail.com
+Admin Password: admin
 
-Manager / Staff
-Default Password: personnel
+Manager / Staff Email: <To be created>
+Manager / Staff Password: personnel
 
 `http:localhost:3000`
 
