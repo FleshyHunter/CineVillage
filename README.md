@@ -1,16 +1,25 @@
-CineVillage Admin Management System
+#CineVillage 
+---
+CineVillage is a cinema management system that helps staff manage movies, halls, screenings, and daily operations in one platform. This project show cases CineVillage's Admin Management System
 
-1. Name
-Aaron Lim Yan Da
+##Setup Instructions
+---
 
-2. Student Number
-A0307404N
+### 1. Clone this repository
+Clone this repository to a folder of your choice.
 
-3. Database Details
+```bash
+git clone https://github.com/lemonishi/dlweek
+```
 
-Setup Instructions
-1. Run "npm install" to install all required dependencies.
-2. Run "npm run server" to start the application.
+### 2. Running the Application
+
+Install all required dependencies:
+
+```bash
+npm install
+npm run server
+```
 
 Database Configuration
 - Database Type: MongoDB (Localhost)
@@ -25,9 +34,9 @@ Password: admin
 Personnel
 Default Password: personnel
 
-4. Extra Features Implemented
+`http:localhost:3000`
 
-
+##Overview
 ---------------------------
 Global UI
 ---------------------------
