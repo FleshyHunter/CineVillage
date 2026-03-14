@@ -1,8 +1,8 @@
-#CineVillage 
+# CineVillage 
 ---
 CineVillage is a cinema management system that helps staff manage movies, halls, screenings, and daily operations in one platform. This project show cases CineVillage's Admin Management System
 
-##Setup Instructions
+## Setup Instructions
 ---
 
 ### 1. Clone this repository
@@ -36,7 +36,7 @@ Default Password: personnel
 
 `http:localhost:3000`
 
-##Overview
+## Overview
 ---------------------------
 Global UI
 ---------------------------
