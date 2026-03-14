@@ -36,7 +36,7 @@ SMTP_FROM="YourAppName <your_email@gmail.com>"
 - Admin Email: admin@gmail.com
 - Admin Password: admin
 
-- Manager / Staff Email: <To be created>
+- Manager / Staff Email: [TO BE CREATED BY ADMIN]
 - Manager / Staff Password: personnel
 
 (e) Launch App and navigate to the link in the output
