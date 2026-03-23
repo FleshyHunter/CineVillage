@@ -442,6 +442,10 @@ select.filter-select option {
   min-height: 120px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+
 }
 
 .movie-name {

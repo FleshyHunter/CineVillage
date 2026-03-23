@@ -629,15 +629,22 @@ router.get("/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res)
   const movie = await getMoviebyId(req.params.id);
   const returnTo = sanitizeReturnTo(req.query.returnTo);
   const collectionScreening = getCollectionScreening();
-  const linkedScreeningCount = ObjectId.isValid(req.params.id)
+  const totalLinkedScreeningCount = ObjectId.isValid(req.params.id)
     ? await collectionScreening.countDocuments({ movieId: new ObjectId(req.params.id) })
+    : 0;
+  const activeLinkedScreeningCount = ObjectId.isValid(req.params.id)
+    ? await collectionScreening.countDocuments({
+        movieId: new ObjectId(req.params.id),
+        status: { $in: ["scheduled", "ongoing", "paused"] }
+      })
     : 0;
   res.render("movies/movieDetail", {
     title: "Movies",
     isEdit: false,
     movie,
     returnTo,
-    linkedScreeningCount,
+    totalLinkedScreeningCount,
+    activeLinkedScreeningCount,
     deleteError: req.query.deleteError || null
   });
 });

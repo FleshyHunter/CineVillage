@@ -172,14 +172,21 @@ router.get("/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res)
   await initDBIfNecessary();
   const hall = await getHallbyId(req.params.id);
   const collectionScreening = getCollectionScreening();
-  const linkedScreeningCount = ObjectId.isValid(req.params.id)
+  const totalLinkedScreeningCount = ObjectId.isValid(req.params.id)
     ? await collectionScreening.countDocuments({ hallId: new ObjectId(req.params.id) })
+    : 0;
+  const activeLinkedScreeningCount = ObjectId.isValid(req.params.id)
+    ? await collectionScreening.countDocuments({
+        hallId: new ObjectId(req.params.id),
+        status: { $in: ["scheduled", "ongoing", "paused"] }
+      })
     : 0;
   res.render('halls/hallDetails', {
     title: "Halls",
     isEdit: false,
     hall,
-    linkedScreeningCount,
+    totalLinkedScreeningCount,
+    activeLinkedScreeningCount,
     deleteError: req.query.deleteError || null
   });
 });

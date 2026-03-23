@@ -84,13 +84,13 @@
           <% } %>
           <form action="/halls/delete/<%= hall._id %>" method="POST" class="inline-block"
             onsubmit="return confirm('Are you sure you want to delete this hall?');">
-            <button type="submit" class="btn btn-danger" <%= linkedScreeningCount > 0 ? 'disabled' : '' %>>
+            <button type="submit" class="btn btn-danger" <%= totalLinkedScreeningCount > 0 ? 'disabled' : '' %>>
               <i class="bi bi-trash3"></i> Delete Hall
             </button>
           </form>
-          <% if (linkedScreeningCount > 0) { %>
+          <% if (totalLinkedScreeningCount > 0) { %>
             <p style="margin-top: 8px; color: #f59e0b; font-size: 13px;">
-              This hall has <%= linkedScreeningCount %> linked screening(s) and cannot be deleted.
+              This hall has <%= activeLinkedScreeningCount %> active screening(s) (<%= totalLinkedScreeningCount %> total) and cannot be deleted.
             </p>
           <% } %>
         </div>
