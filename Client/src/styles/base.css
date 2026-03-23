@@ -1,0 +1,49 @@
+:root {
+  --bg-main: #0f172a;
+  --bg-card: #1e293b;
+  --sidebar-blue: #1b365d;
+  --page-surface: #111827;
+  --page-top-accent: #1e3a8a;
+  --page-top-accent-height: 320px;
+  --content-max-width: 1120px;
+  --content-inline-padding: 24px;
+  --accent: #1b365d;
+  --accent-hover: #153054;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --management-gold: #f5c24b;
+  --line: #334155;
+  --line-strong: #3b82f6;
+  --shadow-glow: 0 0 0 1px rgba(59, 130, 246, 0.35), 0 0 14px rgba(37, 99, 235, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--page-surface);
+  color: var(--text-main);
+  font-family: var(--bs-body-font-family, "Segoe UI", sans-serif);
+  font-size: var(--bs-body-font-size, 1rem);
+  line-height: var(--bs-body-line-height, 1.5);
+  font-weight: var(--bs-body-font-weight, 400);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
