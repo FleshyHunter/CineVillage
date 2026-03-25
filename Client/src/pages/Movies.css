@@ -1,0 +1,125 @@
+.movies-page {
+  display: grid;
+  gap: 24px;
+  padding-top: 8px;
+}
+
+.movies-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.movies-breadcrumbs a {
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+}
+
+.movies-breadcrumbs span {
+  color: rgba(148, 163, 184, 0.7);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.movies-breadcrumbs strong {
+  color: #ffffff;
+  font-weight: 400;
+}
+
+.movies-page-header h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 0.98;
+  font-weight: 400;
+}
+
+.movies-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.movies-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border: 1px solid transparent;
+  border-width: 2px;
+  border-radius: 4px;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition:
+    border-color 0.22s ease,
+    color 0.22s ease,
+    background-color 0.22s ease;
+}
+
+.movies-filter-btn:hover {
+  border-color: #475569;
+  color: #ffffff;
+}
+
+.movies-filter-btn.is-active {
+  border-color: #2563eb;
+  color: #f8fafc;
+}
+
+.movies-filter-btn i {
+  color: inherit;
+  font-size: 15px;
+}
+
+.movies-status-panel,
+.movies-empty-state {
+  padding: 24px 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 1rem;
+}
+
+.movies-status-panel-error {
+  color: #fca5a5;
+}
+
+.movies-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 22px;
+  align-items: start;
+}
+
+.movies-grid-card {
+  min-width: 0;
+}
+
+.movies-grid-card .movie-card {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .movies-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .movies-filter-bar {
+    gap: 12px;
+  }
+
+  .movies-filter-btn {
+    padding: 10px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .movies-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,87 +1,180 @@
+import { useEffect, useState } from "react";
 import MovieCard from "../components/MovieCard";
 import MovieRail from "../components/MovieRail";
 import ShowcaseCard from "../components/ShowcaseCard";
 import ViewportSection from "../components/ViewportSection";
+import { fetchMovies, resolveMoviePictureUrl } from "../services/api";
 import "./Home.css";
 
-const showcaseContent = {
-  primary: {
-    title: "Project Hail Mary",
-    label: "Filmed For IMAX",
-    image: "/posters/1772217186311.png"
-  },
-  secondary: {
-    title: "Premium Format",
-    label: "Get Tickets",
-    image: "/posters/1772115896382.png"
-  },
-  promoLeft: {
-    title: "Dining Promos",
-    label: "Because The Best Stories Begin Over Food",
-    image: "/posters/1772112984533.png"
-  },
-  promoRight: {
-    title: "Centro Opening Soon",
-    label: "Opening Soon",
-    image: "/posters/1772257424508.jpeg"
-  }
-};
-
-const sections = [
-  {
-    title: "Now Showing",
-    movies: [
-      { title: "Dr. No", badge: "Restored", image: "/posters/1772107299702.png" },
-      { title: "Hoppers", badge: "Family Pick", image: "/posters/1772206263926.png" },
-      { title: "Double Happiness", badge: "Shaw Exclusive", image: "/posters/1772256439544.jpg" },
-      { title: "How To Make A Killing", badge: "New Release", image: "/posters/1772256749457.jpeg" },
-      { title: "Kong Tao", badge: "New Release", image: "/posters/1772465572293.jpeg" },
-      { title: "Project Hail Mary", badge: "Also In IMAX", image: "/posters/1773146767583.png" },
-      { title: "Midnight Signal", badge: "Hot Pick", image: "/posters/1773329715188.png" }
-    ]
-  },
-  {
-    title: "Advance Sales",
-    movies: [
-      { title: "BTS World Tour", badge: "Advance Sales", image: "/posters/1772256439544.jpg" },
-      { title: "Power To The People", badge: "Advance Sales", image: "/posters/1772465572293.jpeg" },
-      { title: "Encore Broadcast", badge: "Advance Sales", image: "/posters/1773146767583.png" },
-      { title: "IMAX Fan Event", badge: "Advance Sales", image: "/posters/1773329715188.png" },
-      { title: "Premiere Night", badge: "Advance Sales", image: "/posters/1772256749457.jpeg" },
-      { title: "Galaxy Concert", badge: "Advance Sales", image: "/posters/1772107299702.png" },
-      { title: "Midnight Session", badge: "Advance Sales", image: "/posters/1772206263926.png" }
-    ]
-  },
-  {
-    title: "Coming Soon",
-    movies: [
-      { title: "Centro", badge: "Opening Soon", image: "/posters/1772257424508.jpeg" },
-      { title: "Quiet Rooms", badge: "Coming Soon", image: "/posters/1772256584619.jpeg" },
-      { title: "Neon Arrival", badge: "Coming Soon", image: "/posters/1772465874144.jpeg" },
-      { title: "Red Lantern", badge: "Coming Soon", image: "/posters/1772256749457.jpeg" },
-      { title: "Blue Orbit", badge: "Coming Soon", image: "/posters/1773146767583.png" },
-      { title: "Blackout", badge: "Coming Soon", image: "/posters/1772465572293.jpeg" },
-      { title: "Aurora Line", badge: "Coming Soon", image: "/posters/1773329715188.png" }
-    ]
-  }
+const SHOWCASE_SLOT_CLASSES = [
+  "showcase-card showcase-card-main",
+  "showcase-card showcase-card-side",
+  "showcase-card showcase-card-strip",
+  "showcase-card showcase-card-promo"
 ];
 
+function toMovieTimestamp(movie) {
+  const releaseTimestamp = Date.parse(movie.releaseDate || "");
+  if (Number.isFinite(releaseTimestamp)) return releaseTimestamp;
+
+  const createdTimestamp = Date.parse(movie.created || "");
+  if (Number.isFinite(createdTimestamp)) return createdTimestamp;
+
+  return 0;
+}
+
+function compareNewestFirst(a, b) {
+  return toMovieTimestamp(b) - toMovieTimestamp(a);
+}
+
+function compareSoonestFirst(a, b) {
+  return toMovieTimestamp(a) - toMovieTimestamp(b);
+}
+
+function mapMovieToCard(movie, defaultBadge = "Movie") {
+  const durationText = movie.duration ? `${movie.duration} mins` : "N/A";
+  const ratingValue = (movie.ageRestriction || "NR").toString().trim() || "NR";
+
+  return {
+    _id: movie._id,
+    title: movie.name || "Untitled Movie",
+    badge: movie.status || defaultBadge,
+    image: resolveMoviePictureUrl(movie.pictureUrl),
+    durationText,
+    ratingText: ratingValue,
+    description: (movie.description || "").toString().trim()
+  };
+}
+
+function buildShowcaseItems(movies) {
+  const fallbackItems = [
+    {
+      title: "CineVillage",
+      label: "Featured Release",
+      image: resolveMoviePictureUrl("")
+    },
+    {
+      title: "Book Your Seats",
+      label: "Now Showing",
+      image: resolveMoviePictureUrl("")
+    },
+    {
+      title: "Dining Promos",
+      label: "Cinema Offers",
+      image: resolveMoviePictureUrl("")
+    },
+    {
+      title: "Coming Soon",
+      label: "Upcoming Release",
+      image: resolveMoviePictureUrl("")
+    }
+  ];
+
+  const selected = [...movies]
+    .filter((movie) => movie.pictureUrl)
+    .sort(compareNewestFirst)
+    .slice(0, 4)
+    .map((movie, index) => ({
+      title: movie.name || "Untitled Movie",
+      label:
+        index === 1
+          ? "Get Tickets"
+          : movie.status || "Featured Release",
+      image: resolveMoviePictureUrl(movie.pictureUrl)
+    }));
+
+  return fallbackItems.map((fallbackItem, index) => selected[index] || fallbackItem);
+}
+
+function buildMovieSections(movies) {
+  const nowShowing = [...movies]
+    .filter((movie) => movie.status === "Now Showing")
+    .sort(compareNewestFirst);
+
+  const advanceSales = [...movies]
+    .filter((movie) => movie.status === "Advance Sales")
+    .sort(compareSoonestFirst);
+
+  const comingSoon = [...movies]
+    .filter((movie) => movie.status === "Coming Soon")
+    .sort(compareSoonestFirst);
+
+  return [
+    {
+      title: "Now Showing",
+      movies: nowShowing.map((movie) => mapMovieToCard(movie, "Now Showing"))
+    },
+    {
+      title: "Advance Sales",
+      movies: advanceSales.map((movie) => mapMovieToCard(movie, "Advance Sales"))
+    },
+    {
+      title: "Coming Soon",
+      movies: comingSoon.map((movie) => mapMovieToCard(movie, "Coming Soon"))
+    }
+  ];
+}
+
 export default function Home() {
+  const [movies, setMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadMovies() {
+      try {
+        setLoading(true);
+        setError("");
+        const items = await fetchMovies();
+        if (!isActive) return;
+        setMovies(items);
+      } catch (loadError) {
+        if (!isActive) return;
+        setError(loadError.message || "Failed to load movies");
+      } finally {
+        if (isActive) setLoading(false);
+      }
+    }
+
+    loadMovies();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const showcaseItems = buildShowcaseItems(movies);
+  const sections = buildMovieSections(movies);
+
   return (
     <div className="home-page">
       <section className="home-showcase">
         <div className="showcase-primary-grid">
-          <ShowcaseCard item={showcaseContent.primary} className="showcase-card showcase-card-main" />
-          <ShowcaseCard item={showcaseContent.secondary} className="showcase-card showcase-card-side" />
+          <ShowcaseCard item={showcaseItems[0]} className={SHOWCASE_SLOT_CLASSES[0]} />
+          <ShowcaseCard item={showcaseItems[1]} className={SHOWCASE_SLOT_CLASSES[1]} />
         </div>
 
         <div className="showcase-secondary-grid">
-          <ShowcaseCard item={showcaseContent.promoLeft} className="showcase-card showcase-card-strip" />
-          <ShowcaseCard item={showcaseContent.promoRight} className="showcase-card showcase-card-promo" />
+          <ShowcaseCard item={showcaseItems[2]} className={SHOWCASE_SLOT_CLASSES[2]} />
+          <ShowcaseCard item={showcaseItems[3]} className={SHOWCASE_SLOT_CLASSES[3]} />
         </div>
       </section>
 
-      {sections.map((section, index) => (
+      {loading ? (
+        <section className="home-status-panel">
+          <p>Loading movies...</p>
+        </section>
+      ) : null}
+
+      {!loading && error ? (
+        <section className="home-status-panel home-status-panel-error">
+          <p>{error}</p>
+        </section>
+      ) : null}
+
+      {!loading && !error ? sections.map((section, index) => (
         <ViewportSection
           key={section.title}
           className="movie-rail-section fade-in-panel"
@@ -92,13 +185,19 @@ export default function Home() {
             <h2>{section.title}</h2>
           </div>
 
-          <MovieRail label={section.title}>
-            {section.movies.map((movie) => (
-              <MovieCard key={`${section.title}-${movie.title}`} movie={movie} />
-            ))}
-          </MovieRail>
+          {section.movies.length > 0 ? (
+            <MovieRail label={section.title}>
+              {section.movies.map((movie) => (
+                <MovieCard key={`${section.title}-${movie._id || movie.title}`} movie={movie} />
+              ))}
+            </MovieRail>
+          ) : (
+            <div className="empty-rail-state">
+              No movies available in this section yet.
+            </div>
+          )}
         </ViewportSection>
-      ))}
+      )) : null}
     </div>
   );
 }

@@ -1,8 +1,8 @@
 import "./Sidebar.css";
 
 const primaryNav = [
-  { label: "Home", icon: "bi-grid-1x2", href: "#", active: true },
-  { label: "Now Showing", icon: "bi-film", href: "#" },
+  { label: "Home", icon: "bi-grid-1x2", href: "#" },
+  { label: "Movies", icon: "bi-film", href: "#movies" },
   { label: "Coming Soon", icon: "bi-stars", href: "#" },
   { label: "My Tickets", icon: "bi-ticket-perforated", href: "#" },
   { label: "Profile", icon: "bi-person-circle", href: "#" }
@@ -14,9 +14,13 @@ const serviceNav = [
   { label: "Help Centre", icon: "bi-shield-lock", href: "#" }
 ];
 
-function NavLink({ item }) {
+function NavLink({ item, activeHash }) {
+  const isActive = item.href === "#"
+    ? activeHash === ""
+    : item.href === `#${activeHash}`;
+
   return (
-    <a className={`sidebar-link${item.active ? " active" : ""}`} href={item.href}>
+    <a className={`sidebar-link${isActive ? " active" : ""}`} href={item.href}>
       <i className={`bi ${item.icon}`} aria-hidden="true"></i>
       <span>{item.label}</span>
     </a>
@@ -24,6 +28,8 @@ function NavLink({ item }) {
 }
 
 export default function Sidebar({ menuOpen }) {
+  const activeHash = (window.location.hash || "").replace(/^#/, "");
+
   return (
     <aside className={`client-sidebar${menuOpen ? " open" : ""}`}>
       <button className="sidebar-brand" type="button">
@@ -37,14 +43,14 @@ export default function Sidebar({ menuOpen }) {
       <div className="sidebar-nav-group">
         <div className="sidebar-nav-label">Main</div>
         {primaryNav.map((item) => (
-          <NavLink key={item.label} item={item} />
+          <NavLink key={item.label} item={item} activeHash={activeHash} />
         ))}
       </div>
 
       <div className="sidebar-nav-group">
         <div className="sidebar-nav-label sidebar-nav-label-management">Services</div>
         {serviceNav.map((item) => (
-          <NavLink key={item.label} item={item} />
+          <NavLink key={item.label} item={item} activeHash={activeHash} />
         ))}
       </div>
 

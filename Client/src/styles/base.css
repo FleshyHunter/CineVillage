@@ -1,8 +1,10 @@
 :root {
+  --bs-font-sans-serif: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --bs-body-font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   --bg-main: #0f172a;
   --bg-card: #1e293b;
   --sidebar-blue: #1b365d;
-  --page-surface: #111827;
+  --page-surface: #000000;
   --page-top-accent: #1e3a8a;
   --page-top-accent-height: 320px;
   --content-max-width: 1120px;

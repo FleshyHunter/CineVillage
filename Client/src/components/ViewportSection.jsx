@@ -5,7 +5,8 @@ export default function ViewportSection({
   className = "",
   style,
   estimatedHeight = 0,
-  rootMargin = "140px 0px"
+  rootMargin = "0px",
+  threshold = 0
 }) {
   const sectionRef = useRef(null);
   const contentRef = useRef(null);
@@ -23,13 +24,13 @@ export default function ViewportSection({
       {
         root: null,
         rootMargin,
-        threshold: 0.01
+        threshold
       }
     );
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [rootMargin]);
+  }, [rootMargin, threshold]);
 
   useEffect(() => {
     if (!isVisible || !contentRef.current) return undefined;
@@ -54,7 +55,9 @@ export default function ViewportSection({
   return (
     <section ref={sectionRef} className={className} style={style}>
       {isVisible ? (
-        <div ref={contentRef}>{children}</div>
+        <div ref={contentRef} className="viewport-section-content">
+          {children}
+        </div>
       ) : (
         <div
           className="viewport-section-placeholder"

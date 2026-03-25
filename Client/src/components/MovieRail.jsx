@@ -24,6 +24,7 @@ export default function MovieRail({ children, label }) {
   function handlePointerDown(event) {
     const rail = railRef.current;
     if (!rail) return;
+    if (event.target.closest("a, button")) return;
 
     dragStateRef.current = {
       isDragging: true,
