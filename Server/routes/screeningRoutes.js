@@ -114,7 +114,7 @@ router.get("/create", requireRoles(["Admin", "Manager", "Staff"]), async (req, r
   const collectionHall = getCollectionHall();
   
   const movies = await collectionMovie.find({ 
-    status: { $in: ["New", "Now Showing", "Coming Soon"] } 
+    status: { $in: ["New", "Now Showing", "Coming Soon", "Advance Sales"] } 
   }).toArray();
   
   const halls = await collectionHall.find({}).toArray();
@@ -150,7 +150,7 @@ router.post("/create", requireRoles(["Admin", "Manager", "Staff"]), async (req, 
     // Return to form with error message
     const collectionMovie = getCollectionMovie();
     const collectionHall = getCollectionHall();
-    const movies = await collectionMovie.find({ status: { $in: ["New", "Now Showing", "Coming Soon"] } }).toArray();
+    const movies = await collectionMovie.find({ status: { $in: ["New", "Now Showing", "Coming Soon", "Advance Sales"] } }).toArray();
     const halls = await collectionHall.find({}).toArray();
     
     res.render("screenings/screeningForm", {
@@ -185,7 +185,7 @@ router.get("/edit/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req,
   const collectionHall = getCollectionHall();
   
   const movies = await collectionMovie.find({ 
-    status: { $in: ["New", "Now Showing", "Coming Soon"] } 
+    status: { $in: ["New", "Now Showing", "Coming Soon", "Advance Sales"] } 
   }).toArray();
   const halls = await collectionHall.find({}).toArray();
 
@@ -279,7 +279,7 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req
     const collectionMovie = getCollectionMovie();
     const collectionHall = getCollectionHall();
     const movies = await collectionMovie.find({ 
-      status: { $in: ["New", "Now Showing", "Coming Soon"] } 
+      status: { $in: ["New", "Now Showing", "Coming Soon", "Advance Sales"] } 
     }).toArray();
     const halls = await collectionHall.find({}).toArray();
     

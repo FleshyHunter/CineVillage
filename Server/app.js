@@ -16,6 +16,7 @@ const port = 3000;
 
 const authRoutes = require("./routes/authRoutes");
 const movieRoutes = require("./routes/movieRoutes")
+const movieApiRoutes = require("./routes/apiRoutes/movieApiRoutes");
 const hallRoutes = require("./routes/hallRoutes");
 const screeningRoutes = require("./routes/screeningRoutes");
 const profileRoutes = require("./routes/profileRoutes");
@@ -44,6 +45,7 @@ app.set('layout', 'layouts/layout2');
 
 //route mounting
 app.use("/auth", authRoutes);
+app.use("/api/movies", movieApiRoutes);
 app.use("/movies", requireAuth, movieRoutes);
 app.use("/halls", requireAuth, hallRoutes);
 app.use("/screenings", requireAuth, screeningRoutes);

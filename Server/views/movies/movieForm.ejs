@@ -127,6 +127,7 @@
               <select id="status" name="status" class="form-control">
                 <option value="">Select</option>
                 <option value="Now Showing" <%=movie && movie.status==='Now Showing' ? 'selected' : '' %>>Now Showing</option>
+                <option value="Advance Sales" <%=movie && movie.status==='Advance Sales' ? 'selected' : '' %>>Advance Sales</option>
                 <option value="Coming Soon" <%=movie && movie.status==='Coming Soon' ? 'selected' : '' %>>Coming Soon</option>
                 <option value="Discontinued" <%=movie && movie.status==='Discontinued' ? 'selected' : '' %>>Discontinued</option>
               </select>
@@ -189,7 +190,7 @@
     const allowedAgeRestrictions = new Set(['', 'G', 'PG', 'PG13', 'NC16', 'M18', 'R21']);
     const allowedLanguages = new Set(['English', 'Mandarin', 'Malay', 'Tamil', 'Hindi']);
     const allowedSubtitles = new Set(['', 'English', 'Mandarin', 'Malay', 'Tamil', 'Hindi']);
-    const allowedStatuses = new Set(['', 'Now Showing', 'Coming Soon', 'Discontinued']);
+    const allowedStatuses = new Set(['', 'Now Showing', 'Advance Sales', 'Coming Soon', 'Discontinued']);
     const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
     const uploadPathPattern = /^\/uploads\/[A-Za-z0-9._-]+$/;
 

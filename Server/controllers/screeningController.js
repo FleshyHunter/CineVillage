@@ -327,9 +327,9 @@ async function getAllScreenings(req, res) {
     _id: { $in: movieIds.map(id => new ObjectId(id)) }
   }).toArray();
 
-  // Get ALL movies for Movie view filters (Now Showing / Coming Soon)
+  // Get ALL movies for Movie view filters (Now Showing / Coming Soon / Advance Sales)
   const allMovies = await collectionMovie.find({ 
-    status: { $in: ['Now Showing', 'Coming Soon'] }
+    status: { $in: ['Now Showing', 'Coming Soon', 'Advance Sales'] }
   }).toArray();
 
   // Get unique halls that have screenings
@@ -451,7 +451,7 @@ async function getAllScreenings(req, res) {
 
   res.render("screenings/screeningList", { 
     screenings, 
-    movies: allMovies,  // All movies for Movie view with Now Showing/Coming Soon filters
+    movies: allMovies,  // All movies for Movie view with Now Showing/Coming Soon/Advance Sales filters
     halls: hallsWithScreenings,
     dateMovies: dateMoviesWithScreenings,
     pausedScreenings,
