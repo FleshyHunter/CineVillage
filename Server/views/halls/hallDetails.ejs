@@ -54,11 +54,6 @@
             <label class="form-label-compact">COLUMNS</label>
             <div class="form-control form-control-readonly"><%= hall.columns || 'N/A' %></div>
           </div>
-          
-          <div class="form-group">
-            <label class="form-label-compact">WING COLUMNS</label>
-            <div class="form-control form-control-readonly"><%= hall.wingColumns || 'N/A' %></div>
-          </div>
         </div>
       </div>
 
@@ -144,7 +139,8 @@
     <%= hall.rows || 0 %>,
     <%= hall.columns || 0 %>,
     <%= hall.wingColumns || 0 %>,
-    <%- hall.seatConfig ? JSON.stringify(hall.seatConfig) : '{}' %>
+    <%- hall.seatConfig ? JSON.stringify(hall.seatConfig) : '{}' %>,
+    <%- hall.aisleColumns ? JSON.stringify(hall.aisleColumns) : '[]' %>
   );
 </script>
 

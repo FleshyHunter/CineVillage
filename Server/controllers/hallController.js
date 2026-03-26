@@ -20,6 +20,59 @@ function normalizeDateString(dateStr) {
   return '';
 }
 
+function normalizeAisleColumns(value, totalColumns = 0) {
+  let rawColumns = value;
+
+  if (typeof rawColumns === 'string') {
+    try {
+      rawColumns = JSON.parse(rawColumns);
+    } catch (error) {
+      rawColumns = rawColumns
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+  }
+
+  if (!Array.isArray(rawColumns)) {
+    rawColumns = [];
+  }
+
+  const normalized = rawColumns
+    .map((column) => parseInt(column, 10))
+    .filter((column) => Number.isInteger(column) && column >= 0)
+    .filter((column, index, array) => array.indexOf(column) === index)
+    .sort((a, b) => a - b);
+
+  if (totalColumns > 0) {
+    return normalized.filter((column) => column < totalColumns);
+  }
+
+  return normalized;
+}
+
+function extractLegacyAisleColumnsFromSeatConfig(seatConfig = {}) {
+  const aisleColumns = [];
+  const normalizedSeatConfig = {};
+
+  Object.entries(seatConfig).forEach(([key, value]) => {
+    if (!key.startsWith('aisle-col-')) {
+      normalizedSeatConfig[key] = value;
+      return;
+    }
+
+    const column = parseInt(key.replace('aisle-col-', ''), 10);
+    if (Number.isInteger(column) && column >= 0) {
+      aisleColumns.push(column);
+    }
+  });
+
+  return {
+    seatConfig: normalizedSeatConfig,
+    aisleColumns
+  };
+}
+
 // Helper function to parse and convert hall data
 function parseHallData(hallData) {
   // Parse seatConfig if it's a string
@@ -36,6 +89,13 @@ function parseHallData(hallData) {
   if (hallData.columns) hallData.columns = parseInt(hallData.columns);
   if (hallData.wingColumns) hallData.wingColumns = parseInt(hallData.wingColumns);
   if (hallData.capacity) hallData.capacity = parseInt(hallData.capacity);
+
+  const legacyExtraction = extractLegacyAisleColumnsFromSeatConfig(hallData.seatConfig || {});
+  hallData.seatConfig = legacyExtraction.seatConfig;
+  hallData.aisleColumns = normalizeAisleColumns(
+    hallData.aisleColumns && hallData.aisleColumns.length ? hallData.aisleColumns : legacyExtraction.aisleColumns,
+    hallData.columns || 0
+  );
 
   // Normalize maintenance duration based on hall status
   if (hallData.status === 'Under Maintenance') {

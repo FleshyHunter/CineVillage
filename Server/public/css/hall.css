@@ -21,6 +21,70 @@
   border: 2px solid #334155;
 }
 
+.seat-toolbar .flex-gap-10 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.seat-column-editor {
+  background-color: var(--bg-card);
+  padding: 16px 20px;
+  border-radius: 8px;
+  border: 2px solid #334155;
+}
+
+.seat-column-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.seat-column-editor-note {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.seat-column-marker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.seat-column-marker {
+  min-width: 38px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 2px solid #334155;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.seat-column-marker.is-editable {
+  cursor: pointer;
+}
+
+.seat-column-marker.is-editable:hover {
+  border-color: #2563eb;
+}
+
+.seat-column-marker.is-active {
+  border-color: #2563eb;
+  background-color: rgba(37, 99, 235, 0.2);
+  color: #93c5fd;
+}
+
+.seat-column-marker:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .seat-edit-btn {
   flex: 1;
   padding: 12px 16px;

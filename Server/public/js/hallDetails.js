@@ -3,19 +3,51 @@ let hallData = {
   rows: 0,
   columns: 0,
   wingColumns: 0,
-  seatConfig: {}
+  seatConfig: {},
+  aisleColumns: []
 };
 
-function setHallData(rows, columns, wingColumns, seatConfig) {
+function setHallData(rows, columns, wingColumns, seatConfig, aisleColumns) {
   hallData = {
     rows: rows || 0,
     columns: columns || 0,
     wingColumns: wingColumns || 0,
-    seatConfig: seatConfig || {}
+    seatConfig: seatConfig || {},
+    aisleColumns: Array.isArray(aisleColumns) ? aisleColumns : []
   };
-  
-  // Regenerate display after setting data
+
   generateSeatsDisplay();
+}
+
+function getAisleColumns() {
+  return new Set(
+    (hallData.aisleColumns || [])
+      .map((column) => Number.parseInt(column, 10))
+      .filter((column) => Number.isInteger(column) && column >= 0 && column < hallData.columns)
+  );
+}
+
+function shouldInsertWingLaneAfterColumn(column, columns, wingColumns, aisleColumns) {
+  if (wingColumns <= 0 || wingColumns >= columns) return false;
+
+  const leftBoundaryColumn = wingColumns - 1;
+  const rightBoundaryColumn = columns - wingColumns - 1;
+  const nextColumn = column + 1;
+
+  if (column !== leftBoundaryColumn && column !== rightBoundaryColumn) {
+    return false;
+  }
+
+  if (nextColumn >= columns) return false;
+  if (aisleColumns.has(column) || aisleColumns.has(nextColumn)) return false;
+
+  return true;
+}
+
+function createLaneElement() {
+  const lane = document.createElement('div');
+  lane.className = 'seat-lane';
+  return lane;
 }
 
 function generateSeatsDisplay() {
@@ -25,54 +57,28 @@ function generateSeatsDisplay() {
   }
 
   const seatGrid = document.getElementById('seatGridDetail');
+  const aisleColumns = getAisleColumns();
   seatGrid.innerHTML = '';
 
-  for (let row = 0; row < hallData.rows; row++) {
+  for (let row = 0; row < hallData.rows; row += 1) {
     const rowDiv = document.createElement('div');
     rowDiv.className = 'seat-row';
 
-    // Row label
     const rowLabel = document.createElement('div');
     rowLabel.className = 'seat-row-label';
     rowLabel.textContent = String.fromCharCode(65 + row);
     rowDiv.appendChild(rowLabel);
 
-    let colIndex = 0;
+    for (let col = 0; col < hallData.columns; col += 1) {
+      if (aisleColumns.has(col)) {
+        rowDiv.appendChild(createLaneElement());
+      } else {
+        rowDiv.appendChild(createSeatDisplay(row, col));
+      }
 
-    // Left wing
-    for (let i = 0; i < hallData.wingColumns && i < hallData.columns; i++) {
-      const seat = createSeatDisplay(row, colIndex);
-      rowDiv.appendChild(seat);
-      colIndex++;
-    }
-
-    // Left lane
-    if (hallData.wingColumns > 0 && hallData.wingColumns < hallData.columns) {
-      const lane = document.createElement('div');
-      lane.className = 'seat-lane';
-      rowDiv.appendChild(lane);
-    }
-
-    // Middle section
-    const middleCols = hallData.columns - (hallData.wingColumns * 2);
-    for (let i = 0; i < middleCols && colIndex < hallData.columns; i++) {
-      const seat = createSeatDisplay(row, colIndex);
-      rowDiv.appendChild(seat);
-      colIndex++;
-    }
-
-    // Right lane
-    if (hallData.wingColumns > 0 && hallData.columns > hallData.wingColumns && colIndex < hallData.columns) {
-      const lane = document.createElement('div');
-      lane.className = 'seat-lane';
-      rowDiv.appendChild(lane);
-    }
-
-    // Right wing
-    while (colIndex < hallData.columns) {
-      const seat = createSeatDisplay(row, colIndex);
-      rowDiv.appendChild(seat);
-      colIndex++;
+      if (shouldInsertWingLaneAfterColumn(col, hallData.columns, hallData.wingColumns, aisleColumns)) {
+        rowDiv.appendChild(createLaneElement());
+      }
     }
 
     seatGrid.appendChild(rowDiv);
@@ -85,7 +91,7 @@ function createSeatDisplay(row, col) {
 
   const seatKey = `${row}-${col}`;
   const seatState = hallData.seatConfig[seatKey] || 'normal';
-  
+
   if (seatState === 'removed') {
     seat.classList.add('removed');
     seat.textContent = '✕';
