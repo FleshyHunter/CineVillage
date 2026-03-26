@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import ViewportSection from "../components/ViewportSection";
-import { fetchMovieById, fetchMovies, resolveMoviePictureUrl } from "../services/api";
+import {
+  fetchMovieById,
+  fetchMovies,
+  resolveMoviePictureUrl
+} from "../services/api";
 import "./MovieDetails.css";
 
 function formatDuration(duration) {
@@ -156,12 +160,82 @@ function getShowtimeTypeIcon(hallType) {
   return "bi-grid-3x3-gap";
 }
 
+function getSeatPreviewAisleColumns(hall) {
+  return new Set(
+    (hall?.aisleColumns || [])
+      .map((column) => Number.parseInt(column, 10))
+      .filter((column) => Number.isInteger(column) && column >= 0)
+  );
+}
+
+function shouldInsertWingLaneAfterColumn(column, columns, wingColumns, aisleColumns) {
+  if (wingColumns <= 0 || wingColumns >= columns) return false;
+
+  const leftBoundaryColumn = wingColumns - 1;
+  const rightBoundaryColumn = columns - wingColumns - 1;
+  const nextColumn = column + 1;
+
+  if (column !== leftBoundaryColumn && column !== rightBoundaryColumn) return false;
+  if (nextColumn >= columns) return false;
+  if (aisleColumns.has(column) || aisleColumns.has(nextColumn)) return false;
+
+  return true;
+}
+
+function buildSeatPreviewRows(hall) {
+  const rows = Number.parseInt(hall?.rows, 10) || 0;
+  const columns = Number.parseInt(hall?.columns, 10) || 0;
+  const wingColumns = Number.parseInt(hall?.wingColumns, 10) || 0;
+  const seatConfig = hall?.seatConfig || {};
+  const aisleColumns = getSeatPreviewAisleColumns(hall);
+
+  if (!rows || !columns) return [];
+
+  return Array.from({ length: rows }, (_, rowIndex) => {
+    const rowLabel = String.fromCharCode(65 + rowIndex);
+    const cells = [];
+
+    for (let col = 0; col < columns; col += 1) {
+      if (aisleColumns.has(col)) {
+        cells.push({
+          key: `lane-${rowIndex}-${col}`,
+          kind: "lane"
+        });
+      } else {
+        const seatState = seatConfig[`${rowIndex}-${col}`] || "normal";
+
+        cells.push({
+          key: `seat-${rowIndex}-${col}`,
+          kind: "seat",
+          state: seatState
+        });
+      }
+
+      if (shouldInsertWingLaneAfterColumn(col, columns, wingColumns, aisleColumns)) {
+        cells.push({
+          key: `wing-lane-${rowIndex}-${col}`,
+          kind: "lane"
+        });
+      }
+    }
+
+    return {
+      key: `row-${rowIndex}`,
+      label: rowLabel,
+      cells
+    };
+  });
+}
+
 export default function MovieDetails({ movieId = "" }) {
   const [movie, setMovie] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeShowtimeDate, setActiveShowtimeDate] = useState("");
   const [weekStartDate, setWeekStartDate] = useState(() => startOfDay(new Date()));
+  const [selectedScreeningPreview, setSelectedScreeningPreview] = useState(null);
+  const [seatPreviewLoading, setSeatPreviewLoading] = useState(false);
+  const [seatPreviewError, setSeatPreviewError] = useState("");
 
   useEffect(() => {
     let isActive = true;
@@ -211,6 +285,8 @@ export default function MovieDetails({ movieId = "" }) {
     const firstMovieDate = movie?.showtimes?.[0]?.isoDate || "";
     setActiveShowtimeDate(firstMovieDate || todayIso);
     setWeekStartDate(startOfDay(new Date()));
+    setSelectedScreeningPreview(null);
+    setSeatPreviewError("");
   }, [movie]);
 
   if (loading) {
@@ -292,6 +368,14 @@ export default function MovieDetails({ movieId = "" }) {
     setWeekStartDate(nextStart);
     setActiveShowtimeDate(toIsoDate(nextStart));
   }
+
+  function handleSelectShowtime(showtime) {
+    if (!showtime?.screeningId) return;
+
+    window.location.hash = `#seat-selection/${showtime.screeningId}`;
+  }
+
+  const selectedScreeningRows = buildSeatPreviewRows(selectedScreeningPreview?.hall);
 
   return (
     <section className="movie-details-page">
@@ -511,8 +595,9 @@ export default function MovieDetails({ movieId = "" }) {
                             <button
                               key={showtime.screeningId}
                               type="button"
-                              className="movie-showtimes-slot"
+                              className={`movie-showtimes-slot${selectedScreeningPreview?.screeningId === showtime.screeningId ? " is-selected" : ""}`}
                               title={`View screening in ${showtime.hallName}`}
+                              onClick={() => handleSelectShowtime(showtime)}
                             >
                               <strong>{showtime.time}</strong>
                             </button>
@@ -534,6 +619,76 @@ export default function MovieDetails({ movieId = "" }) {
             {emptyShowtimeMessage}
           </div>
         )}
+
+        {seatPreviewLoading ? (
+          <div className="movie-seat-preview-status">
+            Loading seat preview...
+          </div>
+        ) : null}
+
+        {!seatPreviewLoading && seatPreviewError ? (
+          <div className="movie-seat-preview-status movie-seat-preview-status-error">
+            {seatPreviewError}
+          </div>
+        ) : null}
+
+        {!seatPreviewLoading && !seatPreviewError && selectedScreeningPreview ? (
+          <div className="movie-seat-preview-panel">
+            <div className="movie-seat-preview-header">
+              <div>
+                <span className="movie-seat-preview-kicker">Seat Preview</span>
+                <h3>{selectedScreeningPreview.movie?.name || movie.name || "Movie"}</h3>
+              </div>
+
+              <div className="movie-seat-preview-meta">
+                <span>
+                  <i className="bi bi-clock" />
+                  {selectedScreeningPreview.dateLabel} {selectedScreeningPreview.time}
+                </span>
+                <span>
+                  <i className="bi bi-door-open" />
+                  {selectedScreeningPreview.hall?.name || "Hall"}
+                </span>
+              </div>
+            </div>
+
+            <div className="movie-seat-preview-stage">
+              <div className="movie-seat-preview-screen-wrap">
+                <div className="movie-seat-preview-screen" />
+                <span>Screen</span>
+              </div>
+
+              <div className="movie-seat-preview-grid">
+                {selectedScreeningRows.map((row) => (
+                  <div key={row.key} className="movie-seat-preview-row">
+                    <span className="movie-seat-preview-row-label">{row.label}</span>
+
+                    <div className="movie-seat-preview-row-cells">
+                      {row.cells.map((cell) => (
+                        cell.kind === "lane" ? (
+                          <span key={cell.key} className="movie-seat-preview-lane" aria-hidden="true" />
+                        ) : (
+                          <span
+                            key={cell.key}
+                            className={`movie-seat-preview-seat movie-seat-preview-seat-${cell.state || "normal"}`}
+                            aria-hidden="true"
+                          />
+                        )
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="movie-seat-preview-legend">
+              <span><i className="movie-seat-preview-seat movie-seat-preview-seat-normal" />Available</span>
+              <span><i className="movie-seat-preview-seat movie-seat-preview-seat-removed" />Unavailable</span>
+              <span><i className="movie-seat-preview-seat movie-seat-preview-seat-wheelchair" />Wheelchair</span>
+              <span><i className="movie-seat-preview-lane" />Aisle</span>
+            </div>
+          </div>
+        ) : null}
       </ViewportSection>
     </section>
   );

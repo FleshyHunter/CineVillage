@@ -5,28 +5,41 @@ import Sidebar from "./components/Sidebar";
 import Home from "./pages/Home";
 import MovieDetails from "./pages/MovieDetails";
 import Movies from "./pages/Movies";
+import SeatSelection from "./pages/SeatSelection";
 
 function readClientViewFromHash() {
   const hash = (window.location.hash || "").replace(/^#/, "");
+
+  if (hash.startsWith("seat-selection")) {
+    const [, screeningId = ""] = hash.split("/");
+    return {
+      page: "seat-selection",
+      movieId: "",
+      screeningId
+    };
+  }
 
   if (hash.startsWith("movie-details")) {
     const [, movieId = ""] = hash.split("/");
     return {
       page: "movie-details",
-      movieId
+      movieId,
+      screeningId: ""
     };
   }
 
   if (hash === "movies") {
     return {
       page: "movies",
-      movieId: ""
+      movieId: "",
+      screeningId: ""
     };
   }
 
   return {
     page: "home",
-    movieId: ""
+    movieId: "",
+    screeningId: ""
   };
 }
 
@@ -58,7 +71,9 @@ export default function App() {
       <div className="client-main">
         <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
         <main className="content-wrapper">
-          {clientView.page === "movie-details" ? (
+          {clientView.page === "seat-selection" ? (
+            <SeatSelection screeningId={clientView.screeningId} />
+          ) : clientView.page === "movie-details" ? (
             <MovieDetails movieId={clientView.movieId} />
           ) : clientView.page === "movies" ? (
             <Movies />

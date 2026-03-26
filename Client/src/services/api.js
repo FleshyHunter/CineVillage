@@ -1,4 +1,5 @@
 const MOVIE_API_PATH = "/api/movies";
+const SCREENING_API_PATH = "/api/screenings";
 const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || "http://localhost:3000";
 
 function toQueryString(params = {}) {
@@ -32,6 +33,12 @@ export async function fetchMovies(params = {}) {
 export async function fetchMovieById(id) {
   const response = await fetch(`${MOVIE_API_PATH}/${id}`);
   const payload = await parseJsonResponse(response, "Failed to fetch movie");
+  return payload.item || null;
+}
+
+export async function fetchScreeningSeatPreview(id) {
+  const response = await fetch(`${SCREENING_API_PATH}/${id}/seat-preview`);
+  const payload = await parseJsonResponse(response, "Failed to fetch screening seat preview");
   return payload.item || null;
 }
 

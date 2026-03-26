@@ -490,12 +490,185 @@
   transform: scale(1.05);
 }
 
+.movie-showtimes-slot.is-selected {
+  background-color: rgba(59, 130, 246, 0.28);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.32);
+}
+
 .movie-showtimes-empty-state {
   padding: 16px 18px;
   border-radius: 14px;
   color: #dbe5f4;
   font-size: 0.92rem;
   font-weight: 700;
+}
+
+.movie-seat-preview-status {
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.48);
+  color: #dbe5f4;
+  font-size: 0.92rem;
+}
+
+.movie-seat-preview-status-error {
+  border-color: rgba(248, 113, 113, 0.25);
+  color: #fecaca;
+}
+
+.movie-seat-preview-panel {
+  display: grid;
+  gap: 22px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(29, 29, 31, 0.98) 0%, rgba(17, 17, 19, 0.98) 100%);
+  box-shadow: 0 16px 34px rgba(2, 6, 23, 0.24);
+}
+
+.movie-seat-preview-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.movie-seat-preview-kicker {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.movie-seat-preview-header h3 {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.05;
+}
+
+.movie-seat-preview-meta {
+  display: grid;
+  gap: 8px;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.movie-seat-preview-meta span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.movie-seat-preview-stage {
+  display: grid;
+  gap: 24px;
+  padding: 24px 22px;
+  border-radius: 18px;
+  background: rgba(22, 22, 24, 0.95);
+}
+
+.movie-seat-preview-screen-wrap {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.movie-seat-preview-screen {
+  width: min(360px, 68%);
+  height: 10px;
+  border-radius: 999px 999px 24px 24px;
+  background: linear-gradient(180deg, #ffb347 0%, #f97316 100%);
+  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.25);
+}
+
+.movie-seat-preview-screen-wrap span {
+  color: #f8fafc;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.movie-seat-preview-grid {
+  display: grid;
+  gap: 8px;
+  justify-content: center;
+}
+
+.movie-seat-preview-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.movie-seat-preview-row-label {
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.movie-seat-preview-row-cells {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.movie-seat-preview-seat,
+.movie-seat-preview-lane {
+  flex-shrink: 0;
+}
+
+.movie-seat-preview-seat {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid #64748b;
+}
+
+.movie-seat-preview-seat-normal {
+  background: #d4d4d8;
+  border-color: #a1a1aa;
+}
+
+.movie-seat-preview-seat-removed {
+  background: #4b5563;
+  border-color: #374151;
+}
+
+.movie-seat-preview-seat-wheelchair {
+  background: #2563eb;
+  border-color: #1d4ed8;
+}
+
+.movie-seat-preview-lane {
+  width: 12px;
+  height: 18px;
+  border-left: 2px solid rgba(203, 213, 225, 0.75);
+  border-right: 2px solid rgba(203, 213, 225, 0.75);
+  opacity: 0.72;
+}
+
+.movie-seat-preview-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  color: #cbd5e1;
+  font-size: 0.88rem;
+}
+
+.movie-seat-preview-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 @media (max-width: 1100px) {
