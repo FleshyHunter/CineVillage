@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  createBooking,
   fetchMovieById,
   fetchScreeningSeatPreview,
   resolveMoviePictureUrl
@@ -181,6 +182,9 @@ export default function SeatSelection({ screeningId = "" }) {
   const [now, setNow] = useState(() => new Date());
   const [selectionNotice, setSelectionNotice] = useState("");
   const [pendingWheelchairSeat, setPendingWheelchairSeat] = useState(null);
+  const [bookingMessage, setBookingMessage] = useState("");
+  const [bookingError, setBookingError] = useState("");
+  const [isConfirmingBooking, setIsConfirmingBooking] = useState(false);
 
   useEffect(() => {
     if (!screeningId) {
@@ -288,6 +292,8 @@ export default function SeatSelection({ screeningId = "" }) {
     }
 
     setSelectionNotice("");
+    setBookingMessage("");
+    setBookingError("");
     return true;
   }
 
@@ -299,6 +305,8 @@ export default function SeatSelection({ screeningId = "" }) {
         const next = new Set(previous);
         next.delete(cell.seatKey);
         setSelectionNotice("");
+        setBookingMessage("");
+        setBookingError("");
         return next;
       });
       return;
@@ -310,6 +318,30 @@ export default function SeatSelection({ screeningId = "" }) {
     }
 
     tryAddSeat(cell.seatKey);
+  }
+
+  async function handleConfirmBooking() {
+    if (!preview?.screeningId || !selectedSeatLabels.length || isConfirmingBooking) return;
+
+    try {
+      setIsConfirmingBooking(true);
+      setBookingError("");
+      setBookingMessage("");
+
+      const response = await createBooking({
+        screeningId: preview.screeningId,
+        seats: selectedSeatLabels
+      });
+
+      const bookingCode = response?.booking?.bookingCode ? ` (${response.booking.bookingCode})` : "";
+      setBookingMessage(`Booking successful${bookingCode}.`);
+      setSelectionNotice("");
+      setSelectedSeats(new Set());
+    } catch (confirmError) {
+      setBookingError(confirmError.message || "Failed to confirm booking.");
+    } finally {
+      setIsConfirmingBooking(false);
+    }
   }
 
   return (
@@ -398,6 +430,8 @@ export default function SeatSelection({ screeningId = "" }) {
                   onClick={() => {
                     setSelectedSeats(new Set());
                     setSelectionNotice("");
+                    setBookingMessage("");
+                    setBookingError("");
                   }}
                 >
                   Clear Seats
@@ -525,6 +559,37 @@ export default function SeatSelection({ screeningId = "" }) {
                   <strong>{formatCurrency(totalCost)}</strong>
                 </div>
               </div>
+
+              <div className="seat-selection-cart-actions">
+                <button
+                  type="button"
+                  className="seat-selection-cart-action seat-selection-cart-action-back"
+                  onClick={() => {
+                    window.location.hash = `#movie-details/${heroMovie._id || preview.movie?._id || ""}`;
+                  }}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="seat-selection-cart-action seat-selection-cart-action-confirm"
+                  onClick={handleConfirmBooking}
+                  disabled={!selectedSeatLabels.length || isConfirmingBooking}
+                >
+                  {isConfirmingBooking ? "Confirming..." : "Confirm"}
+                </button>
+              </div>
+
+              {bookingError ? (
+                <div className="seat-selection-cart-feedback seat-selection-cart-feedback-error">
+                  {bookingError}
+                </div>
+              ) : null}
+              {bookingMessage ? (
+                <div className="seat-selection-cart-feedback seat-selection-cart-feedback-success">
+                  {bookingMessage}
+                </div>
+              ) : null}
             </aside>
           </div>
         </div>

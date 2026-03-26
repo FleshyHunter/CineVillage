@@ -1,5 +1,6 @@
 const MOVIE_API_PATH = "/api/movies";
 const SCREENING_API_PATH = "/api/screenings";
+const BOOKING_API_PATH = "/api/bookings";
 const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || "http://localhost:3000";
 
 function toQueryString(params = {}) {
@@ -18,7 +19,7 @@ async function parseJsonResponse(response, fallbackMessage) {
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(payload?.error || fallbackMessage);
+    throw new Error(payload?.error || payload?.message || fallbackMessage);
   }
 
   return payload;
@@ -40,6 +41,18 @@ export async function fetchScreeningSeatPreview(id) {
   const response = await fetch(`${SCREENING_API_PATH}/${id}/seat-preview`);
   const payload = await parseJsonResponse(response, "Failed to fetch screening seat preview");
   return payload.item || null;
+}
+
+export async function createBooking(payload) {
+  const response = await fetch(BOOKING_API_PATH, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  return parseJsonResponse(response, "Failed to create booking");
 }
 
 export function resolveMoviePictureUrl(pictureUrl) {
