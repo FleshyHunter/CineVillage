@@ -6,6 +6,7 @@ const {
   getScreeningById, 
   updateScreening, 
   deleteScreening, 
+  launchScreening,
   getHallSchedule,
   getHallSchedulePage,
   getMovieScreenings,
@@ -15,6 +16,21 @@ const { initDBIfNecessary, getCollectionScreening, getCollectionMovie, getCollec
 const { ObjectId } = require("mongodb");
 const { requireRoles } = require("../config/session");
 const { logAction } = require("../config/audit");
+
+function buildRouteHallPresentation(screening, hall) {
+  if (screening?.hallSnapshot) {
+    return {
+      _id: screening.hallSnapshot.originalHallId || screening.hallId,
+      name: screening.hallSnapshot.hallName || "Unknown Hall",
+      type: screening.hallSnapshot.hallType || "Standard",
+      rows: screening.hallSnapshot.rows || 0,
+      columns: screening.hallSnapshot.columns || 0,
+      capacity: screening.hallSnapshot.capacity || 0
+    };
+  }
+
+  return hall;
+}
 
 function sanitizeReturnTo(returnTo) {
   if (typeof returnTo !== "string" || !returnTo.startsWith("/")) {
@@ -72,7 +88,12 @@ router.get("/api/date-screenings", requireRoles(["Admin", "Manager"]), async (re
       
       const byHallType = {};
       movieScreenings.forEach(screening => {
-        const hallInfo = hallMap[screening.hallId.toString()];
+        const hallInfo = screening.hallSnapshot
+          ? {
+              name: screening.hallSnapshot.hallName || "Unknown Hall",
+              type: screening.hallSnapshot.hallType || "Standard"
+            }
+          : hallMap[screening.hallId.toString()];
         if (hallInfo) {
           if (!byHallType[hallInfo.type]) {
             byHallType[hallInfo.type] = [];
@@ -194,7 +215,8 @@ router.get("/edit/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req,
     screening.movieId = await collectionMovie.findOne({ _id: new ObjectId(screening.movieId) });
   }
   if (screening.hallId) {
-    screening.hallId = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
+    const liveHall = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
+    screening.hallId = buildRouteHallPresentation(screening, liveHall);
   }
 
   // Extract date and time from startDateTime using local timezone
@@ -238,7 +260,8 @@ router.get("/view/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req,
     screening.movieId = await collectionMovie.findOne({ _id: new ObjectId(screening.movieId) });
   }
   if (screening.hallId) {
-    screening.hallId = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
+    const liveHall = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
+    screening.hallId = buildRouteHallPresentation(screening, liveHall);
   }
 
   // Extract date and time from startDateTime using local timezone
@@ -317,7 +340,37 @@ router.post("/delete/:id", requireRoles(["Admin", "Manager", "Staff"]), async (r
     res.redirect("/screenings");
   } catch (err) {
     console.error(err);
-    res.send("Error deleting screening");
+    res.status(400).send(err.message || "Error deleting screening");
+  }
+});
+
+router.post("/launch/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
+  const returnTo = sanitizeReturnTo(req.query.returnTo);
+
+  try {
+    await initDBIfNecessary();
+    const collectionScreening = getCollectionScreening();
+    const collectionMovie = getCollectionMovie();
+    const existingScreening = ObjectId.isValid(req.params.id)
+      ? await collectionScreening.findOne({ _id: new ObjectId(req.params.id) })
+      : null;
+    const movieDoc = (existingScreening && existingScreening.movieId)
+      ? await collectionMovie.findOne({ _id: new ObjectId(existingScreening.movieId) })
+      : null;
+
+    await launchScreening(req.params.id);
+
+    await logAction(req, {
+      module: "screening",
+      operation: "launch",
+      targetId: req.params.id,
+      item: movieDoc?.name || ""
+    });
+
+    res.redirect(returnTo);
+  } catch (err) {
+    console.error(err);
+    res.status(400).send(err.message || "Error launching screening");
   }
 });
 

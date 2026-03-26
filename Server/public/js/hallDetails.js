@@ -3,31 +3,21 @@ let hallData = {
   rows: 0,
   columns: 0,
   wingColumns: 0,
-  seatConfig: {},
-  aisleColumns: []
+  seatConfig: {}
 };
 
-function setHallData(rows, columns, wingColumns, seatConfig, aisleColumns) {
+function setHallData(rows, columns, wingColumns, seatConfig) {
   hallData = {
     rows: rows || 0,
     columns: columns || 0,
     wingColumns: wingColumns || 0,
-    seatConfig: seatConfig || {},
-    aisleColumns: Array.isArray(aisleColumns) ? aisleColumns : []
+    seatConfig: seatConfig || {}
   };
 
   generateSeatsDisplay();
 }
 
-function getAisleColumns() {
-  return new Set(
-    (hallData.aisleColumns || [])
-      .map((column) => Number.parseInt(column, 10))
-      .filter((column) => Number.isInteger(column) && column >= 0 && column < hallData.columns)
-  );
-}
-
-function shouldInsertWingLaneAfterColumn(column, columns, wingColumns, aisleColumns) {
+function shouldInsertWingLaneAfterColumn(column, columns, wingColumns) {
   if (wingColumns <= 0 || wingColumns >= columns) return false;
 
   const leftBoundaryColumn = wingColumns - 1;
@@ -39,7 +29,6 @@ function shouldInsertWingLaneAfterColumn(column, columns, wingColumns, aisleColu
   }
 
   if (nextColumn >= columns) return false;
-  if (aisleColumns.has(column) || aisleColumns.has(nextColumn)) return false;
 
   return true;
 }
@@ -57,7 +46,6 @@ function generateSeatsDisplay() {
   }
 
   const seatGrid = document.getElementById('seatGridDetail');
-  const aisleColumns = getAisleColumns();
   seatGrid.innerHTML = '';
 
   for (let row = 0; row < hallData.rows; row += 1) {
@@ -70,13 +58,9 @@ function generateSeatsDisplay() {
     rowDiv.appendChild(rowLabel);
 
     for (let col = 0; col < hallData.columns; col += 1) {
-      if (aisleColumns.has(col)) {
-        rowDiv.appendChild(createLaneElement());
-      } else {
-        rowDiv.appendChild(createSeatDisplay(row, col));
-      }
+      rowDiv.appendChild(createSeatDisplay(row, col));
 
-      if (shouldInsertWingLaneAfterColumn(col, hallData.columns, hallData.wingColumns, aisleColumns)) {
+      if (shouldInsertWingLaneAfterColumn(col, hallData.columns, hallData.wingColumns)) {
         rowDiv.appendChild(createLaneElement());
       }
     }

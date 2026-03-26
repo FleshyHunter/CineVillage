@@ -22,8 +22,8 @@
         </div>
       </button>
 
-      <div class="sidebar-nav-group">
-        <div class="sidebar-nav-label sidebar-nav-label-management">Main</div>
+      <div class="sidebar-nav-group sidebar-nav-group-main">
+        <div class="sidebar-nav-label sidebar-nav-label-main">Main</div>
         <a href="/dashboard" class="sidebar-link">
           <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
         </a>
@@ -32,43 +32,72 @@
         </a>
       </div>
 
-      <div class="sidebar-nav-group">
+      <div class="sidebar-nav-group sidebar-nav-group-management">
         <div class="sidebar-nav-label sidebar-nav-label-management">Management</div>
-        <a href="/movies" class="sidebar-link">
-          <i class="bi bi-film"></i><span>Movies</span>
-        </a>
-        <% if (currentRole !== 'Staff') { %>
-          <a href="/movies/create" class="sidebar-link">
-            <i class="bi bi-plus-square"></i><span>Add Movie</span>
+        <div class="sidebar-nav-group-management-links">
+          <a href="/movies" class="sidebar-link">
+            <i class="bi bi-film"></i><span>Movies</span>
           </a>
-        <% } %>
-        <a href="/halls" class="sidebar-link">
-          <i class="bi bi-door-open"></i><span>Halls</span>
-        </a>
-        <% if (currentRole !== 'Staff') { %>
-          <a href="/halls/create" class="sidebar-link">
-            <i class="bi bi-building-add"></i><span>Add Hall</span>
+          <% if (currentRole !== 'Staff') { %>
+            <a href="/movies/create" class="sidebar-link">
+              <i class="bi bi-plus-square"></i><span>Add Movie</span>
+            </a>
+          <% } %>
+          <a href="/halls" class="sidebar-link">
+            <i class="bi bi-door-open"></i><span>Halls</span>
           </a>
-        <% } %>
-        <a href="/screenings" class="sidebar-link">
-          <i class="bi bi-calendar-event"></i><span>Screening</span>
-        </a>
-        <a href="/screenings/create" class="sidebar-link">
-          <i class="bi bi-calendar-plus"></i><span>Create Screening</span>
-        </a>
-        <% if (currentRole === 'Admin') { %>
-          <a href="/personnel" class="sidebar-link">
-            <i class="bi bi-people"></i><span>Personnel List</span>
+          <% if (currentRole !== 'Staff') { %>
+            <a href="/halls/create" class="sidebar-link">
+              <i class="bi bi-building-add"></i><span>Add Hall</span>
+            </a>
+          <% } %>
+          <a href="/screenings" class="sidebar-link">
+            <i class="bi bi-calendar-event"></i><span>Screening</span>
           </a>
-          <a href="/personnel/create?role=staff" class="sidebar-link">
-            <i class="bi bi-person-plus"></i><span>Create Personnel</span>
+          <a href="/screenings/create" class="sidebar-link">
+            <i class="bi bi-calendar-plus"></i><span>Create Screening</span>
           </a>
-        <% } %>
-        <% if (currentRole !== 'Staff') { %>
-          <a href="/history" class="sidebar-link">
-            <i class="bi bi-clock-history"></i><span>History</span>
+          <a href="/bookings" class="sidebar-link">
+            <i class="bi bi-ticket-perforated"></i><span>Bookings</span>
           </a>
-        <% } %>
+          <a href="/promotions" class="sidebar-link">
+            <i class="bi bi-megaphone"></i><span>Promotions</span>
+          </a>
+          <% if (currentRole !== 'Staff') { %>
+            <a href="/promotions/create" class="sidebar-link">
+              <span class="sidebar-icon-combo" aria-hidden="true">
+                <i class="bi bi-card-image sidebar-icon-combo-main"></i>
+                <i class="bi bi-plus-circle-fill sidebar-icon-combo-badge"></i>
+              </span>
+              <span>Create Promotion</span>
+            </a>
+          <% } %>
+          <a href="/addons" class="sidebar-link">
+            <i class="bi bi-cup-straw"></i><span>Add-Ons</span>
+          </a>
+          <% if (currentRole !== 'Staff') { %>
+            <a href="/addons/create" class="sidebar-link">
+              <span class="sidebar-icon-combo" aria-hidden="true">
+                <i class="bi bi-cup-straw sidebar-icon-combo-main"></i>
+                <i class="bi bi-plus-circle-fill sidebar-icon-combo-badge"></i>
+              </span>
+              <span>Create Add-On</span>
+            </a>
+          <% } %>
+          <% if (currentRole === 'Admin') { %>
+            <a href="/personnel" class="sidebar-link">
+              <i class="bi bi-people"></i><span>Personnel List</span>
+            </a>
+            <a href="/personnel/create?role=staff" class="sidebar-link">
+              <i class="bi bi-person-plus"></i><span>Create Personnel</span>
+            </a>
+          <% } %>
+          <% if (currentRole !== 'Staff') { %>
+            <a href="/history" class="sidebar-link">
+              <i class="bi bi-clock-history"></i><span>History</span>
+            </a>
+          <% } %>
+        </div>
       </div>
 
       <a href="/auth/logout" class="sidebar-logout-btn">

@@ -273,10 +273,15 @@ async function buildMovieShowtimes(movieId) {
 
   screenings.forEach((screening) => {
     const dateParts = formatApiDateParts(screening.startDateTime, now);
-    const hallInfo = hallMap.get(screening.hallId.toString()) || {
-      name: "Unknown Hall",
-      type: "Standard"
-    };
+    const hallInfo = screening.hallSnapshot
+      ? {
+          name: screening.hallSnapshot.hallName || "Unknown Hall",
+          type: screening.hallSnapshot.hallType || "Standard"
+        }
+      : (hallMap.get(screening.hallId.toString()) || {
+          name: "Unknown Hall",
+          type: "Standard"
+        });
 
     if (!groupedByDate.has(dateParts.isoDate)) {
       groupedByDate.set(dateParts.isoDate, {

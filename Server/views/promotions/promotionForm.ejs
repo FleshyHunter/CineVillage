@@ -1,0 +1,110 @@
+<%- include('../layouts/header') %>
+
+<div class="container">
+  <h2 class="mb-30"><%= isEdit ? 'Edit Promotion' : 'Create Promotion' %></h2>
+
+  <div class="movie-detail-container">
+    <form
+      id="promotionForm"
+      action="<%= isEdit ? '/promotions/edit/' + promotion._id : '/promotions/create' %>"
+      method="POST"
+      enctype="multipart/form-data"
+      style="display: contents;"
+    >
+      <input type="hidden" name="returnTo" value="<%= returnTo || '/promotions' %>">
+
+      <div class="movie-detail-poster">
+        <label for="picture" style="cursor: pointer; display: block;">
+          <img
+            id="placeholderImg"
+            src="<%= isEdit && promotion && promotion.pictureUrl ? promotion.pictureUrl : '/images/cameraplaceholder.jpg' %>"
+            alt="Upload promotion image"
+            style="width: 100%; border-radius: 8px; border: 2px dashed #94a3b8; object-fit: cover; min-height: 400px;"
+          >
+        </label>
+        <input type="file" id="picture" name="picture" accept="image/*" style="display: none;">
+        <input type="hidden" id="pictureUrl" name="pictureUrl" value="<%= promotion && promotion.pictureUrl ? promotion.pictureUrl : '' %>">
+        <p class="form-help-text">Click to upload image</p>
+      </div>
+
+      <div class="movie-detail-info">
+        <div class="form-group">
+          <div class="label-row">
+            <label for="name" class="form-label">Promotion Name *</label>
+            <% if (typeof error !== 'undefined' && error) { %>
+              <span class="error-inline">
+                <i class="bi bi-exclamation-triangle" style="font-size: 13px;"></i> <%= error %>
+              </span>
+            <% } %>
+          </div>
+          <input type="text" id="name" name="name" class="form-control" value="<%= promotion ? promotion.name : '' %>" required maxlength="80">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="duration" class="form-label">Duration (days)</label>
+            <input type="number" id="duration" name="duration" class="form-control" value="<%= promotion ? promotion.duration : '' %>" min="1" step="1">
+          </div>
+          <div class="form-group">
+            <label for="code" class="form-label">Code</label>
+            <input type="text" id="code" name="code" class="form-control" value="<%= promotion ? promotion.code : '' %>" maxlength="40">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="description" class="form-label">Description</label>
+          <textarea id="description" name="description" rows="6" class="form-control" style="resize: vertical;"><%= promotion ? promotion.description : '' %></textarea>
+        </div>
+
+        <div class="movie-detail-actions">
+          <a href="<%= returnTo || '/promotions' %>" class="btn btn-secondary">
+            ← Back to Promotions
+          </a>
+          <button type="submit" class="btn btn-primary">
+            <%= isEdit ? 'Update Promotion' : 'Create Promotion' %>
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const pictureInput = document.getElementById('picture');
+    const pictureUrlInput = document.getElementById('pictureUrl');
+    const placeholderImg = document.getElementById('placeholderImg');
+    const form = document.getElementById('promotionForm');
+    const nameInput = document.getElementById('name');
+    const fallbackPoster = '/images/cameraplaceholder.jpg';
+
+    function setPreview(src) {
+      if (!placeholderImg) return;
+      placeholderImg.src = src || fallbackPoster;
+    }
+
+    if (pictureInput) {
+      pictureInput.addEventListener('change', () => {
+        const file = pictureInput.files && pictureInput.files[0];
+        if (!file) return;
+        setPreview(URL.createObjectURL(file));
+        if (pictureUrlInput) pictureUrlInput.value = '';
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', (event) => {
+        const name = (nameInput?.value || '').trim();
+        if (!name) {
+          event.preventDefault();
+          nameInput.setCustomValidity('Promotion name is required.');
+          nameInput.reportValidity();
+          return;
+        }
+        nameInput.setCustomValidity('');
+      });
+    }
+  })();
+</script>
+
+<%- include('../layouts/footer') %>

@@ -1,0 +1,89 @@
+<%- include('../layouts/header') %>
+
+<div class="container">
+  <h2 style="margin-bottom: 30px;">View Booking</h2>
+
+  <div class="movie-detail-container">
+    <div class="movie-detail-poster">
+      <img
+        src="<%= booking && booking.movie && booking.movie.pictureUrl ? booking.movie.pictureUrl : '/images/placeholder.jpg' %>"
+        alt="Movie poster"
+        style="width: 100%; border-radius: 8px; object-fit: cover; min-height: 400px;">
+      <div style="text-align: center; margin-top: 15px;">
+        <h4 style="color: var(--text-main); margin-bottom: 6px;">
+          <%= booking && booking.movie && booking.movie.name ? booking.movie.name : 'N/A' %>
+        </h4>
+        <p style="color: var(--text-muted); font-size: 13px; margin: 0;">
+          Qty: <%= booking && booking.qty ? booking.qty : 0 %>
+        </p>
+      </div>
+    </div>
+
+    <div class="movie-detail-info">
+      <div class="form-group">
+        <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">MOVIE</label>
+        <div class="form-control form-control-readonly">
+          <%= booking && booking.movie && booking.movie.name ? booking.movie.name : 'N/A' %>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">HALL</label>
+        <div class="form-control form-control-readonly">
+          <%= booking && booking.hall && booking.hall.name ? booking.hall.name : 'N/A' %>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">DATE</label>
+          <div class="form-control form-control-readonly">
+            <%= booking && booking.bookingDateTime ? new Date(booking.bookingDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A' %>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">TIME</label>
+          <div class="form-control form-control-readonly">
+            <%= booking && booking.bookingDateTime ? new Date(booking.bookingDateTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }) : 'N/A' %>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">PRICE</label>
+          <div class="form-control form-control-readonly">
+            <%= Number(booking && booking.pricePerSeat ? booking.pricePerSeat : 0).toLocaleString('en-SG', { style: 'currency', currency: 'SGD' }) %>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">REVENUE</label>
+          <div class="form-control form-control-readonly">
+            <%= Number(booking && booking.revenue ? booking.revenue : 0).toLocaleString('en-SG', { style: 'currency', currency: 'SGD' }) %>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">CUSTOMER</label>
+          <div class="form-control form-control-readonly">
+            <%= booking && booking.customerLabel ? booking.customerLabel : 'N/A' %>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">CONTACT</label>
+          <div class="form-control form-control-readonly">
+            <%= booking && booking.contactLabel ? booking.contactLabel : '' %>
+          </div>
+        </div>
+      </div>
+
+      <div class="movie-detail-actions">
+        <a href="<%= (typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/bookings' %>" class="btn btn-secondary">
+          ← Back to Bookings
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

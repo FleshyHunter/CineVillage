@@ -80,6 +80,169 @@ function toObjectIdSafe(value) {
   return null;
 }
 
+function cloneSeatConfig(seatConfig = {}) {
+  if (!seatConfig || typeof seatConfig !== 'object' || Array.isArray(seatConfig)) {
+    return {};
+  }
+
+  return JSON.parse(JSON.stringify(seatConfig));
+}
+
+function buildRowLabels(rows) {
+  return Array.from({ length: rows }, (_, index) => String.fromCharCode(65 + index));
+}
+
+function buildColumnLabels(columns) {
+  return Array.from({ length: columns }, (_, index) => `${index + 1}`);
+}
+
+function normalizeSnapshotAisles(aisleColumns = [], totalColumns = 0) {
+  if (!Array.isArray(aisleColumns)) return [];
+
+  return aisleColumns
+    .map((column) => parseInt(column, 10))
+    .filter((column) => Number.isInteger(column) && column >= 0)
+    .filter((column, index, array) => array.indexOf(column) === index)
+    .filter((column) => totalColumns <= 0 || column < totalColumns)
+    .sort((a, b) => a - b);
+}
+
+function buildHallSnapshot(hall) {
+  if (!hall) return null;
+
+  const rows = Number.parseInt(hall.rows, 10) || 0;
+  const columns = Number.parseInt(hall.columns, 10) || 0;
+  const wingColumns = Number.parseInt(hall.wingColumns, 10) || 0;
+
+  return {
+    originalHallId: toObjectIdSafe(hall._id),
+    hallName: hall.name || '',
+    hallType: hall.type || 'Standard',
+    rows,
+    columns,
+    capacity: Number.parseInt(hall.capacity, 10) || 0,
+    wingColumns,
+    aisleColumns: normalizeSnapshotAisles(hall.aisleColumns, columns),
+    rowLabels: buildRowLabels(rows),
+    columnLabels: buildColumnLabels(columns),
+    seatConfig: cloneSeatConfig(hall.seatConfig),
+    capturedAt: new Date()
+  };
+}
+
+function isDraftStatus(status) {
+  return (status || '').toString() === 'draft';
+}
+
+function isStructureLockedStatus(status) {
+  return !isDraftStatus(status);
+}
+
+function getScreeningHallPresentation(screening, liveHall = null) {
+  if (screening?.hallSnapshot) {
+    return {
+      _id: screening.hallSnapshot.originalHallId || toObjectIdSafe(screening.hallId),
+      name: screening.hallSnapshot.hallName || 'Unknown Hall',
+      type: screening.hallSnapshot.hallType || 'Standard',
+      rows: screening.hallSnapshot.rows || 0,
+      columns: screening.hallSnapshot.columns || 0,
+      wingColumns: screening.hallSnapshot.wingColumns || 0,
+      aisleColumns: Array.isArray(screening.hallSnapshot.aisleColumns) ? screening.hallSnapshot.aisleColumns : [],
+      seatConfig: cloneSeatConfig(screening.hallSnapshot.seatConfig),
+      capacity: screening.hallSnapshot.capacity || 0
+    };
+  }
+
+  if (!liveHall) return null;
+
+  return {
+    _id: liveHall._id,
+    name: liveHall.name || 'Unknown Hall',
+    type: liveHall.type || 'Standard',
+    rows: Number.parseInt(liveHall.rows, 10) || 0,
+    columns: Number.parseInt(liveHall.columns, 10) || 0,
+    wingColumns: Number.parseInt(liveHall.wingColumns, 10) || 0,
+    aisleColumns: Array.isArray(liveHall.aisleColumns) ? liveHall.aisleColumns : [],
+    seatConfig: cloneSeatConfig(liveHall.seatConfig),
+    capacity: Number.parseInt(liveHall.capacity, 10) || 0
+  };
+}
+
+function assertPublishedStructureNotChanged(existingScreening, screeningData) {
+  if (!isStructureLockedStatus(existingScreening?.status)) return;
+
+  if (Object.prototype.hasOwnProperty.call(screeningData, 'hallSnapshot')) {
+    throw new Error("Published screenings cannot change hallSnapshot.");
+  }
+
+  if (screeningData.hallId) {
+    const nextHallId = toObjectIdSafe(screeningData.hallId);
+    const currentHallId = toObjectIdSafe(existingScreening.hallId);
+
+    if (!nextHallId || !currentHallId || nextHallId.toString() !== currentHallId.toString()) {
+      throw new Error("Published screenings cannot change hallId.");
+    }
+  }
+}
+
+async function validateLaunchableScreening(screening) {
+  const collectionMovie = getCollectionMovie();
+  const collectionHall = getCollectionHall();
+
+  const movieId = toObjectIdSafe(screening.movieId);
+  const hallId = toObjectIdSafe(screening.hallId);
+
+  if (!movieId) {
+    throw new Error("Draft screening is missing movieId.");
+  }
+
+  if (!hallId) {
+    throw new Error("Draft screening is missing hallId.");
+  }
+
+  if (!screening.hallSnapshot) {
+    throw new Error("Draft screening is missing hallSnapshot.");
+  }
+
+  if (!screening.startDateTime || !screening.endDateTime) {
+    throw new Error("Draft screening is missing screening time details.");
+  }
+
+  const [movie, hall] = await Promise.all([
+    collectionMovie.findOne({ _id: movieId }),
+    collectionHall.findOne({ _id: hallId })
+  ]);
+
+  if (!movie) {
+    throw new Error("Movie not found.");
+  }
+
+  if (!hall) {
+    throw new Error("Hall not found.");
+  }
+
+  const startDateTime = new Date(screening.startDateTime);
+  const endDateTime = new Date(screening.endDateTime);
+
+  const maintenanceWindow = getMaintenanceWindow(hall);
+  if (hall.status === 'Under Maintenance') {
+    if (!maintenanceWindow) {
+      throw new Error(`Hall ${hall.name} is under maintenance. Choose another hall or time.`);
+    }
+
+    if (hasTimeConflict(startDateTime, endDateTime, maintenanceWindow.start, maintenanceWindow.end)) {
+      throw new Error(`Hall ${hall.name} is under maintenance from ${maintenanceWindow.startDate} to ${maintenanceWindow.endDate}. Please pick another time or hall.`);
+    }
+  }
+
+  const conflictCheck = await checkSchedulingConflict(hallId, startDateTime, endDateTime, screening._id);
+  if (conflictCheck.hasConflict) {
+    throw new Error("Time slot conflict: This hall is already booked for the selected time");
+  }
+
+  return { movie, hall };
+}
+
 // Check for scheduling conflicts
 async function checkSchedulingConflict(hallId, startDateTime, endDateTime, excludeScreeningId = null) {
   await initDBIfNecessary();
@@ -155,23 +318,10 @@ async function createScreening(screeningData) {
     throw new Error("Hall not found");
   }
 
+  screeningData.hallSnapshot = buildHallSnapshot(hall);
+
   // Calculate end time with duration + buffer, rounded to 15-min
   screeningData.endDateTime = calculateEndTime(screeningData.startDateTime, movie.duration);
-
-  // Auto-determine status based on time
-  const now = new Date();
-  if (now < screeningData.startDateTime) {
-    screeningData.status = 'scheduled';
-  } else if (now >= screeningData.startDateTime && now < screeningData.endDateTime) {
-    screeningData.status = 'ongoing';
-  } else {
-    screeningData.status = 'completed';
-  }
-
-  // If this screening overlaps hall maintenance, mark as paused.
-  if (doesScreeningOverlapMaintenance(hall, screeningData.startDateTime, screeningData.endDateTime)) {
-    screeningData.status = 'paused';
-  }
 
   // Hard-stop if hall maintenance overlaps the requested slot.
   const maintenanceWindow = getMaintenanceWindow(hall);
@@ -203,6 +353,7 @@ async function createScreening(screeningData) {
 
   // Initialize empty bookedSeats object
   screeningData.bookedSeats = {};
+  screeningData.status = 'draft';
   
   // Remove temporary fields used for form input
   delete screeningData.date;
@@ -239,6 +390,10 @@ async function updateScreeningStatuses() {
   
   for (let screening of allScreenings) {
     let newStatus = screening.status;
+
+    if (isDraftStatus(screening.status)) {
+      continue;
+    }
     
     const startTime = new Date(screening.startDateTime);
     const endTime = new Date(screening.endDateTime);
@@ -290,8 +445,8 @@ async function getAllScreenings(req, res) {
   // Fetch all screenings
   const allScreenings = await collectionScreening.find({}).toArray();
   
-  // Filter for active screenings (scheduled/ongoing) - for All, Movie, Hall, Date views
-  const screenings = allScreenings.filter(s => ['scheduled', 'ongoing', 'paused'].includes(s.status));
+  // Include drafts in the admin "all screenings" listing.
+  const screenings = allScreenings.filter(s => ['draft', 'scheduled', 'ongoing', 'paused'].includes(s.status));
   
   // Populate movie and hall details for active screenings
   for (let screening of screenings) {
@@ -304,7 +459,8 @@ async function getAllScreenings(req, res) {
     if (screening.hallId) {
       const hallId = toObjectIdSafe(screening.hallId);
       if (hallId) {
-        screening.hallId = await collectionHall.findOne({ _id: hallId });
+        const liveHall = await collectionHall.findOne({ _id: hallId });
+        screening.hallId = getScreeningHallPresentation(screening, liveHall);
       }
     }
   }
@@ -385,7 +541,12 @@ async function getAllScreenings(req, res) {
     
     const byHallType = {};
     movieScreenings.forEach(screening => {
-      const hallInfo = hallMap[screening.hallId.toString()];
+      const hallInfo = screening.hallSnapshot
+        ? {
+            name: screening.hallSnapshot.hallName || 'Unknown Hall',
+            type: screening.hallSnapshot.hallType || 'Standard'
+          }
+        : hallMap[screening.hallId.toString()];
       if (hallInfo) {
         if (!byHallType[hallInfo.type]) {
           byHallType[hallInfo.type] = [];
@@ -428,7 +589,8 @@ async function getAllScreenings(req, res) {
     if (screening.hallId) {
       const hallId = toObjectIdSafe(screening.hallId);
       if (hallId) {
-        screening.hallId = await collectionHall.findOne({ _id: hallId });
+        const liveHall = await collectionHall.findOne({ _id: hallId });
+        screening.hallId = getScreeningHallPresentation(screening, liveHall);
       }
     }
   }
@@ -444,7 +606,8 @@ async function getAllScreenings(req, res) {
     if (screening.hallId) {
       const hallId = toObjectIdSafe(screening.hallId);
       if (hallId) {
-        screening.hallId = await collectionHall.findOne({ _id: hallId });
+        const liveHall = await collectionHall.findOne({ _id: hallId });
+        screening.hallId = getScreeningHallPresentation(screening, liveHall);
       }
     }
   }
@@ -479,6 +642,14 @@ async function getScreeningById(screeningId) {
 async function updateScreening(id, screeningData) {
   await initDBIfNecessary();
   const collectionHall = getCollectionHall();
+  const collectionScreening = getCollectionScreening();
+  const existingScreening = await collectionScreening.findOne({ _id: new ObjectId(id) });
+
+  if (!existingScreening) {
+    throw new Error("Screening not found");
+  }
+
+  assertPublishedStructureNotChanged(existingScreening, screeningData);
 
   // Convert IDs to ObjectId
   if (screeningData.movieId) {
@@ -517,21 +688,31 @@ async function updateScreening(id, screeningData) {
     throw new Error("Hall not found");
   }
 
+  if (isDraftStatus(existingScreening.status)) {
+    screeningData.hallSnapshot = buildHallSnapshot(hall);
+  } else {
+    screeningData.hallId = existingScreening.hallId;
+    screeningData.hallSnapshot = existingScreening.hallSnapshot || buildHallSnapshot(hall);
+  }
+
   // Calculate end time with duration + buffer, rounded to 15-min
   screeningData.endDateTime = calculateEndTime(screeningData.startDateTime, movie.duration);
 
-  // Auto-determine status based on time
-  const now = new Date();
-  if (now < screeningData.startDateTime) {
-    screeningData.status = 'scheduled';
-  } else if (now >= screeningData.startDateTime && now < screeningData.endDateTime) {
-    screeningData.status = 'ongoing';
+  if (isDraftStatus(existingScreening.status)) {
+    screeningData.status = 'draft';
   } else {
-    screeningData.status = 'completed';
-  }
+    const now = new Date();
+    if (now < screeningData.startDateTime) {
+      screeningData.status = 'scheduled';
+    } else if (now >= screeningData.startDateTime && now < screeningData.endDateTime) {
+      screeningData.status = 'ongoing';
+    } else {
+      screeningData.status = 'completed';
+    }
 
-  if (doesScreeningOverlapMaintenance(hall, screeningData.startDateTime, screeningData.endDateTime)) {
-    screeningData.status = 'paused';
+    if (doesScreeningOverlapMaintenance(hall, screeningData.startDateTime, screeningData.endDateTime)) {
+      screeningData.status = 'paused';
+    }
   }
 
   // Hard-stop if hall maintenance overlaps the requested slot.
@@ -567,8 +748,6 @@ async function updateScreening(id, screeningData) {
   delete screeningData.date;
   delete screeningData.startTime;
 
-  const collectionScreening = getCollectionScreening();
-
   await collectionScreening.updateOne(
     { _id: new ObjectId(id) },
     { $set: screeningData }
@@ -580,7 +759,48 @@ async function deleteScreening(id) {
   if (!ObjectId.isValid(id)) throw new Error("Invalid screening ID");
 
   const collectionScreening = getCollectionScreening();
+  const existingScreening = await collectionScreening.findOne({ _id: new ObjectId(id) });
+
+  if (!existingScreening) {
+    throw new Error("Screening not found");
+  }
+
+  if (!isDraftStatus(existingScreening.status)) {
+    throw new Error("Only draft screenings can be deleted.");
+  }
+
   await collectionScreening.deleteOne({ _id: new ObjectId(id) });
+}
+
+async function launchScreening(id) {
+  await initDBIfNecessary();
+
+  if (!ObjectId.isValid(id)) {
+    throw new Error("Invalid screening ID");
+  }
+
+  const collectionScreening = getCollectionScreening();
+  const screening = await collectionScreening.findOne({ _id: new ObjectId(id) });
+
+  if (!screening) {
+    throw new Error("Screening not found");
+  }
+
+  if (!isDraftStatus(screening.status)) {
+    throw new Error("Only draft screenings can be launched.");
+  }
+
+  await validateLaunchableScreening(screening);
+
+  await collectionScreening.updateOne(
+    { _id: screening._id },
+    {
+      $set: {
+        status: 'scheduled',
+        launchedAt: new Date()
+      }
+    }
+  );
 }
 
 // Pause all screenings in a hall that overlap its maintenance window
@@ -805,7 +1025,7 @@ async function getMovieScreenings(req, res) {
       
       groupedByDate[dateKey].push({
         time: screening.startDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
-        hallName: hallMap[screening.hallId.toString()] || 'Unknown Hall',
+        hallName: screening.hallSnapshot?.hallName || hallMap[screening.hallId.toString()] || 'Unknown Hall',
         screeningId: screening._id,
         status: screening.status || 'scheduled'
       });
@@ -828,6 +1048,7 @@ module.exports = {
   getScreeningById,
   updateScreening,
   deleteScreening,
+  launchScreening,
   pauseScreeningsForHallMaintenance,
   getHallSchedule,
   getHallSchedulePage,

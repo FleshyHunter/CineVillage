@@ -134,6 +134,35 @@
   z-index: 1;
 }
 
+.sidebar-nav-group-main {
+  margin-bottom: 16px;
+}
+
+.sidebar-nav-group-management {
+  margin-bottom: 70px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar-nav-group-management-links {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.sidebar-nav-group-management-links::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav-group-management-links::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
 .sidebar-nav-label {
   color: #cbd5e1;
   font-size: 11px;
@@ -141,6 +170,10 @@
   letter-spacing: 1.2px;
   text-transform: uppercase;
   margin: 0 6px 8px;
+}
+
+.sidebar-nav-label-main {
+  color: #cbd5e1;
 }
 
 .sidebar-nav-label-management {
@@ -166,6 +199,29 @@
 .sidebar-link i {
   font-size: 15px;
   width: 18px;
+}
+
+.sidebar-icon-combo {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+.sidebar-icon-combo-main {
+  font-size: 15px;
+}
+
+.sidebar-icon-combo-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -4px;
+  font-size: 9px;
+  color: #60a5fa;
+  background: #0f172a;
+  border-radius: 999px;
+  line-height: 1;
 }
 
 .sidebar-link:hover {

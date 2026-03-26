@@ -139,8 +139,7 @@
     <%= hall.rows || 0 %>,
     <%= hall.columns || 0 %>,
     <%= hall.wingColumns || 0 %>,
-    <%- hall.seatConfig ? JSON.stringify(hall.seatConfig) : '{}' %>,
-    <%- hall.aisleColumns ? JSON.stringify(hall.aisleColumns) : '[]' %>
+    <%- hall.seatConfig ? JSON.stringify(hall.seatConfig) : '{}' %>
   );
 </script>
 

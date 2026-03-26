@@ -1,7 +1,6 @@
 // Hall Form Seat Layout Builder
 let currentEditMode = 'normal';
 let seatData = {};
-let aisleColumns = new Set();
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,7 +12,6 @@ function initializeHallForm() {
   document.getElementById('normalBtn').addEventListener('click', () => setEditMode('normal'));
   document.getElementById('removeBtn').addEventListener('click', () => setEditMode('removed'));
   document.getElementById('wheelchairBtn').addEventListener('click', () => setEditMode('wheelchair'));
-  document.getElementById('aisleBtn').addEventListener('click', () => setEditMode('aisle'));
 
   // Regenerate seats when layout inputs change
   document.getElementById('rows').addEventListener('input', generateSeats);
@@ -58,7 +56,6 @@ function initializeHallForm() {
     const rows = Math.min((parseInt(document.getElementById('rows').value, 10) || 0), 20);
     const columns = Math.min((parseInt(document.getElementById('columns').value, 10) || 0), 17);
     sanitizeSeatData(rows, columns);
-    document.getElementById('aisleColumns').value = JSON.stringify([...aisleColumns].sort((a, b) => a - b));
     document.getElementById('seatConfig').value = JSON.stringify(seatData);
   });
 
@@ -164,24 +161,11 @@ function setEditMode(mode) {
   const btnIdMap = {
     normal: 'normalBtn',
     removed: 'removeBtn',
-    wheelchair: 'wheelchairBtn',
-    aisle: 'aisleBtn'
+    wheelchair: 'wheelchairBtn'
   };
 
   const activeButton = document.getElementById(btnIdMap[mode]);
   if (activeButton) activeButton.classList.add('active');
-
-  renderColumnMarkers();
-}
-
-function getAisleColumns() {
-  return aisleColumns;
-}
-
-function clearSeatStatesForColumn(column, rows) {
-  for (let row = 0; row < rows; row += 1) {
-    delete seatData[`${row}-${column}`];
-  }
 }
 
 function sanitizeSeatData(rows, columns) {
@@ -195,33 +179,13 @@ function sanitizeSeatData(rows, columns) {
     if (!Number.isInteger(row) || !Number.isInteger(col)) return;
     if (row < 0 || row >= rows || col < 0 || col >= columns) return;
 
-    if (aisleColumns.has(col)) return;
-
     sanitized[key] = value;
   });
 
-  aisleColumns = new Set(
-    [...aisleColumns]
-      .filter((column) => Number.isInteger(column) && column >= 0 && column < columns)
-      .sort((a, b) => a - b)
-  );
   seatData = sanitized;
 }
 
-function toggleAisleColumn(column) {
-  const rows = Math.min((parseInt(document.getElementById('rows').value, 10) || 0), 20);
-
-  if (aisleColumns.has(column)) {
-    aisleColumns.delete(column);
-  } else {
-    aisleColumns.add(column);
-    clearSeatStatesForColumn(column, rows);
-  }
-
-  generateSeats();
-}
-
-function shouldInsertWingLaneAfterColumn(column, columns, wingColumns, aisleColumns) {
+function shouldInsertWingLaneAfterColumn(column, columns, wingColumns) {
   if (wingColumns <= 0 || wingColumns >= columns) return false;
 
   const leftBoundaryColumn = wingColumns - 1;
@@ -233,7 +197,6 @@ function shouldInsertWingLaneAfterColumn(column, columns, wingColumns, aisleColu
   }
 
   if (nextColumn >= columns) return false;
-  if (aisleColumns.has(column) || aisleColumns.has(nextColumn)) return false;
 
   return true;
 }
@@ -244,57 +207,12 @@ function createLaneElement() {
   return lane;
 }
 
-function renderColumnMarkers() {
-  const markerGrid = document.getElementById('columnMarkerGrid');
-  if (!markerGrid) return;
-
-  const columns = Math.min((parseInt(document.getElementById('columns').value, 10) || 0), 17);
-  markerGrid.innerHTML = '';
-
-  if (columns === 0) {
-    const empty = document.createElement('span');
-    empty.className = 'seat-column-editor-note';
-    empty.textContent = 'Enter columns to mark aisle columns.';
-    markerGrid.appendChild(empty);
-    return;
-  }
-
-  const activeAisleColumns = getAisleColumns();
-
-  for (let col = 0; col < columns; col += 1) {
-    const marker = document.createElement('button');
-    marker.type = 'button';
-    marker.className = 'seat-column-marker';
-    marker.textContent = col + 1;
-    marker.disabled = currentEditMode !== 'aisle';
-
-    if (currentEditMode === 'aisle') {
-      marker.classList.add('is-editable');
-    }
-
-    if (activeAisleColumns.has(col)) {
-      marker.classList.add('is-active');
-      marker.setAttribute('aria-pressed', 'true');
-    } else {
-      marker.setAttribute('aria-pressed', 'false');
-    }
-
-    marker.addEventListener('click', () => {
-      if (currentEditMode !== 'aisle') return;
-      toggleAisleColumn(col);
-    });
-
-    markerGrid.appendChild(marker);
-  }
-}
-
 function generateSeats() {
   const rows = Math.min((parseInt(document.getElementById('rows').value, 10) || 0), 20);
   const columns = Math.min((parseInt(document.getElementById('columns').value, 10) || 0), 17);
   const wingColumns = parseInt(document.getElementById('wingColumns').value, 10) || 0;
 
   sanitizeSeatData(rows, columns);
-  renderColumnMarkers();
 
   if (rows === 0 || columns === 0) {
     document.getElementById('seatGrid').innerHTML = '<p style="color: var(--text-muted); text-align: center;">Enter rows and columns to see layout preview</p>';
@@ -302,7 +220,6 @@ function generateSeats() {
     return;
   }
 
-  const activeAisleColumns = getAisleColumns();
   const seatGrid = document.getElementById('seatGrid');
   seatGrid.innerHTML = '';
 
@@ -316,13 +233,9 @@ function generateSeats() {
     rowDiv.appendChild(rowLabel);
 
     for (let col = 0; col < columns; col += 1) {
-      if (activeAisleColumns.has(col)) {
-        rowDiv.appendChild(createLaneElement());
-      } else {
-        rowDiv.appendChild(createSeat(row, col));
-      }
+      rowDiv.appendChild(createSeat(row, col));
 
-      if (shouldInsertWingLaneAfterColumn(col, columns, wingColumns, activeAisleColumns)) {
+      if (shouldInsertWingLaneAfterColumn(col, columns, wingColumns)) {
         rowDiv.appendChild(createLaneElement());
       }
     }
@@ -353,10 +266,6 @@ function createSeat(row, col) {
   seat.addEventListener('click', () => {
     const key = `${row}-${col}`;
     const currentState = seatData[key] || 'normal';
-
-    if (currentEditMode === 'aisle') {
-      return;
-    }
 
     if (currentState === currentEditMode) {
       seatData[key] = 'normal';
@@ -389,24 +298,17 @@ function updateCapacity() {
   const totalSeats = rows * columns;
 
   let removedCount = 0;
-  Object.entries(seatData).forEach(([key, state]) => {
-    if (key.startsWith(AISLE_COLUMN_PREFIX)) return;
+  Object.values(seatData).forEach((state) => {
     if (state === 'removed') removedCount += 1;
   });
 
-  const aisleCount = getAisleColumns().size * rows;
-  const capacity = totalSeats - removedCount - aisleCount;
+  const capacity = totalSeats - removedCount;
   document.getElementById('capacity').value = Math.max(capacity, 0);
 }
 
 // Function to load existing seat data when editing
-function loadSeatData(data, existingAisleColumns = []) {
+function loadSeatData(data) {
   seatData = data || {};
-  aisleColumns = new Set(
-    (Array.isArray(existingAisleColumns) ? existingAisleColumns : [])
-      .map((column) => Number.parseInt(column, 10))
-      .filter((column) => Number.isInteger(column) && column >= 0)
-  );
   setTimeout(generateSeats, 100);
 }
 

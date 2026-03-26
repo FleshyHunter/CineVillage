@@ -220,7 +220,8 @@
               <label for="status" style="color: var(--text-muted); font-size: 11px; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px; display: block;">STATUS *</label>
               <select id="status" name="status" class="form-control" required>
                 <option value="">Select Status</option>
-                <option value="scheduled" <%= !screening || screening.status === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
+                <option value="draft" <%= !screening || screening.status === 'draft' ? 'selected' : '' %>>Draft</option>
+                <option value="scheduled" <%= screening && screening.status === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
                 <option value="ongoing" <%= screening && screening.status === 'ongoing' ? 'selected' : '' %>>Ongoing</option>
                 <% if (screening && screening.status === 'paused') { %>
                   <option value="paused" selected disabled>Paused (Hall Maintenance)</option>
@@ -230,7 +231,7 @@
                 <% } %>
               </select>
               <small style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block;">
-                Status is automatically updated based on screening time
+                Screenings are created as draft and become scheduled only when launched
               </small>
             </div>
           </div>

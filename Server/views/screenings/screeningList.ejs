@@ -261,7 +261,8 @@
                                 <td>$<%= screening.price ? screening.price.toFixed(2) : '0.00' %></td>
                                 <td>
                                     <span class="badge" style="
-                                        background-color: <%= screening.status === 'scheduled' ? '#3b82f6' : 
+                                        background-color: <%= screening.status === 'draft' ? '#f59e0b' :
+                                                            screening.status === 'scheduled' ? '#3b82f6' : 
                                                             screening.status === 'ongoing' ? '#22c55e' : 
                                                             screening.status === 'paused' ? '#f59e0b' :
                                                             screening.status === 'completed' ? '#6b7280' :
@@ -466,7 +467,8 @@
                                 <td>$<%= screening.price ? screening.price.toFixed(2) : '0.00' %></td>
                                 <td>
                                     <span class="badge" style="
-                                        background-color: <%= screening.status === 'scheduled' ? '#3b82f6' : 
+                                        background-color: <%= screening.status === 'draft' ? '#f59e0b' :
+                                                            screening.status === 'scheduled' ? '#3b82f6' : 
                                                             screening.status === 'ongoing' ? '#22c55e' : 
                                                             screening.status === 'paused' ? '#f59e0b' :
                                                             screening.status === 'completed' ? '#6b7280' :

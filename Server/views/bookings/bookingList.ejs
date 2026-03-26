@@ -1,0 +1,147 @@
+<%- include('../layouts/header') %>
+
+<div class="container">
+  <h2 style="margin-bottom: 20px;">Bookings</h2>
+
+  <div class="movie-filters" style="margin-bottom: 20px;">
+    <button class="filter-btn active" type="button">
+      <i class="bi bi-list-ul"></i> All
+    </button>
+  </div>
+
+  <div class="search-filter-bar">
+    <div class="search-controls">
+      <div class="search-box">
+        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+        </svg>
+        <input
+          type="text"
+          id="bookingSearchInput"
+          class="search-input"
+          placeholder="Search movie..."
+        >
+      </div>
+
+      <div class="filter-dropdown" style="max-width: 240px;">
+        <select id="bookingSortFilter" class="filter-select">
+          <option value="latest">Sort By: Latest First</option>
+          <option value="earliest">Sort By: Earliest First</option>
+          <option value="revenueHigh">Sort By: Revenue (High-Low)</option>
+          <option value="revenueLow">Sort By: Revenue (Low-High)</option>
+          <option value="qtyHigh">Sort By: Qty (High-Low)</option>
+          <option value="qtyLow">Sort By: Qty (Low-High)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="view-section" style="display: block;">
+    <% if (bookings && bookings.length > 0) { %>
+      <div class="table-responsive">
+        <table class="table table-dark table-hover">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Movie Name</th>
+              <th>Qty</th>
+              <th>Revenue</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bookingTableBody">
+            <% bookings.forEach((booking) => { %>
+              <% const bookingDate = booking.bookingDateTime ? new Date(booking.bookingDateTime) : null; %>
+              <tr
+                data-movie="<%= (booking.movieName || '').toLowerCase() %>"
+                data-time="<%= bookingDate ? bookingDate.getTime() : 0 %>"
+                data-revenue="<%= Number(booking.revenue || 0) %>"
+                data-qty="<%= Number(booking.qty || 0) %>"
+              >
+                <td>
+                  <% if (bookingDate) { %>
+                    <%= bookingDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) %>
+                  <% } else { %>
+                    N/A
+                  <% } %>
+                </td>
+                <td>
+                  <% if (bookingDate) { %>
+                    <%= bookingDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }) %>
+                  <% } else { %>
+                    N/A
+                  <% } %>
+                </td>
+                <td><%= booking.movieName || 'N/A' %></td>
+                <td><%= booking.qty || 0 %></td>
+                <td>
+                  <%= Number(booking.revenue || 0).toLocaleString('en-SG', { style: 'currency', currency: 'SGD' }) %>
+                </td>
+                <td>
+                  <a href="/bookings/view/<%= booking._id %>?returnTo=<%= encodeURIComponent('/bookings') %>" class="btn btn-sm btn-secondary">
+                    View
+                  </a>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } else { %>
+      <div class="text-center py-5" style="background-color: #1e293b; border-radius: 8px;">
+        <i class="bi bi-ticket-perforated" style="font-size: 3rem; color: #64748b;"></i>
+        <h4 style="margin-top: 20px;">No bookings found</h4>
+        <p>No booking records are available yet.</p>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const tableBody = document.getElementById("bookingTableBody");
+    if (!tableBody) return;
+
+    const searchInput = document.getElementById("bookingSearchInput");
+    const sortFilter = document.getElementById("bookingSortFilter");
+    const rows = Array.from(tableBody.querySelectorAll("tr"));
+
+    function applyFiltersAndSort() {
+      const term = (searchInput?.value || "").trim().toLowerCase();
+      const sortValue = sortFilter?.value || "latest";
+
+      const visibleRows = rows.filter((row) => {
+        const movieName = row.dataset.movie || "";
+        const isVisible = !term || movieName.includes(term);
+        row.style.display = isVisible ? "" : "none";
+        return isVisible;
+      });
+
+      const sorted = [...visibleRows].sort((a, b) => {
+        const timeA = Number(a.dataset.time || 0);
+        const timeB = Number(b.dataset.time || 0);
+        const qtyA = Number(a.dataset.qty || 0);
+        const qtyB = Number(b.dataset.qty || 0);
+        const revA = Number(a.dataset.revenue || 0);
+        const revB = Number(b.dataset.revenue || 0);
+
+        if (sortValue === "earliest") return timeA - timeB;
+        if (sortValue === "revenueHigh") return revB - revA;
+        if (sortValue === "revenueLow") return revA - revB;
+        if (sortValue === "qtyHigh") return qtyB - qtyA;
+        if (sortValue === "qtyLow") return qtyA - qtyB;
+        return timeB - timeA;
+      });
+
+      sorted.forEach((row) => tableBody.appendChild(row));
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener("input", applyFiltersAndSort);
+    }
+    if (sortFilter) {
+      sortFilter.addEventListener("change", applyFiltersAndSort);
+    }
+  })();
+</script>

@@ -12,6 +12,38 @@ function serializeSeatConfig(seatConfig) {
   return seatConfig;
 }
 
+function buildSnapshotHallPayload(screening, liveHall) {
+  if (screening?.hallSnapshot) {
+    return {
+      _id: screening.hallSnapshot.originalHallId
+        ? screening.hallSnapshot.originalHallId.toString()
+        : (screening.hallId ? screening.hallId.toString() : ""),
+      name: screening.hallSnapshot.hallName || "Unknown Hall",
+      type: screening.hallSnapshot.hallType || "Standard",
+      rows: Number.parseInt(screening.hallSnapshot.rows, 10) || 0,
+      columns: Number.parseInt(screening.hallSnapshot.columns, 10) || 0,
+      wingColumns: Number.parseInt(screening.hallSnapshot.wingColumns, 10) || 0,
+      aisleColumns: Array.isArray(screening.hallSnapshot.aisleColumns) ? screening.hallSnapshot.aisleColumns : [],
+      seatConfig: serializeSeatConfig(screening.hallSnapshot.seatConfig),
+      capacity: Number.parseInt(screening.hallSnapshot.capacity, 10) || 0
+    };
+  }
+
+  if (!liveHall) return null;
+
+  return {
+    _id: liveHall._id.toString(),
+    name: liveHall.name || "Unknown Hall",
+    type: liveHall.type || "Standard",
+    rows: Number.parseInt(liveHall.rows, 10) || 0,
+    columns: Number.parseInt(liveHall.columns, 10) || 0,
+    wingColumns: Number.parseInt(liveHall.wingColumns, 10) || 0,
+    aisleColumns: Array.isArray(liveHall.aisleColumns) ? liveHall.aisleColumns : [],
+    seatConfig: serializeSeatConfig(liveHall.seatConfig),
+    capacity: Number.parseInt(liveHall.capacity, 10) || 0
+  };
+}
+
 async function getScreeningSeatPreview(req, res) {
   try {
     const { id } = req.params;
@@ -34,11 +66,11 @@ async function getScreeningSeatPreview(req, res) {
     }
 
     const [hall, movie] = await Promise.all([
-      collectionHall.findOne({ _id: screening.hallId }),
+      screening.hallSnapshot ? Promise.resolve(null) : collectionHall.findOne({ _id: screening.hallId }),
       collectionMovie.findOne({ _id: screening.movieId })
     ]);
 
-    if (!hall) {
+    if (!screening.hallSnapshot && !hall) {
       return res.status(404).json({ error: "Hall not found for screening" });
     }
 
@@ -70,17 +102,7 @@ async function getScreeningSeatPreview(req, res) {
           name: movie?.name || "Untitled Movie",
           ageRestriction: movie?.ageRestriction || "NR"
         },
-        hall: {
-          _id: hall._id.toString(),
-          name: hall.name || "Unknown Hall",
-          type: hall.type || "Standard",
-          rows: Number.parseInt(hall.rows, 10) || 0,
-          columns: Number.parseInt(hall.columns, 10) || 0,
-          wingColumns: Number.parseInt(hall.wingColumns, 10) || 0,
-          aisleColumns: Array.isArray(hall.aisleColumns) ? hall.aisleColumns : [],
-          seatConfig: serializeSeatConfig(hall.seatConfig),
-          capacity: Number.parseInt(hall.capacity, 10) || 0
-        }
+        hall: buildSnapshotHallPayload(screening, hall)
       }
     });
   } catch (error) {
