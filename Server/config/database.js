@@ -199,12 +199,21 @@ function getSeatReservationValidator() {
                 screeningId: {
                     bsonType: "objectId"
                 },
+                bookingId: {
+                    bsonType: ["objectId", "null"]
+                },
                 seat: {
                     bsonType: "string",
                     minLength: 2
                 },
+                expiresAt: {
+                    bsonType: ["date", "null"]
+                },
                 createdAt: {
                     bsonType: "date"
+                },
+                updatedAt: {
+                    bsonType: ["date", "null"]
                 }
             }
         }
@@ -245,6 +254,16 @@ async function ensureSeatReservationIndexes() {
     await collectionSeatReservation.createIndex(
         { screeningId: 1, createdAt: -1 },
         { name: "idx_seat_reservation_screening_createdAt" }
+    );
+
+    await collectionSeatReservation.createIndex(
+        { bookingId: 1 },
+        { name: "idx_seat_reservation_booking" }
+    );
+
+    await collectionSeatReservation.createIndex(
+        { expiresAt: 1 },
+        { name: "idx_seat_reservation_expiresAt" }
     );
 }
 

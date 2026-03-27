@@ -119,7 +119,11 @@
                             <!-- Genre tags -->
                             <% if (movie.genre) { %>
                                 <div class="genre-tags">
-                                    <% const genres = Array.isArray(movie.genre) ? movie.genre : [movie.genre]; %>
+                                    <% 
+                                      const genres = (Array.isArray(movie.genre) ? movie.genre : String(movie.genre).split(','))
+                                        .map((genre) => String(genre).trim())
+                                        .filter(Boolean);
+                                    %>
                                     <% genres.forEach(genre => { %>
                                         <span class="genre-tag"><%= genre %></span>
                                     <% }); %>

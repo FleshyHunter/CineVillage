@@ -9,6 +9,8 @@ const {
 
 const BOOKABLE_SCREENING_STATUSES = new Set(["published", "scheduled"]);
 const NON_BOOKABLE_SEAT_STATES = new Set(["removed"]);
+const HOLD_DURATION_MS = 15 * 60 * 1000;
+const HOLD_EXTEND_MS = 5 * 60 * 1000;
 
 function toObjectIdSafe(value) {
   if (!value) return null;
@@ -129,18 +131,19 @@ function buildBookingCode() {
   return `BK-${timePart}-${randomPart}`;
 }
 
-function buildBookingDocument(screening, seatLabels, payload = {}) {
+function buildBookingDocument(screening, seatLabels, payload = {}, now = new Date()) {
   const seatCount = seatLabels.length;
   const pricePerSeat = Number(screening?.price);
   const normalizedPricePerSeat = Number.isFinite(pricePerSeat) ? pricePerSeat : 0;
   const totalAmount = normalizedPricePerSeat * seatCount;
-  const now = new Date();
+  const expiresAt = new Date(now.getTime() + HOLD_DURATION_MS);
 
   const hallId =
     toObjectIdSafe(screening?.hallSnapshot?.originalHallId) ||
     toObjectIdSafe(screening?.hallId);
 
   return {
+    _id: new ObjectId(),
     bookingCode: buildBookingCode(),
     screeningId: toObjectIdSafe(screening?._id),
     movieId: toObjectIdSafe(screening?.movieId),
@@ -150,24 +153,27 @@ function buildBookingDocument(screening, seatLabels, payload = {}) {
     pricePerSeat: normalizedPricePerSeat,
     totalAmount,
     totalPrice: totalAmount,
-    status: "confirmed",
+    status: "pending",
     paymentStatus: "unpaid",
     customerName: sanitizeOptionalString(payload.customerName),
     customerEmail: sanitizeOptionalString(payload.customerEmail, { lowerCase: true }),
     bookedAt: now,
     createdAt: now,
+    expiresAt,
     created: now,
     updated: now
   };
 }
 
-function buildSeatReservationDocuments(screeningId, seatLabels) {
-  const createdAt = new Date();
+function buildSeatReservationDocuments(screeningId, seatLabels, bookingId, expiresAt, createdAt = new Date()) {
 
   return seatLabels.map((seat) => ({
     screeningId,
+    bookingId,
     seat,
-    createdAt
+    expiresAt,
+    createdAt,
+    updatedAt: createdAt
   }));
 }
 
@@ -192,8 +198,61 @@ function serializeBooking(booking) {
     _id: booking._id?.toString(),
     screeningId: booking.screeningId?.toString(),
     movieId: booking.movieId?.toString(),
-    hallId: booking.hallId?.toString()
+    hallId: booking.hallId?.toString(),
+    expiresAt: booking.expiresAt instanceof Date ? booking.expiresAt.toISOString() : booking.expiresAt
   };
+}
+
+async function cleanupExpiredBookingHolds(collectionBooking, collectionSeatReservation) {
+  const now = new Date();
+
+  const expiredHolds = await collectionBooking
+    .find(
+      {
+        status: "pending",
+        expiresAt: { $lte: now }
+      },
+      { projection: { _id: 1 } }
+    )
+    .toArray();
+
+  if (!expiredHolds.length) return;
+
+  const expiredBookingIds = expiredHolds.map((booking) => booking._id);
+
+  await Promise.all([
+    collectionSeatReservation.deleteMany({
+      bookingId: { $in: expiredBookingIds }
+    }),
+    collectionBooking.updateMany(
+      { _id: { $in: expiredBookingIds } },
+      {
+        $set: {
+          status: "expired",
+          updated: now
+        }
+      }
+    )
+  ]);
+}
+
+async function findConflictedSeats(collectionSeatReservation, screeningId, seatLabels) {
+  const now = new Date();
+  const conflicts = await collectionSeatReservation
+    .find(
+      {
+        screeningId,
+        seat: { $in: seatLabels },
+        $or: [
+          { expiresAt: { $gt: now } },
+          { expiresAt: { $exists: false } }
+        ]
+      },
+      { projection: { seat: 1 } }
+    )
+    .toArray();
+
+  return [...new Set(conflicts.map((item) => item.seat))].sort();
 }
 
 async function createBookingWithTransaction({
@@ -209,16 +268,19 @@ async function createBookingWithTransaction({
 
   try {
     await session.withTransaction(async () => {
-      const bookingDocument = buildBookingDocument(screening, seatLabels, payload);
-      const reservationDocuments = buildSeatReservationDocuments(screening._id, seatLabels);
+      const now = new Date();
+      const bookingDocument = buildBookingDocument(screening, seatLabels, payload, now);
+      const reservationDocuments = buildSeatReservationDocuments(
+        screening._id,
+        seatLabels,
+        bookingDocument._id,
+        bookingDocument.expiresAt,
+        now
+      );
 
-      await collectionSeatReservation.insertMany(reservationDocuments, {
-        session,
-        ordered: true
-      });
-
-      const insertResult = await collectionBooking.insertOne(bookingDocument, { session });
-      booking = { ...bookingDocument, _id: insertResult.insertedId };
+      await collectionBooking.insertOne(bookingDocument, { session });
+      await collectionSeatReservation.insertMany(reservationDocuments, { session, ordered: true });
+      booking = bookingDocument;
     });
   } finally {
     await session.endSession();
@@ -234,18 +296,37 @@ async function createBookingWithoutTransaction({
   seatLabels,
   payload
 }) {
-  const reservationDocuments = buildSeatReservationDocuments(screening._id, seatLabels);
-  await collectionSeatReservation.insertMany(reservationDocuments, { ordered: true });
+  const now = new Date();
+  const bookingDocument = buildBookingDocument(screening, seatLabels, payload, now);
+  const reservationDocuments = buildSeatReservationDocuments(
+    screening._id,
+    seatLabels,
+    bookingDocument._id,
+    bookingDocument.expiresAt,
+    now
+  );
+  const insertedReservationSeats = [];
 
   try {
-    const bookingDocument = buildBookingDocument(screening, seatLabels, payload);
-    const insertResult = await collectionBooking.insertOne(bookingDocument);
-    return { ...bookingDocument, _id: insertResult.insertedId };
+    await collectionBooking.insertOne(bookingDocument);
+
+    for (const reservation of reservationDocuments) {
+      await collectionSeatReservation.insertOne(reservation);
+      insertedReservationSeats.push(reservation.seat);
+    }
+
+    return bookingDocument;
   } catch (error) {
-    await collectionSeatReservation.deleteMany({
-      screeningId: screening._id,
-      seat: { $in: seatLabels }
-    });
+    await Promise.all([
+      insertedReservationSeats.length
+        ? collectionSeatReservation.deleteMany({
+            screeningId: screening._id,
+            bookingId: bookingDocument._id,
+            seat: { $in: insertedReservationSeats }
+          })
+        : Promise.resolve(),
+      collectionBooking.deleteOne({ _id: bookingDocument._id })
+    ]);
     throw error;
   }
 }
@@ -257,6 +338,7 @@ async function createBooking(req, res) {
     const collectionScreening = getCollectionScreening();
     const collectionBooking = getCollectionBooking();
     const collectionSeatReservation = getCollectionSeatReservation();
+    await cleanupExpiredBookingHolds(collectionBooking, collectionSeatReservation);
 
     const screeningIdRaw = (req.body?.screeningId || "").toString().trim();
     const requestedSeats = Array.isArray(req.body?.seats) ? req.body.seats : [];
@@ -306,6 +388,14 @@ async function createBooking(req, res) {
       });
     }
 
+    const preConflictedSeats = await findConflictedSeats(collectionSeatReservation, screeningId, seatLabels);
+    if (preConflictedSeats.length) {
+      return res.status(409).json({
+        message: "One or more seats already taken",
+        conflictedSeats: preConflictedSeats
+      });
+    }
+
     let booking = null;
 
     try {
@@ -336,6 +426,28 @@ async function createBooking(req, res) {
     });
   } catch (error) {
     if (isDuplicateKeyError(error)) {
+      const screeningIdRaw = (req.body?.screeningId || "").toString().trim();
+      const requestedSeats = Array.isArray(req.body?.seats) ? req.body.seats : [];
+      const seatLabels = dedupeSeatLabels(requestedSeats);
+
+      if (ObjectId.isValid(screeningIdRaw) && seatLabels.length) {
+        try {
+          await initDBIfNecessary();
+          const conflictedSeats = await findConflictedSeats(
+            getCollectionSeatReservation(),
+            new ObjectId(screeningIdRaw),
+            seatLabels
+          );
+
+          return res.status(409).json({
+            message: "One or more seats already taken",
+            conflictedSeats
+          });
+        } catch (lookupError) {
+          console.error("Error resolving conflicted seats:", lookupError);
+        }
+      }
+
       return res.status(409).json({
         message: "One or more seats already taken"
       });
@@ -348,6 +460,120 @@ async function createBooking(req, res) {
   }
 }
 
+async function releaseBookingHold(req, res) {
+  try {
+    await initDBIfNecessary();
+    const collectionBooking = getCollectionBooking();
+    const collectionSeatReservation = getCollectionSeatReservation();
+    await cleanupExpiredBookingHolds(collectionBooking, collectionSeatReservation);
+
+    const bookingIdRaw = (req.params.id || "").toString().trim();
+    if (!ObjectId.isValid(bookingIdRaw)) {
+      return res.status(400).json({ message: "Invalid booking ID." });
+    }
+
+    const bookingId = new ObjectId(bookingIdRaw);
+    const booking = await collectionBooking.findOne({ _id: bookingId });
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found." });
+    }
+
+    if ((booking.status || "").toLowerCase() !== "pending") {
+      return res.status(200).json({
+        message: "Booking hold already finalized.",
+        booking: serializeBooking(booking)
+      });
+    }
+
+    const now = new Date();
+
+    await Promise.all([
+      collectionSeatReservation.deleteMany({ bookingId }),
+      collectionBooking.updateOne(
+        { _id: bookingId },
+        {
+          $set: {
+            status: "cancelled",
+            updated: now
+          }
+        }
+      )
+    ]);
+
+    const updatedBooking = await collectionBooking.findOne({ _id: bookingId });
+
+    return res.status(200).json({
+      message: "Booking hold released.",
+      booking: serializeBooking(updatedBooking)
+    });
+  } catch (error) {
+    console.error("Error releasing booking hold:", error);
+    return res.status(500).json({ message: "Failed to release booking hold" });
+  }
+}
+
+async function extendBookingHold(req, res) {
+  try {
+    await initDBIfNecessary();
+    const collectionBooking = getCollectionBooking();
+    const collectionSeatReservation = getCollectionSeatReservation();
+    await cleanupExpiredBookingHolds(collectionBooking, collectionSeatReservation);
+
+    const bookingIdRaw = (req.params.id || "").toString().trim();
+    if (!ObjectId.isValid(bookingIdRaw)) {
+      return res.status(400).json({ message: "Invalid booking ID." });
+    }
+
+    const bookingId = new ObjectId(bookingIdRaw);
+    const booking = await collectionBooking.findOne({ _id: bookingId });
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found." });
+    }
+
+    if ((booking.status || "").toLowerCase() !== "pending") {
+      return res.status(409).json({ message: "Only pending booking holds can be extended." });
+    }
+
+    const now = new Date();
+    const bookingExpiresAt = booking.expiresAt instanceof Date ? booking.expiresAt : new Date(booking.expiresAt);
+    const baseTime = Number.isNaN(bookingExpiresAt.getTime()) || bookingExpiresAt < now ? now : bookingExpiresAt;
+    const nextExpiresAt = new Date(baseTime.getTime() + HOLD_EXTEND_MS);
+
+    await Promise.all([
+      collectionBooking.updateOne(
+        { _id: bookingId },
+        {
+          $set: {
+            expiresAt: nextExpiresAt,
+            updated: now
+          }
+        }
+      ),
+      collectionSeatReservation.updateMany(
+        { bookingId },
+        {
+          $set: {
+            expiresAt: nextExpiresAt,
+            updatedAt: now
+          }
+        }
+      )
+    ]);
+
+    const updatedBooking = await collectionBooking.findOne({ _id: bookingId });
+    return res.status(200).json({
+      message: "Booking hold extended.",
+      booking: serializeBooking(updatedBooking)
+    });
+  } catch (error) {
+    console.error("Error extending booking hold:", error);
+    return res.status(500).json({ message: "Failed to extend booking hold" });
+  }
+}
+
 module.exports = {
-  createBooking
+  createBooking,
+  releaseBookingHold,
+  extendBookingHold,
+  cleanupExpiredBookingHolds
 };

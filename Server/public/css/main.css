@@ -209,7 +209,9 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-.sidebar-icon-combo-main {
+}
+
+.sidebar-icon-combo > i.bi-cup-straw {
   font-size: 15px;
 }
 

@@ -4,12 +4,60 @@ const {
   getCollectionPromotion
 } = require("../../config/database");
 
-function serializePromotion(promotion) {
+function normalizeDateString(value) {
+  if (!value) return "";
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const raw = value.toString().trim();
+  if (!raw) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function getTodayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function isPromotionActive(promotion, asOfDate) {
+  const startDate = normalizeDateString(promotion?.promotionStartDate);
+  const endDate = normalizeDateString(promotion?.promotionEndDate);
+  if (!startDate || !endDate) return false;
+
+  return startDate <= asOfDate && asOfDate <= endDate;
+}
+
+function serializePromotion(promotion, asOfDate = getTodayIsoDate()) {
   if (!promotion) return null;
+
+  const startDate = normalizeDateString(promotion.promotionStartDate);
+  const endDate = normalizeDateString(promotion.promotionEndDate);
 
   return {
     ...promotion,
-    _id: String(promotion._id)
+    _id: String(promotion._id),
+    created: promotion.created instanceof Date
+      ? promotion.created.toISOString()
+      : (promotion.created || ""),
+    promotionStartDate: startDate,
+    promotionEndDate: endDate,
+    dateRange: {
+      startDate,
+      endDate,
+      hasRange: Boolean(startDate && endDate)
+    },
+    isActive: isPromotionActive(promotion, asOfDate)
   };
 }
 
@@ -18,6 +66,38 @@ function buildPromotionFilters(query = {}) {
 
   if (query.status) {
     filters.status = query.status.toString().trim();
+  }
+
+  if (query.code) {
+    filters.code = query.code.toString().trim();
+  }
+
+  if (query.q) {
+    const keyword = query.q.toString().trim();
+    if (keyword) {
+      const regex = { $regex: keyword, $options: "i" };
+      filters.$or = [
+        { name: regex },
+        { description: regex },
+        { code: regex }
+      ];
+    }
+  }
+
+  const activeOn = normalizeDateString(query.activeOn);
+  if (activeOn) {
+    filters.promotionStartDate = { ...(filters.promotionStartDate || {}), $lte: activeOn };
+    filters.promotionEndDate = { ...(filters.promotionEndDate || {}), $gte: activeOn };
+  }
+
+  const fromDate = normalizeDateString(query.fromDate);
+  if (fromDate) {
+    filters.promotionEndDate = { ...(filters.promotionEndDate || {}), $gte: fromDate };
+  }
+
+  const toDate = normalizeDateString(query.toDate);
+  if (toDate) {
+    filters.promotionStartDate = { ...(filters.promotionStartDate || {}), $lte: toDate };
   }
 
   return filters;
@@ -37,6 +117,7 @@ async function listPromotions(req, res) {
     await initDBIfNecessary();
 
     const filters = buildPromotionFilters(req.query);
+    const asOfDate = normalizeDateString(req.query.activeOn) || getTodayIsoDate();
     const limit = parseLimit(req.query.limit);
     const collectionPromotion = getCollectionPromotion();
 
@@ -49,11 +130,12 @@ async function listPromotions(req, res) {
       cursor = cursor.limit(limit);
     }
 
-    const items = (await cursor.toArray()).map(serializePromotion);
+    const items = (await cursor.toArray()).map((promotion) => serializePromotion(promotion, asOfDate));
 
     return res.json({
       items,
-      total: items.length
+      total: items.length,
+      asOfDate
     });
   } catch (error) {
     console.error("Error listing promotions:", error);
@@ -63,10 +145,47 @@ async function listPromotions(req, res) {
   }
 }
 
+async function listActivePromotions(req, res) {
+  try {
+    await initDBIfNecessary();
+
+    const asOfDate = normalizeDateString(req.query.activeOn) || getTodayIsoDate();
+    const filters = buildPromotionFilters({
+      ...req.query,
+      activeOn: asOfDate
+    });
+    const limit = parseLimit(req.query.limit);
+    const collectionPromotion = getCollectionPromotion();
+
+    let cursor = collectionPromotion.find(filters).sort({
+      created: -1,
+      _id: -1
+    });
+
+    if (limit > 0) {
+      cursor = cursor.limit(limit);
+    }
+
+    const items = (await cursor.toArray()).map((promotion) => serializePromotion(promotion, asOfDate));
+
+    return res.json({
+      items,
+      total: items.length,
+      asOfDate
+    });
+  } catch (error) {
+    console.error("Error listing active promotions:", error);
+    return res.status(500).json({
+      error: "Failed to fetch active promotions"
+    });
+  }
+}
+
 async function getPromotionById(req, res) {
   try {
     await initDBIfNecessary();
 
+    const asOfDate = normalizeDateString(req.query.activeOn) || getTodayIsoDate();
     const id = (req.params.id || "").toString().trim();
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -86,7 +205,8 @@ async function getPromotionById(req, res) {
     }
 
     return res.json({
-      item: serializePromotion(promotion)
+      item: serializePromotion(promotion, asOfDate),
+      asOfDate
     });
   } catch (error) {
     console.error("Error fetching promotion:", error);
@@ -98,5 +218,6 @@ async function getPromotionById(req, res) {
 
 module.exports = {
   listPromotions,
+  listActivePromotions,
   getPromotionById
 };

@@ -48,7 +48,7 @@
         data-price="<%= Number(addOn.price || 0) %>"
         data-created="<%= addOn.created ? new Date(addOn.created).toISOString() : '' %>"
       >
-        <div class="movie-card card">
+        <div class="movie-card card addon-card">
           <div class="movie-card-img-wrapper">
             <img
               src="<%= addOn.pictureUrl || '/images/placeholder.jpg' %>"
@@ -56,14 +56,10 @@
               class="movie-card-img"
             >
           </div>
-          <div class="movie-card-content">
+          <div class="movie-card-content addon-card-content">
             <div class="movie-name"><%= addOn.name || 'Untitled Add-On' %></div>
             <div class="movie-duration">
-              <i class="bi bi-currency-dollar" style="margin-right: 4px;"></i>
-              <%= Number(addOn.price || 0).toLocaleString('en-SG', { style: 'currency', currency: 'SGD' }) %>
-            </div>
-            <div class="movie-duration">
-              <%= addOn.description || 'No description' %>
+              Price: $<%= Number(addOn.price || 0).toFixed(2) %>
             </div>
           </div>
         </div>

@@ -541,6 +541,47 @@ select.filter-select option {
   align-items: center;
 }
 
+/* Promotion list card: keep same card footprint as movie cards */
+.promotion-card {
+  height: 100%;
+}
+
+.promotion-card-content {
+  min-height: 120px;
+  max-height: 120px;
+  overflow: hidden;
+}
+
+.promotion-date-lines {
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.promotion-date-line {
+  font-size: 0.88rem;
+  line-height: 1.2;
+  color: var(--text-muted);
+}
+
+.promotion-date-label {
+  color: var(--text-main);
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+/* Add-on list card: match movie card fixed footprint */
+.addon-card {
+  height: 100%;
+}
+
+.addon-card-content {
+  min-height: 120px;
+  max-height: 120px;
+  overflow: hidden;
+}
+
 /* Genre tags */
 .genre-tags {
   display: flex;
@@ -733,6 +774,10 @@ select.filter-select option {
   font-size: 15px;
   text-align: center;
   border: none;
+}
+
+.detail-info-actions-bottom .movie-detail-actions {
+  margin-top: auto;
 }
 
 .detail-cover-img {

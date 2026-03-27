@@ -6,13 +6,22 @@
       <img src="<%= promotion.pictureUrl || '/images/placeholder.jpg' %>" alt="<%= promotion.name || 'Promotion' %>">
     </div>
 
-    <div class="movie-detail-info">
+    <div class="movie-detail-info detail-info-actions-bottom">
       <h1 class="movie-title"><%= promotion.name || 'N/A' %></h1>
+      <%
+        const hasPromotionDates = Boolean(promotion.promotionStartDate && promotion.promotionEndDate);
+        const promotionStartDateDisplay = hasPromotionDates
+          ? new Date(promotion.promotionStartDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          : '';
+        const promotionEndDateDisplay = hasPromotionDates
+          ? new Date(promotion.promotionEndDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          : '';
+      %>
 
       <div class="detail-grid">
         <div class="detail-item">
           <span class="detail-label">DURATION</span>
-          <span class="detail-value"><%= promotion.duration ? `${promotion.duration} days` : 'N/A' %></span>
+          <span class="detail-value"><%= hasPromotionDates ? `${promotionStartDateDisplay} - ${promotionEndDateDisplay}` : (promotion.duration ? `${promotion.duration} days` : 'N/A') %></span>
         </div>
 
         <div class="detail-item">

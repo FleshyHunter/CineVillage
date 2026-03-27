@@ -8,6 +8,13 @@ function normalizeText(value) {
   return (value || "").toString().trim();
 }
 
+function normalizeDateString(value) {
+  const raw = normalizeText(value);
+  if (!raw) return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
+  return raw;
+}
+
 function toObjectIdSafe(value) {
   if (!value) return null;
   if (value instanceof ObjectId) return value;
@@ -16,16 +23,29 @@ function toObjectIdSafe(value) {
 }
 
 function normalizePromotionData(raw = {}) {
-  const durationValue = normalizeText(raw.duration);
-  const parsedDuration = Number.parseInt(durationValue, 10);
-
   return {
     name: normalizeText(raw.name),
     description: normalizeText(raw.description),
-    duration: Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : "",
+    promotionStartDate: normalizeDateString(raw.promotionStartDate),
+    promotionEndDate: normalizeDateString(raw.promotionEndDate),
     code: normalizeText(raw.code),
     pictureUrl: normalizeText(raw.pictureUrl)
   };
+}
+
+function validatePromotionDateRange(promotionData = {}) {
+  const hasStartDate = Boolean(promotionData.promotionStartDate);
+  const hasEndDate = Boolean(promotionData.promotionEndDate);
+
+  if (hasStartDate !== hasEndDate) {
+    return "Please provide both start date and end date.";
+  }
+
+  if (hasStartDate && hasEndDate && promotionData.promotionEndDate < promotionData.promotionStartDate) {
+    return "End date must be on or after start date.";
+  }
+
+  return null;
 }
 
 async function createPromotion(promotionData) {
@@ -80,6 +100,7 @@ async function deletePromotion(id) {
 
 module.exports = {
   normalizePromotionData,
+  validatePromotionDateRange,
   createPromotion,
   getAllPromotions,
   getPromotionById,

@@ -65,20 +65,16 @@
           </a>
           <% if (currentRole !== 'Staff') { %>
             <a href="/promotions/create" class="sidebar-link">
-              <span class="sidebar-icon-combo" aria-hidden="true">
-                <i class="bi bi-card-image sidebar-icon-combo-main"></i>
-                <i class="bi bi-plus-circle-fill sidebar-icon-combo-badge"></i>
-              </span>
-              <span>Create Promotion</span>
+              <i class="bi bi-megaphone-fill"></i><span>Create Promotion</span>
             </a>
           <% } %>
           <a href="/addons" class="sidebar-link">
             <i class="bi bi-cup-straw"></i><span>Add-Ons</span>
           </a>
           <% if (currentRole !== 'Staff') { %>
-            <a href="/addons/create" class="sidebar-link">
+          <a href="/addons/create" class="sidebar-link">
               <span class="sidebar-icon-combo" aria-hidden="true">
-                <i class="bi bi-cup-straw sidebar-icon-combo-main"></i>
+                <i class="bi bi-cup-straw"></i>
                 <i class="bi bi-plus-circle-fill sidebar-icon-combo-badge"></i>
               </span>
               <span>Create Add-On</span>

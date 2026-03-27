@@ -42,9 +42,28 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label for="duration" class="form-label">Duration (days)</label>
-            <input type="number" id="duration" name="duration" class="form-control" value="<%= promotion ? promotion.duration : '' %>" min="1" step="1">
+            <label for="promotionStartDate" class="form-label">Start Date</label>
+            <input
+              type="date"
+              id="promotionStartDate"
+              name="promotionStartDate"
+              class="form-control"
+              value="<%= promotion && promotion.promotionStartDate ? new Date(promotion.promotionStartDate).toISOString().split('T')[0] : '' %>"
+            >
           </div>
+          <div class="form-group">
+            <label for="promotionEndDate" class="form-label">End Date</label>
+            <input
+              type="date"
+              id="promotionEndDate"
+              name="promotionEndDate"
+              class="form-control"
+              value="<%= promotion && promotion.promotionEndDate ? new Date(promotion.promotionEndDate).toISOString().split('T')[0] : '' %>"
+            >
+          </div>
+        </div>
+
+        <div class="form-row">
           <div class="form-group">
             <label for="code" class="form-label">Code</label>
             <input type="text" id="code" name="code" class="form-control" value="<%= promotion ? promotion.code : '' %>" maxlength="40">
@@ -76,6 +95,8 @@
     const placeholderImg = document.getElementById('placeholderImg');
     const form = document.getElementById('promotionForm');
     const nameInput = document.getElementById('name');
+    const startDateInput = document.getElementById('promotionStartDate');
+    const endDateInput = document.getElementById('promotionEndDate');
     const fallbackPoster = '/images/cameraplaceholder.jpg';
 
     function setPreview(src) {
@@ -101,6 +122,31 @@
           nameInput.reportValidity();
           return;
         }
+
+        const startDate = (startDateInput?.value || '').trim();
+        const endDate = (endDateInput?.value || '').trim();
+
+        if ((startDate && !endDate) || (!startDate && endDate)) {
+          event.preventDefault();
+          const target = startDateInput?.value ? endDateInput : startDateInput;
+          if (target) {
+            target.setCustomValidity('Please provide both start date and end date.');
+            target.reportValidity();
+          }
+          return;
+        }
+
+        if (startDate && endDate && endDate < startDate) {
+          event.preventDefault();
+          if (endDateInput) {
+            endDateInput.setCustomValidity('End date must be on or after start date.');
+            endDateInput.reportValidity();
+          }
+          return;
+        }
+
+        if (startDateInput) startDateInput.setCustomValidity('');
+        if (endDateInput) endDateInput.setCustomValidity('');
         nameInput.setCustomValidity('');
       });
     }

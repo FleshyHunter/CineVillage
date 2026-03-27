@@ -3,9 +3,12 @@ const {
   initDBIfNecessary,
   getCollectionScreening,
   getCollectionHall,
-  getCollectionMovie
+  getCollectionMovie,
+  getCollectionBooking,
+  getCollectionSeatReservation
 } = require("../../config/database");
 const { updateScreeningStatuses } = require("../screeningController");
+const { cleanupExpiredBookingHolds } = require("./bookingApiController");
 
 function serializeSeatConfig(seatConfig) {
   if (!seatConfig || typeof seatConfig !== "object") return {};
@@ -44,6 +47,45 @@ function buildSnapshotHallPayload(screening, liveHall) {
   };
 }
 
+function buildSeatReservationFilter(screeningId) {
+  const now = new Date();
+
+  return {
+    screeningId,
+    $or: [
+      { expiresAt: { $gt: now } },
+      { expiresAt: { $exists: false } }
+    ]
+  };
+}
+
+function applyReservedSeatsToHallSnapshot(hallPayload, reservedSeats = []) {
+  if (!hallPayload || !hallPayload.seatConfig || typeof hallPayload.seatConfig !== "object") {
+    return hallPayload;
+  }
+
+  const nextSeatConfig = { ...hallPayload.seatConfig };
+
+  reservedSeats.forEach((seatLabel) => {
+    const match = /^([A-Z])(\d+)$/.exec((seatLabel || "").toString().trim().toUpperCase());
+    if (!match) return;
+
+    const rowIndex = match[1].charCodeAt(0) - 65;
+    const colIndex = Number.parseInt(match[2], 10) - 1;
+    if (!Number.isInteger(rowIndex) || !Number.isInteger(colIndex) || rowIndex < 0 || colIndex < 0) return;
+
+    const key = `${rowIndex}-${colIndex}`;
+    const currentState = (nextSeatConfig[key] || "normal").toString().toLowerCase();
+    if (currentState === "removed") return;
+    nextSeatConfig[key] = "onhold";
+  });
+
+  return {
+    ...hallPayload,
+    seatConfig: nextSeatConfig
+  };
+}
+
 async function getScreeningSeatPreview(req, res) {
   try {
     const { id } = req.params;
@@ -58,6 +100,9 @@ async function getScreeningSeatPreview(req, res) {
     const collectionScreening = getCollectionScreening();
     const collectionHall = getCollectionHall();
     const collectionMovie = getCollectionMovie();
+    const collectionBooking = getCollectionBooking();
+    const collectionSeatReservation = getCollectionSeatReservation();
+    await cleanupExpiredBookingHolds(collectionBooking, collectionSeatReservation);
 
     const screening = await collectionScreening.findOne({ _id: new ObjectId(id) });
 
@@ -73,6 +118,19 @@ async function getScreeningSeatPreview(req, res) {
     if (!screening.hallSnapshot && !hall) {
       return res.status(404).json({ error: "Hall not found for screening" });
     }
+
+    const activeReservations = await collectionSeatReservation
+      .find(
+        buildSeatReservationFilter(screening._id),
+        { projection: { seat: 1 } }
+      )
+      .toArray();
+
+    const reservedSeatLabels = activeReservations.map((reservation) => reservation.seat);
+    const hallPayload = applyReservedSeatsToHallSnapshot(
+      buildSnapshotHallPayload(screening, hall),
+      reservedSeatLabels
+    );
 
     const startDateTime = screening.startDateTime ? new Date(screening.startDateTime) : null;
 
@@ -102,7 +160,7 @@ async function getScreeningSeatPreview(req, res) {
           name: movie?.name || "Untitled Movie",
           ageRestriction: movie?.ageRestriction || "NR"
         },
-        hall: buildSnapshotHallPayload(screening, hall)
+        hall: hallPayload
       }
     });
   } catch (error) {

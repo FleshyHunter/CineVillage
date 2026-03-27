@@ -46,7 +46,22 @@
         <div class="detail-item">
           <span class="detail-label">GENRE</span>
           <span class="detail-value">
-            <%= movie.genre ? (Array.isArray(movie.genre) ? movie.genre.join(', ') : movie.genre) : 'N/A' %>
+            <% 
+              const genres = movie.genre
+                ? (Array.isArray(movie.genre) ? movie.genre : String(movie.genre).split(','))
+                    .map((genre) => String(genre).trim())
+                    .filter(Boolean)
+                : [];
+            %>
+            <% if (genres.length) { %>
+              <span class="genre-tags genre-tags-left">
+                <% genres.forEach((genre) => { %>
+                  <span class="genre-tag"><%= genre %></span>
+                <% }); %>
+              </span>
+            <% } else { %>
+              N/A
+            <% } %>
           </span>
         </div>
 

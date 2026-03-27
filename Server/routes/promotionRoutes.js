@@ -5,6 +5,7 @@ const { requireRoles } = require("../config/session");
 const { logAction } = require("../config/audit");
 const {
   normalizePromotionData,
+  validatePromotionDateRange,
   createPromotion,
   getAllPromotions,
   getPromotionById,
@@ -57,6 +58,17 @@ router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("pictur
       });
     }
 
+    const dateRangeError = validatePromotionDateRange(promotionData);
+    if (dateRangeError) {
+      return res.render("promotions/promotionForm", {
+        title: "Promotions",
+        promotion: promotionData,
+        isEdit: false,
+        error: dateRangeError,
+        returnTo: "/promotions"
+      });
+    }
+
     if (req.file) {
       promotionData.pictureUrl = `/uploads/${req.file.filename}`;
     }
@@ -99,6 +111,17 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("pict
         promotion: { ...existing, ...promotionData, _id: req.params.id },
         isEdit: true,
         error: "Promotion name is required.",
+        returnTo: sanitizeReturnTo(req.body.returnTo || "/promotions")
+      });
+    }
+
+    const dateRangeError = validatePromotionDateRange(promotionData);
+    if (dateRangeError) {
+      return res.render("promotions/promotionForm", {
+        title: "Promotions",
+        promotion: { ...existing, ...promotionData, _id: req.params.id },
+        isEdit: true,
+        error: dateRangeError,
         returnTo: sanitizeReturnTo(req.body.returnTo || "/promotions")
       });
     }
