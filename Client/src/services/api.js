@@ -1,7 +1,18 @@
 const MOVIE_API_PATH = "/api/movies";
 const SCREENING_API_PATH = "/api/screenings";
 const BOOKING_API_PATH = "/api/bookings";
+const PROMOTION_API_PATH = "/api/promotions";
 const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || "http://localhost:3000";
+
+class ApiError extends Error {
+  constructor(message, options = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = options.status || 0;
+    this.payload = options.payload || null;
+    this.details = options.payload || null;
+  }
+}
 
 function toQueryString(params = {}) {
   const query = new URLSearchParams();
@@ -19,7 +30,21 @@ async function parseJsonResponse(response, fallbackMessage) {
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(payload?.error || payload?.message || fallbackMessage);
+    const message = payload?.error || payload?.message || fallbackMessage;
+    const apiError = new ApiError(message, {
+      status: response.status,
+      payload
+    });
+
+    if (Array.isArray(payload?.conflictedSeats)) {
+      apiError.conflictedSeats = payload.conflictedSeats;
+    }
+
+    if (Array.isArray(payload?.invalidSeats)) {
+      apiError.invalidSeats = payload.invalidSeats;
+    }
+
+    throw apiError;
   }
 
   return payload;
@@ -43,6 +68,12 @@ export async function fetchScreeningSeatPreview(id) {
   return payload.item || null;
 }
 
+export async function fetchPromotions(params = {}) {
+  const response = await fetch(`${PROMOTION_API_PATH}${toQueryString(params)}`);
+  const payload = await parseJsonResponse(response, "Failed to fetch promotions");
+  return payload.items || [];
+}
+
 export async function createBooking(payload) {
   const response = await fetch(BOOKING_API_PATH, {
     method: "POST",
@@ -53,6 +84,28 @@ export async function createBooking(payload) {
   });
 
   return parseJsonResponse(response, "Failed to create booking");
+}
+
+export async function releaseBookingHold(bookingId) {
+  const response = await fetch(`${BOOKING_API_PATH}/${bookingId}/release`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+
+  return parseJsonResponse(response, "Failed to release booking hold");
+}
+
+export async function extendBookingHold(bookingId) {
+  const response = await fetch(`${BOOKING_API_PATH}/${bookingId}/extend`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+
+  return parseJsonResponse(response, "Failed to extend booking hold");
 }
 
 export function resolveMoviePictureUrl(pictureUrl) {

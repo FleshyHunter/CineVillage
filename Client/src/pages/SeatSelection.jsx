@@ -5,6 +5,8 @@ import {
   fetchScreeningSeatPreview,
   resolveMoviePictureUrl
 } from "../services/api";
+import { saveBookingPipelineSession } from "../services/bookingPipeline";
+import SeatSelectionButton from "../components/SeatSelectionButton";
 import "./SeatSelection.css";
 
 function formatDuration(duration) {
@@ -333,11 +335,48 @@ export default function SeatSelection({ screeningId = "" }) {
         seats: selectedSeatLabels
       });
 
-      const bookingCode = response?.booking?.bookingCode ? ` (${response.booking.bookingCode})` : "";
-      setBookingMessage(`Booking successful${bookingCode}.`);
-      setSelectionNotice("");
-      setSelectedSeats(new Set());
+      const booking = response?.booking || null;
+      const nextScreeningId = booking?.screeningId || preview.screeningId || screeningId;
+      const bookingMovieId = booking?.movieId || heroMovie._id || preview.movie?._id || "";
+      const bookingExpiresAt = booking?.expiresAt || null;
+
+      if (booking?._id && nextScreeningId && bookingExpiresAt) {
+        saveBookingPipelineSession({
+          bookingId: booking._id,
+          screeningId: nextScreeningId,
+          movieId: bookingMovieId,
+          expiresAt: bookingExpiresAt
+        });
+      }
+
+      window.location.hash = `#promotions/${nextScreeningId}`;
+      return;
     } catch (confirmError) {
+      const conflictedSeats = Array.isArray(confirmError?.conflictedSeats)
+        ? confirmError.conflictedSeats
+        : [];
+
+      if (conflictedSeats.length) {
+        setSelectedSeats((previous) => {
+          const next = new Set(previous);
+          conflictedSeats.forEach((seatLabel) => {
+            const match = /^([A-Z])(\d+)$/.exec((seatLabel || "").toString().trim().toUpperCase());
+            if (!match) return;
+            const rowIndex = match[1].charCodeAt(0) - 65;
+            const columnIndex = Number.parseInt(match[2], 10) - 1;
+            if (!Number.isInteger(rowIndex) || !Number.isInteger(columnIndex)) return;
+            next.delete(`${rowIndex}-${columnIndex}`);
+          });
+          return next;
+        });
+
+        setSelectionNotice(
+          `Seat is now unavailable: ${conflictedSeats.join(", ")}. Remaining seats stay selected.`
+        );
+        setBookingError("");
+        return;
+      }
+
       setBookingError(confirmError.message || "Failed to confirm booking.");
     } finally {
       setIsConfirmingBooking(false);
@@ -351,70 +390,63 @@ export default function SeatSelection({ screeningId = "" }) {
         style={{ "--seat-selection-hero-image": `url("${posterUrl}")` }}
       >
         <div className="seat-selection-stage-frame">
-          <div className="seat-selection-topbar">
-            <div className="seat-selection-breadcrumbs">
-              <a href={`#movie-details/${heroMovie._id || preview.movie?._id || ""}`}>Movies &amp; Showtimes</a>
-              <span><i className="bi bi-chevron-right" /></span>
-              <strong>Seat Selection</strong>
+          <div className="seat-selection-hero-block">
+            <div className="seat-selection-topbar">
+              <div className="seat-selection-breadcrumbs">
+                <a href={`#movie-details/${heroMovie._id || preview.movie?._id || ""}`}>Movies &amp; Showtimes</a>
+                <span><i className="bi bi-chevron-right" /></span>
+                <strong>Seat Selection</strong>
+              </div>
+
+              <div className="seat-selection-countdown" aria-label="Time remaining">
+                {countdownDigits.map((digit, index) => (
+                  <span key={`${digit}-${index}`} className="seat-selection-countdown-digit">
+                    {digit}
+                  </span>
+                ))}
+              </div>
             </div>
 
-            <div className="seat-selection-countdown" aria-label="Time remaining">
-              {countdownDigits.map((digit, index) => (
-                <span key={`${digit}-${index}`} className="seat-selection-countdown-digit">
-                  {digit}
+            <div className="seat-selection-header">
+              <h1>{heroMovie.name || "Movie"}</h1>
+
+              <div className="seat-selection-rating-row">
+                <span className="seat-selection-rating-chip">{heroMovie.ageRestriction || preview.movie?.ageRestriction || "NR"}</span>
+                <span>{getAdvisoryText(heroMovie.ageRestriction || preview.movie?.ageRestriction)}</span>
+              </div>
+
+              <div className="seat-selection-screening-pill">
+                <span>
+                  <i className="bi bi-clock" />
+                  {formatScreeningDate(preview.startDateTime)} {preview.time}
                 </span>
+                <span>
+                  <i className="bi bi-building" />
+                  {preview.hall?.name || "Hall"}
+                </span>
+              </div>
+            </div>
+
+            <div className="seat-selection-steps">
+              {checkoutSteps.map((step, index) => (
+                <div key={step.label} className="seat-selection-step-item">
+                  <div className={`seat-selection-step-icon${step.active ? " is-active" : ""}`}>
+                    {step.icon === "seat" ? (
+                      <span className="seat-selection-step-seat-glyph" aria-hidden="true">
+                        <span className="seat-selection-step-seat-back" />
+                        <span className="seat-selection-step-seat-base" />
+                      </span>
+                    ) : (
+                      <i className={step.icon} />
+                    )}
+                  </div>
+                  <span className={`seat-selection-step-label${step.active ? " is-active" : ""}`}>
+                    {step.label}
+                  </span>
+                  {index < checkoutSteps.length - 1 ? <span className="seat-selection-step-line" /> : null}
+                </div>
               ))}
             </div>
-          </div>
-
-          <div className="seat-selection-header">
-            <h1>{heroMovie.name || "Movie"}</h1>
-
-            <div className="seat-selection-rating-row">
-              <span className="seat-selection-rating-chip">{heroMovie.ageRestriction || preview.movie?.ageRestriction || "NR"}</span>
-              <span>{getAdvisoryText(heroMovie.ageRestriction || preview.movie?.ageRestriction)}</span>
-            </div>
-
-            <div className="seat-selection-screening-pill">
-              <span>
-                <i className="bi bi-clock" />
-                {formatScreeningDate(preview.startDateTime)} {preview.time}
-              </span>
-              <span>
-                <i className="bi bi-building" />
-                {preview.hall?.name || "Hall"}
-              </span>
-              <button
-                type="button"
-                aria-label="Back to movie details"
-                onClick={() => {
-                  window.location.hash = `#movie-details/${heroMovie._id || preview.movie?._id || ""}`;
-                }}
-              >
-                <i className="bi bi-chevron-down" />
-              </button>
-            </div>
-          </div>
-
-          <div className="seat-selection-steps">
-            {checkoutSteps.map((step, index) => (
-              <div key={step.label} className="seat-selection-step-item">
-                <div className={`seat-selection-step-icon${step.active ? " is-active" : ""}`}>
-                  {step.icon === "seat" ? (
-                    <span className="seat-selection-step-seat-glyph" aria-hidden="true">
-                      <span className="seat-selection-step-seat-back" />
-                      <span className="seat-selection-step-seat-base" />
-                    </span>
-                  ) : (
-                    <i className={step.icon} />
-                  )}
-                </div>
-                <span className={`seat-selection-step-label${step.active ? " is-active" : ""}`}>
-                  {step.label}
-                </span>
-                {index < checkoutSteps.length - 1 ? <span className="seat-selection-step-line" /> : null}
-              </div>
-            ))}
           </div>
 
           <div className="seat-selection-map-panel">
@@ -425,8 +457,9 @@ export default function SeatSelection({ screeningId = "" }) {
               </div>
 
               <div className="seat-selection-map-toolbar-actions">
-                <button
-                  type="button"
+                <SeatSelectionButton
+                  variant="outline"
+                  size="md"
                   onClick={() => {
                     setSelectedSeats(new Set());
                     setSelectionNotice("");
@@ -435,7 +468,7 @@ export default function SeatSelection({ screeningId = "" }) {
                   }}
                 >
                   Clear Seats
-                </button>
+                </SeatSelectionButton>
               </div>
             </div>
 
@@ -561,23 +594,23 @@ export default function SeatSelection({ screeningId = "" }) {
               </div>
 
               <div className="seat-selection-cart-actions">
-                <button
-                  type="button"
-                  className="seat-selection-cart-action seat-selection-cart-action-back"
+                <SeatSelectionButton
+                  variant="secondary"
+                  className="seat-selection-cart-action"
                   onClick={() => {
                     window.location.hash = `#movie-details/${heroMovie._id || preview.movie?._id || ""}`;
                   }}
                 >
                   Back
-                </button>
-                <button
-                  type="button"
-                  className="seat-selection-cart-action seat-selection-cart-action-confirm"
+                </SeatSelectionButton>
+                <SeatSelectionButton
+                  variant="primary"
+                  className="seat-selection-cart-action"
                   onClick={handleConfirmBooking}
                   disabled={!selectedSeatLabels.length || isConfirmingBooking}
                 >
                   {isConfirmingBooking ? "Confirming..." : "Confirm"}
-                </button>
+                </SeatSelectionButton>
               </div>
 
               {bookingError ? (
@@ -619,9 +652,10 @@ export default function SeatSelection({ screeningId = "" }) {
             </p>
 
             <div className="seat-selection-modal-actions">
-              <button
-                type="button"
-                className="seat-selection-modal-btn seat-selection-modal-btn-primary"
+              <SeatSelectionButton
+                variant="primary"
+                size="sm"
+                className="seat-selection-modal-btn"
                 onClick={() => {
                   const added = tryAddSeat(pendingWheelchairSeat.seatKey);
                   if (added) {
@@ -630,14 +664,15 @@ export default function SeatSelection({ screeningId = "" }) {
                 }}
               >
                 OK
-              </button>
-              <button
-                type="button"
-                className="seat-selection-modal-btn seat-selection-modal-btn-secondary"
+              </SeatSelectionButton>
+              <SeatSelectionButton
+                variant="secondary"
+                size="sm"
+                className="seat-selection-modal-btn"
                 onClick={() => setPendingWheelchairSeat(null)}
               >
                 Cancel
-              </button>
+              </SeatSelectionButton>
             </div>
           </div>
         </div>
