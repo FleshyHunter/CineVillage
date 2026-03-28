@@ -97,6 +97,36 @@ export async function releaseBookingHold(bookingId) {
   return parseJsonResponse(response, "Failed to release booking hold");
 }
 
+export function releaseBookingHoldBestEffort(bookingId) {
+  const id = (bookingId || "").toString().trim();
+  if (!id) return;
+
+  const endpoint = `${BOOKING_API_PATH}/${id}/release`;
+
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const payload = new Blob(["{}"], { type: "application/json" });
+      const sent = navigator.sendBeacon(endpoint, payload);
+      if (sent) return;
+    }
+  } catch (_error) {
+    // Ignore and fall back to fetch keepalive.
+  }
+
+  try {
+    fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: "{}",
+      keepalive: true
+    }).catch(() => null);
+  } catch (_error) {
+    // Ignore best-effort release failure.
+  }
+}
+
 export async function extendBookingHold(bookingId) {
   const response = await fetch(`${BOOKING_API_PATH}/${bookingId}/extend`, {
     method: "POST",

@@ -1,25 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   createBooking,
+  extendBookingHold,
   fetchMovieById,
   fetchScreeningSeatPreview,
+  releaseBookingHold,
   resolveMoviePictureUrl
 } from "../services/api";
-import { saveBookingPipelineSession } from "../services/bookingPipeline";
+import {
+  BOOKING_TIMER_EXTEND_MS,
+  BOOKING_TIMER_INITIAL_MS,
+  buildCountdownDigitsFromRemainingMs,
+  clearBookingPipelineSession,
+  createStageOneBookingSession,
+  formatRemainingMmSs,
+  getSessionRemainingMs,
+  readBookingPipelineSession,
+  saveBookingPipelineSession,
+  updateBookingPipelineSession
+} from "../services/bookingPipeline";
 import SeatSelectionButton from "../components/SeatSelectionButton";
 import "./SeatSelection.css";
-
-function formatDuration(duration) {
-  const minutes = Number.parseInt(duration, 10);
-  if (!Number.isFinite(minutes) || minutes <= 0) return "N/A";
-
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-
-  if (!hours) return `${minutes} mins`;
-  if (!remainder) return `${hours} hr`;
-  return `${hours} hr ${remainder} mins`;
-}
 
 function formatScreeningDate(dateValue) {
   if (!dateValue) return "N/A";
@@ -133,19 +134,6 @@ function buildSeatRows(hall, selectedSeats) {
   });
 }
 
-function buildCountdownParts(targetDate, now) {
-  const target = new Date(targetDate);
-  if (Number.isNaN(target.getTime())) return ["0", "0", "0", "0", "0", "0"];
-
-  const remainingMs = Math.max(target.getTime() - now.getTime(), 0);
-  const totalSeconds = Math.floor(remainingMs / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${String(hours).padStart(2, "0")}${String(minutes).padStart(2, "0")}${String(seconds).padStart(2, "0")}`.split("");
-}
-
 function formatSeatLabel(seatKey) {
   const [rowValue, columnValue] = (seatKey || "").split("-");
   const rowIndex = Number.parseInt(rowValue, 10);
@@ -175,6 +163,7 @@ const checkoutSteps = [
 
 export default function SeatSelection({ screeningId = "" }) {
   const MAX_SELECTED_SEATS = 10;
+  const LOW_TIME_THRESHOLD_MS = 60 * 1000;
   const [preview, setPreview] = useState(null);
   const [movie, setMovie] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -182,11 +171,15 @@ export default function SeatSelection({ screeningId = "" }) {
   const [selectedSeats, setSelectedSeats] = useState(() => new Set());
   const [zoom, setZoom] = useState(1);
   const [now, setNow] = useState(() => new Date());
+  const [bookingSession, setBookingSession] = useState(() => readBookingPipelineSession());
   const [selectionNotice, setSelectionNotice] = useState("");
   const [pendingWheelchairSeat, setPendingWheelchairSeat] = useState(null);
   const [bookingMessage, setBookingMessage] = useState("");
   const [bookingError, setBookingError] = useState("");
   const [isConfirmingBooking, setIsConfirmingBooking] = useState(false);
+  const [warningVisible, setWarningVisible] = useState(false);
+  const [expiredVisible, setExpiredVisible] = useState(false);
+  const [isExtending, setIsExtending] = useState(false);
 
   useEffect(() => {
     if (!screeningId) {
@@ -232,8 +225,23 @@ export default function SeatSelection({ screeningId = "" }) {
   }, [screeningId]);
 
   useEffect(() => {
+    if (!preview?.screeningId) return;
+
+    const nextSession = createStageOneBookingSession({
+      screeningId: preview.screeningId,
+      movieId: preview.movie?._id || ""
+    });
+
+    saveBookingPipelineSession(nextSession);
+    setBookingSession(nextSession);
+    setWarningVisible(false);
+    setExpiredVisible(false);
+  }, [preview?.screeningId, preview?.movie?._id]);
+
+  useEffect(() => {
     const timerId = window.setInterval(() => {
       setNow(new Date());
+      setBookingSession(readBookingPipelineSession());
     }, 1000);
 
     return () => {
@@ -245,6 +253,41 @@ export default function SeatSelection({ screeningId = "" }) {
     () => [...selectedSeats].map(formatSeatLabel).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     [selectedSeats]
   );
+
+  const activeSession = useMemo(() => {
+    if (!bookingSession) return null;
+    if (bookingSession.screeningId !== screeningId) return null;
+    if (bookingSession.stage !== "seat-selection") return null;
+    return bookingSession;
+  }, [bookingSession, screeningId]);
+
+  const remainingMs = activeSession
+    ? getSessionRemainingMs(activeSession, now)
+    : BOOKING_TIMER_INITIAL_MS;
+
+  const countdownDigits = buildCountdownDigitsFromRemainingMs(remainingMs);
+
+  useEffect(() => {
+    if (!activeSession) return;
+
+    if (remainingMs <= 0) {
+      setWarningVisible(false);
+      setExpiredVisible(true);
+      return;
+    }
+
+    if (remainingMs <= LOW_TIME_THRESHOLD_MS && !activeSession.lowTimePrompted) {
+      const nextSession = updateBookingPipelineSession({ lowTimePrompted: true });
+      if (nextSession) setBookingSession(nextSession);
+      setWarningVisible(true);
+      return;
+    }
+
+    if (remainingMs > LOW_TIME_THRESHOLD_MS && activeSession.lowTimePrompted) {
+      const nextSession = updateBookingPipelineSession({ lowTimePrompted: false });
+      if (nextSession) setBookingSession(nextSession);
+    }
+  }, [activeSession, remainingMs]);
 
   if (loading) {
     return (
@@ -264,7 +307,6 @@ export default function SeatSelection({ screeningId = "" }) {
 
   const heroMovie = movie || preview.movie || {};
   const posterUrl = resolveMoviePictureUrl(heroMovie.pictureUrl || heroMovie.posterUrl || "");
-  const countdownDigits = buildCountdownParts(preview.startDateTime, now);
   const seatRows = buildSeatRows(preview.hall, selectedSeats);
   const selectedSeatCount = selectedSeats.size;
   const ticketPrice = Number(preview.price) || 0;
@@ -324,6 +366,10 @@ export default function SeatSelection({ screeningId = "" }) {
 
   async function handleConfirmBooking() {
     if (!preview?.screeningId || !selectedSeatLabels.length || isConfirmingBooking) return;
+    if (!activeSession || remainingMs <= 0) {
+      setExpiredVisible(true);
+      return;
+    }
 
     try {
       setIsConfirmingBooking(true);
@@ -332,7 +378,8 @@ export default function SeatSelection({ screeningId = "" }) {
 
       const response = await createBooking({
         screeningId: preview.screeningId,
-        seats: selectedSeatLabels
+        seats: selectedSeatLabels,
+        holdDurationSeconds: Math.max(Math.ceil(remainingMs / 1000), 1)
       });
 
       const booking = response?.booking || null;
@@ -345,6 +392,8 @@ export default function SeatSelection({ screeningId = "" }) {
           bookingId: booking._id,
           screeningId: nextScreeningId,
           movieId: bookingMovieId,
+          stage: "promotions",
+          lowTimePrompted: Boolean(activeSession.lowTimePrompted),
           expiresAt: bookingExpiresAt
         });
       }
@@ -357,6 +406,28 @@ export default function SeatSelection({ screeningId = "" }) {
         : [];
 
       if (conflictedSeats.length) {
+        setPreview((previous) => {
+          if (!previous?.hall || !previous.hall.seatConfig) return previous;
+          const nextSeatConfig = { ...previous.hall.seatConfig };
+
+          conflictedSeats.forEach((seatLabel) => {
+            const match = /^([A-Z])(\d+)$/.exec((seatLabel || "").toString().trim().toUpperCase());
+            if (!match) return;
+            const rowIndex = match[1].charCodeAt(0) - 65;
+            const columnIndex = Number.parseInt(match[2], 10) - 1;
+            if (!Number.isInteger(rowIndex) || !Number.isInteger(columnIndex)) return;
+            nextSeatConfig[`${rowIndex}-${columnIndex}`] = "onhold";
+          });
+
+          return {
+            ...previous,
+            hall: {
+              ...previous.hall,
+              seatConfig: nextSeatConfig
+            }
+          };
+        });
+
         setSelectedSeats((previous) => {
           const next = new Set(previous);
           conflictedSeats.forEach((seatLabel) => {
@@ -383,6 +454,61 @@ export default function SeatSelection({ screeningId = "" }) {
     }
   }
 
+  async function handleExtendSession() {
+    if (!activeSession || isExtending) return;
+
+    try {
+      setIsExtending(true);
+
+      if (activeSession.bookingId) {
+        const response = await extendBookingHold(activeSession.bookingId);
+        const nextExpiresAt = response?.booking?.expiresAt;
+        if (!nextExpiresAt) return;
+
+        const nextSession = {
+          ...activeSession,
+          expiresAt: nextExpiresAt,
+          lowTimePrompted: false
+        };
+
+        saveBookingPipelineSession(nextSession);
+        setBookingSession(nextSession);
+      } else {
+        const currentExpiryMs = new Date(activeSession.expiresAt).getTime();
+        const fallbackBase = Number.isFinite(currentExpiryMs)
+          ? Math.max(currentExpiryMs, Date.now())
+          : Date.now();
+        const nextSession = {
+          ...activeSession,
+          expiresAt: new Date(fallbackBase + BOOKING_TIMER_EXTEND_MS).toISOString(),
+          lowTimePrompted: false
+        };
+
+        saveBookingPipelineSession(nextSession);
+        setBookingSession(nextSession);
+      }
+
+      setWarningVisible(false);
+    } catch (_error) {
+      setBookingError("Unable to extend reservation at the moment.");
+    } finally {
+      setIsExtending(false);
+    }
+  }
+
+  async function handleExpiredSessionConfirm() {
+    const movieId = activeSession?.movieId || heroMovie._id || preview.movie?._id || "";
+
+    if (activeSession?.bookingId) {
+      await releaseBookingHold(activeSession.bookingId).catch(() => null);
+    }
+
+    clearBookingPipelineSession();
+    setBookingSession(null);
+    setExpiredVisible(false);
+    window.location.hash = `#movie-details/${movieId}`;
+  }
+
   return (
     <section className="seat-selection-page">
       <div
@@ -400,7 +526,10 @@ export default function SeatSelection({ screeningId = "" }) {
 
               <div className="seat-selection-countdown" aria-label="Time remaining">
                 {countdownDigits.map((digit, index) => (
-                  <span key={`${digit}-${index}`} className="seat-selection-countdown-digit">
+                  <span
+                    key={`${digit}-${index}`}
+                    className={`seat-selection-countdown-digit${digit === ":" ? " seat-selection-countdown-separator" : ""}`}
+                  >
                     {digit}
                   </span>
                 ))}
@@ -627,6 +756,60 @@ export default function SeatSelection({ screeningId = "" }) {
           </div>
         </div>
       </div>
+
+      {warningVisible ? (
+        <div className="seat-selection-modal-backdrop" role="presentation">
+          <div className="seat-selection-modal" role="dialog" aria-modal="true" aria-labelledby="reservationWarningTitle">
+            <h3 id="reservationWarningTitle">Reservation Ending Soon</h3>
+            <p>
+              Reservation will expire in <strong>{formatRemainingMmSs(remainingMs)}</strong>.
+              <br />
+              Would you like to extend?
+            </p>
+
+            <div className="seat-selection-modal-actions">
+              <SeatSelectionButton
+                variant="secondary"
+                size="sm"
+                className="seat-selection-modal-btn"
+                onClick={() => setWarningVisible(false)}
+              >
+                Cancel
+              </SeatSelectionButton>
+              <SeatSelectionButton
+                variant="primary"
+                size="sm"
+                className="seat-selection-modal-btn"
+                onClick={handleExtendSession}
+                disabled={isExtending}
+              >
+                {isExtending ? "Extending..." : "Extend"}
+              </SeatSelectionButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {expiredVisible ? (
+        <div className="seat-selection-modal-backdrop" role="presentation">
+          <div className="seat-selection-modal" role="dialog" aria-modal="true" aria-labelledby="reservationExpiredTitle">
+            <h3 id="reservationExpiredTitle">Cart Expired</h3>
+            <p>
+              Your session has expired, please book again.
+            </p>
+            <div className="seat-selection-modal-actions">
+              <SeatSelectionButton
+                variant="primary"
+                size="sm"
+                className="seat-selection-modal-btn"
+                onClick={handleExpiredSessionConfirm}
+              >
+                Confirm
+              </SeatSelectionButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {pendingWheelchairSeat ? (
         <div className="seat-selection-modal-backdrop" role="presentation">

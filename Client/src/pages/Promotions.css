@@ -3,6 +3,22 @@
   min-width: 0;
   color: #f8fafc;
   font-family: var(--bs-body-font-family, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif);
+  font-size: var(--bs-body-font-size, 1rem);
+  font-weight: var(--bs-body-font-weight, 400);
+  line-height: var(--bs-body-line-height, 1.5);
+}
+
+.promotions-page h1,
+.promotions-page h2,
+.promotions-page h3,
+.promotions-page p,
+.promotions-page span,
+.promotions-page a,
+.promotions-page strong,
+.promotions-page input,
+.promotions-page button,
+.promotions-page label {
+  font-family: inherit;
 }
 
 .promotions-status {
@@ -97,6 +113,11 @@
   color: #f8fafc;
   font-size: 1.7rem;
   font-weight: 700;
+}
+
+.promotions-countdown-separator {
+  width: 10px;
+  background: transparent;
 }
 
 .promotions-header {
@@ -230,7 +251,7 @@
 
 .promotions-panel h2 {
   margin: 0 0 12px;
-  font-size: 1.8rem;
+  font-size: 16px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
@@ -326,7 +347,7 @@
 
 .promotions-summary-body h3 {
   margin: 0 0 8px;
-  font-size: 2rem;
+  font-size: 16px;
   text-transform: uppercase;
 }
 
@@ -359,18 +380,18 @@
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-  font-size: 2rem;
+  font-size: 16px;
   font-weight: 700;
 }
 
 .promotions-summary-total-row-grand {
-  font-size: 2.1rem;
+  font-size: 16px;
 }
 
 .promotions-terms {
   margin: 14px 0 0;
   color: #f1f5f9;
-  font-size: 0.92rem;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -426,19 +447,4 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-}
-
-.promotions-expired-confirm-btn {
-  min-width: 170px;
-  border-color: #e11d48;
-  background: linear-gradient(180deg, #f43f5e 0%, #e11d48 100%);
-  color: #fff;
-  box-shadow:
-    0 10px 18px rgba(225, 29, 72, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-
-.promotions-expired-confirm-btn:hover:not(:disabled) {
-  border-color: #fb7185;
-  background: linear-gradient(180deg, #fb7185 0%, #f43f5e 100%);
 }

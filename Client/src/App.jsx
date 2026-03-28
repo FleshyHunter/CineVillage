@@ -8,14 +8,13 @@ import {
   hasActiveBookingPipelineSession,
   readBookingPipelineSession
 } from "./services/bookingPipeline";
-import { releaseBookingHold } from "./services/api";
+import { releaseBookingHold, releaseBookingHoldBestEffort } from "./services/api";
 import Home from "./pages/Home";
 import MovieDetails from "./pages/MovieDetails";
 import Movies from "./pages/Movies";
 import Promotions from "./pages/Promotions";
 import SeatSelection from "./pages/SeatSelection";
 
-const FLOW_PAGES = new Set(["seat-selection", "promotions", "addons", "payment"]);
 const FLOW_GUARD_PAGES = new Set(["promotions", "addons", "payment"]);
 
 function readClientViewFromHash() {
@@ -109,9 +108,9 @@ export default function App() {
 
       const nextView = readClientViewFromHash();
       const isCurrentGuardPage = FLOW_GUARD_PAGES.has(clientView.page);
-      const isLeavingFlow = !FLOW_PAGES.has(nextView.page);
+      const isLeavingProtectedFlow = !FLOW_GUARD_PAGES.has(nextView.page);
 
-      if (isCurrentGuardPage && isLeavingFlow && hasActiveBookingPipelineSession()) {
+      if (isCurrentGuardPage && isLeavingProtectedFlow && hasActiveBookingPipelineSession()) {
         setPendingView(nextView);
         setLeavePromptOpen(true);
         suppressNextHashChange.current = true;
@@ -136,9 +135,21 @@ export default function App() {
       event.returnValue = "";
     }
 
+    function handlePageHide() {
+      if (!FLOW_GUARD_PAGES.has(clientView.page)) return;
+      const session = readBookingPipelineSession();
+      if (!session?.bookingId) return;
+      if (!hasActiveBookingPipelineSession()) return;
+
+      releaseBookingHoldBestEffort(session.bookingId);
+      clearBookingPipelineSession();
+    }
+
     window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
     };
   }, [clientView.page]);
 
@@ -176,11 +187,11 @@ export default function App() {
           {clientView.page === "seat-selection" ? (
             <SeatSelection screeningId={clientView.screeningId} />
           ) : clientView.page === "promotions" ? (
-            <Promotions screeningId={clientView.screeningId} />
+            <Promotions screeningId={clientView.screeningId} flowStage="promotions" />
           ) : clientView.page === "addons" ? (
-            <Promotions screeningId={clientView.screeningId} />
+            <Promotions screeningId={clientView.screeningId} flowStage="addons" />
           ) : clientView.page === "payment" ? (
-            <Promotions screeningId={clientView.screeningId} />
+            <Promotions screeningId={clientView.screeningId} flowStage="payment" />
           ) : clientView.page === "movie-details" ? (
             <MovieDetails movieId={clientView.movieId} />
           ) : clientView.page === "movies" ? (

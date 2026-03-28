@@ -14,7 +14,8 @@ import {
   formatRemainingMmSs,
   getSessionRemainingMs,
   readBookingPipelineSession,
-  saveBookingPipelineSession
+  saveBookingPipelineSession,
+  updateBookingPipelineSession
 } from "../services/bookingPipeline";
 import "./Promotions.css";
 
@@ -61,7 +62,7 @@ const checkoutSteps = [
   { label: "Payment", icon: "bi bi-credit-card-2-front", state: "upcoming" }
 ];
 
-export default function Promotions({ screeningId = "" }) {
+export default function Promotions({ screeningId = "", flowStage = "promotions" }) {
   const LOW_TIME_THRESHOLD_MS = 60 * 1000;
   const [preview, setPreview] = useState(null);
   const [movie, setMovie] = useState(null);
@@ -73,7 +74,6 @@ export default function Promotions({ screeningId = "" }) {
   const [now, setNow] = useState(() => new Date());
   const [bookingSession, setBookingSession] = useState(() => readBookingPipelineSession());
   const [warningVisible, setWarningVisible] = useState(false);
-  const [warningConsumed, setWarningConsumed] = useState(false);
   const [expiredVisible, setExpiredVisible] = useState(false);
   const [isExtending, setIsExtending] = useState(false);
 
@@ -139,8 +139,17 @@ export default function Promotions({ screeningId = "" }) {
   const activeSession = useMemo(() => {
     if (!bookingSession) return null;
     if (bookingSession.screeningId !== screeningId) return null;
+    if (!bookingSession.bookingId) return null;
     return bookingSession;
   }, [bookingSession, screeningId]);
+
+  useEffect(() => {
+    if (!activeSession) return;
+    if (activeSession.stage === flowStage) return;
+
+    const nextSession = updateBookingPipelineSession({ stage: flowStage });
+    if (nextSession) setBookingSession(nextSession);
+  }, [activeSession, flowStage]);
 
   const remainingMs = getSessionRemainingMs(activeSession, now);
   const countdownDigits = buildCountdownDigitsFromRemainingMs(remainingMs);
@@ -150,24 +159,31 @@ export default function Promotions({ screeningId = "" }) {
 
     if (remainingMs <= 0) {
       setWarningVisible(false);
-      setWarningConsumed(true);
-
-      (async () => {
-        if (activeSession.bookingId) {
-          await releaseBookingHold(activeSession.bookingId).catch(() => null);
-        }
-        clearBookingPipelineSession();
-        setBookingSession(null);
-        setExpiredVisible(true);
-      })();
+      if (!expiredVisible) {
+        (async () => {
+          if (activeSession.bookingId) {
+            await releaseBookingHold(activeSession.bookingId).catch(() => null);
+          }
+          clearBookingPipelineSession();
+          setBookingSession(null);
+          setExpiredVisible(true);
+        })();
+      }
       return;
     }
 
-    if (remainingMs <= LOW_TIME_THRESHOLD_MS && !warningConsumed) {
+    if (remainingMs <= LOW_TIME_THRESHOLD_MS && !activeSession.lowTimePrompted) {
+      const nextSession = updateBookingPipelineSession({ lowTimePrompted: true });
+      if (nextSession) setBookingSession(nextSession);
       setWarningVisible(true);
-      setWarningConsumed(true);
+      return;
     }
-  }, [activeSession, remainingMs, expiredVisible, warningConsumed]);
+
+    if (remainingMs > LOW_TIME_THRESHOLD_MS && activeSession.lowTimePrompted) {
+      const nextSession = updateBookingPipelineSession({ lowTimePrompted: false });
+      if (nextSession) setBookingSession(nextSession);
+    }
+  }, [activeSession, remainingMs, expiredVisible]);
 
   const heroMovie = movie || preview?.movie || {};
   const posterUrl = resolveMoviePictureUrl(heroMovie.pictureUrl || heroMovie.posterUrl || "");
@@ -205,7 +221,7 @@ export default function Promotions({ screeningId = "" }) {
     );
   }
 
-  if (!activeSession) {
+  if (!activeSession && !expiredVisible) {
     return (
       <section className="promotions-status promotions-status-error">
         <p>No active reservation found. Please select seats again.</p>
@@ -224,7 +240,8 @@ export default function Promotions({ screeningId = "" }) {
 
       const nextSession = {
         ...activeSession,
-        expiresAt: nextExpiresAt
+        expiresAt: nextExpiresAt,
+        lowTimePrompted: false
       };
 
       saveBookingPipelineSession(nextSession);
@@ -254,7 +271,10 @@ export default function Promotions({ screeningId = "" }) {
 
             <div className="promotions-countdown" aria-label="Time remaining">
               {countdownDigits.map((digit, index) => (
-                  <span key={`${digit}-${index}`} className="promotions-countdown-digit">
+                  <span
+                    key={`${digit}-${index}`}
+                    className={`promotions-countdown-digit${digit === ":" ? " promotions-countdown-separator" : ""}`}
+                  >
                     {digit}
                   </span>
                 ))}
@@ -426,9 +446,10 @@ export default function Promotions({ screeningId = "" }) {
             <div className="promotions-modal-actions">
               <SeatSelectionButton
                 variant="primary"
-                className="promotions-expired-confirm-btn"
+                size="sm"
                 onClick={() => {
                   const movieId = activeSession?.movieId || heroMovie._id || preview.movie?._id || "";
+                  clearBookingPipelineSession();
                   window.location.hash = `#movie-details/${movieId}`;
                 }}
               >

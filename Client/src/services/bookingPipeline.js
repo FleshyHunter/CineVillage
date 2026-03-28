@@ -1,4 +1,6 @@
 const BOOKING_PIPELINE_SESSION_KEY = "cinevillage_booking_pipeline_session";
+export const BOOKING_TIMER_INITIAL_MS = 15 * 60 * 1000;
+export const BOOKING_TIMER_EXTEND_MS = 5 * 60 * 1000;
 
 function toIsoDate(value) {
   if (!value) return "";
@@ -18,14 +20,17 @@ export function readBookingPipelineSession() {
     const bookingId = (parsed.bookingId || "").toString().trim();
     const screeningId = (parsed.screeningId || "").toString().trim();
     const movieId = (parsed.movieId || "").toString().trim();
+    const stage = (parsed.stage || "").toString().trim();
     const expiresAt = toIsoDate(parsed.expiresAt);
 
-    if (!bookingId || !screeningId || !expiresAt) return null;
+    if (!screeningId || !expiresAt) return null;
 
     return {
       bookingId,
       screeningId,
       movieId,
+      stage: stage || "seat-selection",
+      lowTimePrompted: Boolean(parsed.lowTimePrompted),
       expiresAt
     };
   } catch (_error) {
@@ -40,12 +45,39 @@ export function saveBookingPipelineSession(session) {
     bookingId: (session.bookingId || "").toString().trim(),
     screeningId: (session.screeningId || "").toString().trim(),
     movieId: (session.movieId || "").toString().trim(),
+    stage: (session.stage || "seat-selection").toString().trim() || "seat-selection",
+    lowTimePrompted: Boolean(session.lowTimePrompted),
     expiresAt: toIsoDate(session.expiresAt)
   };
 
-  if (!normalized.bookingId || !normalized.screeningId || !normalized.expiresAt) return;
+  if (!normalized.screeningId || !normalized.expiresAt) return;
 
   window.sessionStorage.setItem(BOOKING_PIPELINE_SESSION_KEY, JSON.stringify(normalized));
+}
+
+export function createStageOneBookingSession({ screeningId, movieId = "" }) {
+  const now = Date.now();
+  return {
+    bookingId: "",
+    screeningId: (screeningId || "").toString().trim(),
+    movieId: (movieId || "").toString().trim(),
+    stage: "seat-selection",
+    lowTimePrompted: false,
+    expiresAt: new Date(now + BOOKING_TIMER_INITIAL_MS).toISOString()
+  };
+}
+
+export function updateBookingPipelineSession(patch = {}) {
+  const current = readBookingPipelineSession();
+  if (!current) return null;
+
+  const next = {
+    ...current,
+    ...patch
+  };
+
+  saveBookingPipelineSession(next);
+  return next;
 }
 
 export function clearBookingPipelineSession() {
@@ -73,11 +105,5 @@ export function formatRemainingMmSs(remainingMs) {
 }
 
 export function buildCountdownDigitsFromRemainingMs(remainingMs) {
-  const totalSeconds = Math.max(Math.floor(remainingMs / 1000), 0);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const hours = Math.floor(minutes / 60);
-  const minutePart = minutes % 60;
-
-  return `${String(hours).padStart(2, "0")}${String(minutePart).padStart(2, "0")}${String(seconds).padStart(2, "0")}`.split("");
+  return formatRemainingMmSs(remainingMs).split("");
 }
