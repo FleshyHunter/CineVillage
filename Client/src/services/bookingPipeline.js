@@ -4,6 +4,14 @@ export const BOOKING_TIMER_EXTEND_MS = 5 * 60 * 1000;
 export const BOOKING_FEE_DEFAULT = 2;
 const ADD_ON_TYPE_ALA_CARTE = "ala_carte";
 const ADD_ON_TYPE_COMBO = "combo";
+const PAYMENT_METHOD_GOOGLE_PAY = "google_pay";
+const PAYMENT_METHOD_VISA_MASTERCARD = "visa_mastercard";
+const PAYMENT_METHOD_AMEX = "amex";
+const PAYMENT_METHODS = new Set([
+  PAYMENT_METHOD_GOOGLE_PAY,
+  PAYMENT_METHOD_VISA_MASTERCARD,
+  PAYMENT_METHOD_AMEX
+]);
 
 function toIsoDate(value) {
   if (!value) return "";
@@ -98,6 +106,26 @@ function normalizeAddOns(addons = []) {
     .filter(Boolean);
 }
 
+function normalizeContactInfo(contactInfo) {
+  if (!contactInfo || typeof contactInfo !== "object") {
+    return {
+      name: "",
+      email: ""
+    };
+  }
+
+  return {
+    name: normalizeText(contactInfo.name),
+    email: normalizeText(contactInfo.email)
+  };
+}
+
+function normalizePaymentMethod(value) {
+  const normalized = normalizeText(value).toLowerCase();
+  if (!PAYMENT_METHODS.has(normalized)) return "";
+  return normalized;
+}
+
 function normalizeBookingPipelineSession(input = {}) {
   const screeningId = normalizeText(input.screeningId);
   const expiresAt = toIsoDate(input.expiresAt);
@@ -125,7 +153,9 @@ function normalizeBookingPipelineSession(input = {}) {
     ticketType: normalizeText(input.ticketType) || "Adult",
     bookingFee: normalizeNonNegativeNumber(input.bookingFee, BOOKING_FEE_DEFAULT),
     promo: normalizePromo(input.promo),
-    addons: normalizeAddOns(input.addons)
+    addons: normalizeAddOns(input.addons),
+    contactInfo: normalizeContactInfo(input.contactInfo),
+    paymentMethod: normalizePaymentMethod(input.paymentMethod)
   };
 }
 
@@ -166,7 +196,12 @@ export function createStageOneBookingSession({ screeningId, movieId = "" }) {
     ticketType: "Adult",
     bookingFee: BOOKING_FEE_DEFAULT,
     promo: null,
-    addons: []
+    addons: [],
+    contactInfo: {
+      name: "",
+      email: ""
+    },
+    paymentMethod: ""
   };
 }
 

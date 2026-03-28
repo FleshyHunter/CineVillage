@@ -4,6 +4,8 @@ const {
   getCollectionAddOn
 } = require("../config/database");
 
+const ADD_ON_TYPES = new Set(["ala_carte", "combo"]);
+
 function normalizeText(value) {
   return (value || "").toString().trim();
 }
@@ -18,12 +20,14 @@ function toObjectIdSafe(value) {
 function normalizeAddOnData(raw = {}) {
   const priceValue = normalizeText(raw.price);
   const parsedPrice = Number.parseFloat(priceValue);
+  const addOnType = normalizeText(raw.type).toLowerCase();
 
   return {
     name: normalizeText(raw.name),
     price: Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0,
     description: normalizeText(raw.description),
-    pictureUrl: normalizeText(raw.pictureUrl)
+    pictureUrl: normalizeText(raw.pictureUrl),
+    type: ADD_ON_TYPES.has(addOnType) ? addOnType : ""
   };
 }
 
@@ -78,6 +82,7 @@ async function deleteAddOn(id) {
 }
 
 module.exports = {
+  ADD_ON_TYPES,
   normalizeAddOnData,
   createAddOn,
   getAllAddOns,

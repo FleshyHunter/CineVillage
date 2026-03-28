@@ -4,12 +4,21 @@ const {
   getCollectionAddOn
 } = require("../../config/database");
 
+const ADD_ON_TYPES = new Set(["ala_carte", "combo"]);
+
+function normalizeAddOnType(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  if (!ADD_ON_TYPES.has(normalized)) return "ala_carte";
+  return normalized;
+}
+
 function serializeAddOn(addOn) {
   if (!addOn) return null;
 
   return {
     ...addOn,
-    _id: String(addOn._id)
+    _id: String(addOn._id),
+    type: normalizeAddOnType(addOn.type)
   };
 }
 

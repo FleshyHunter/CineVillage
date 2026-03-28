@@ -37,6 +37,11 @@ const STEP_CONFIG = [
 
 const ADD_ON_TYPE_ALA_CARTE = "ala_carte";
 const ADD_ON_TYPE_COMBO = "combo";
+const PAYMENT_METHOD_GOOGLE_PAY = "google_pay";
+const PAYMENT_METHOD_VISA_MASTERCARD = "visa_mastercard";
+const PAYMENT_METHOD_AMEX = "amex";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function formatScreeningDate(dateValue) {
   if (!dateValue) return "N/A";
@@ -157,6 +162,28 @@ function resolvePromoDiscountAmount(promo, totalBeforeDiscount) {
   return Math.min(value, totalBeforeDiscount);
 }
 
+function normalizePaymentMethod(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  if (normalized === PAYMENT_METHOD_GOOGLE_PAY) return PAYMENT_METHOD_GOOGLE_PAY;
+  if (normalized === PAYMENT_METHOD_VISA_MASTERCARD) return PAYMENT_METHOD_VISA_MASTERCARD;
+  if (normalized === PAYMENT_METHOD_AMEX) return PAYMENT_METHOD_AMEX;
+  return "";
+}
+
+function normalizeContactForm(contactInfo) {
+  if (!contactInfo || typeof contactInfo !== "object") {
+    return {
+      name: "",
+      email: ""
+    };
+  }
+
+  return {
+    name: (contactInfo.name || "").toString(),
+    email: (contactInfo.email || "").toString()
+  };
+}
+
 function getStageTitle(flowStage) {
   if (flowStage === "addons") return "Add Ons";
   if (flowStage === "payment") return "Payment";
@@ -199,6 +226,17 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   const [isExtending, setIsExtending] = useState(false);
   const [modalAddOn, setModalAddOn] = useState(null);
   const [modalQuantity, setModalQuantity] = useState(1);
+  const [contactForm, setContactForm] = useState(() => normalizeContactForm(null));
+  const [contactErrors, setContactErrors] = useState({});
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
+  const [cardForm, setCardForm] = useState({
+    cardNumber: "",
+    expiry: "",
+    cvv: ""
+  });
+  const [paymentErrors, setPaymentErrors] = useState({});
+  const [payMessage, setPayMessage] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
     if (!screeningId) {
@@ -281,6 +319,20 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
     const nextSession = updateBookingPipelineSession({ stage: flowStage });
     if (nextSession) setBookingSession(nextSession);
   }, [activeSession, flowStage]);
+
+  const sessionContactName = (activeSession?.contactInfo?.name || "").toString();
+  const sessionContactEmail = (activeSession?.contactInfo?.email || "").toString();
+  const sessionPaymentMethod = normalizePaymentMethod(activeSession?.paymentMethod);
+
+  useEffect(() => {
+    if (!isPaymentStage) return;
+
+    setContactForm({
+      name: sessionContactName,
+      email: sessionContactEmail
+    });
+    setSelectedPaymentMethod(sessionPaymentMethod);
+  }, [isPaymentStage, sessionContactName, sessionContactEmail, sessionPaymentMethod]);
 
   const remainingMs = getSessionRemainingMs(activeSession, now);
   const countdownDigits = buildCountdownDigitsFromRemainingMs(remainingMs);
@@ -380,6 +432,18 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   const promoDiscountAmount = resolvePromoDiscountAmount(promo, subtotalBeforeDiscount);
   const grandTotal = Math.max(subtotalBeforeDiscount - promoDiscountAmount, 0);
 
+  const requiresCardDetails = selectedPaymentMethod === PAYMENT_METHOD_VISA_MASTERCARD
+    || selectedPaymentMethod === PAYMENT_METHOD_AMEX;
+  const venueName = (
+    preview?.cinema?.name
+    || preview?.hall?.cinemaName
+    || preview?.hall?.name
+    || "CineVillage"
+  ).toString();
+  const venueImageUrl = resolveMoviePictureUrl(
+    preview?.hall?.pictureUrl || preview?.cinema?.pictureUrl || ""
+  );
+
   function persistSessionPatch(patch) {
     const nextSession = updateBookingPipelineSession(patch);
     if (nextSession) setBookingSession(nextSession);
@@ -457,13 +521,138 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
     handleCloseAddOnModal();
   }
 
+  function handleContactFieldChange(field, value) {
+    setContactForm((previous) => ({
+      ...previous,
+      [field]: value
+    }));
+    setContactErrors((previous) => ({
+      ...previous,
+      [field]: ""
+    }));
+    setPayMessage("");
+  }
+
+  function handleSelectPaymentMethod(method) {
+    const normalizedMethod = normalizePaymentMethod(method);
+    setSelectedPaymentMethod(normalizedMethod);
+    setPaymentErrors((previous) => ({
+      ...previous,
+      paymentMethod: "",
+      cardNumber: "",
+      expiry: "",
+      cvv: ""
+    }));
+    setPayMessage("");
+
+    persistSessionPatch({
+      paymentMethod: normalizedMethod
+    });
+  }
+
+  function handleCardFieldChange(field, value) {
+    setCardForm((previous) => ({
+      ...previous,
+      [field]: value
+    }));
+    setPaymentErrors((previous) => ({
+      ...previous,
+      [field]: ""
+    }));
+    setPayMessage("");
+  }
+
+  function validatePaymentStageForm() {
+    const nextContactErrors = {};
+    const nextPaymentErrors = {};
+
+    const trimmedName = contactForm.name.trim();
+    const trimmedEmail = contactForm.email.trim();
+    const digitsOnlyCard = cardForm.cardNumber.replace(/\D/g, "");
+    const trimmedExpiry = cardForm.expiry.trim();
+    const trimmedCvv = cardForm.cvv.trim();
+
+    if (!trimmedName) {
+      nextContactErrors.name = "Name is required.";
+    }
+
+    if (!trimmedEmail) {
+      nextContactErrors.email = "Email is required.";
+    } else if (!EMAIL_PATTERN.test(trimmedEmail)) {
+      nextContactErrors.email = "Enter a valid email address.";
+    }
+
+    if (!selectedPaymentMethod) {
+      nextPaymentErrors.paymentMethod = "Select a payment method.";
+    }
+
+    if (requiresCardDetails) {
+      if (digitsOnlyCard.length < 12) {
+        nextPaymentErrors.cardNumber = "Enter a valid card number.";
+      }
+
+      if (!/^\d{2}\/\d{2}$/.test(trimmedExpiry)) {
+        nextPaymentErrors.expiry = "Use MM/YY format.";
+      }
+
+      if (!/^\d{3,4}$/.test(trimmedCvv)) {
+        nextPaymentErrors.cvv = "Enter a valid CVV.";
+      }
+    }
+
+    setContactErrors(nextContactErrors);
+    setPaymentErrors(nextPaymentErrors);
+
+    return {
+      isValid: Object.keys(nextContactErrors).length === 0
+        && Object.keys(nextPaymentErrors).length === 0,
+      trimmedName,
+      trimmedEmail
+    };
+  }
+
+  function handlePayClick() {
+    const validation = validatePaymentStageForm();
+    if (!validation.isValid) return;
+
+    persistSessionPatch({
+      contactInfo: {
+        name: validation.trimmedName,
+        email: validation.trimmedEmail
+      },
+      paymentMethod: normalizePaymentMethod(selectedPaymentMethod),
+      stage: "payment"
+    });
+
+    setPayMessage("Payment gateway integration will be added next. Form data has been saved.");
+  }
+
+  async function handleCancelOrder() {
+    if (isCancelling) return;
+    setIsCancelling(true);
+
+    const movieId = activeSession?.movieId || heroMovie._id || preview.movie?._id || "";
+
+    try {
+      if (activeSession?.bookingId) {
+        await releaseBookingHold(activeSession.bookingId).catch(() => null);
+      }
+    } finally {
+      clearBookingPipelineSession();
+      setBookingSession(null);
+      window.location.hash = `#movie-details/${movieId}`;
+      setIsCancelling(false);
+    }
+  }
+
   function renderOrderSummarySection({
     backLabel,
     onBack,
     continueLabel,
     onContinue,
     continueDisabled = false,
-    termsText = ""
+    termsText = "",
+    showActions = true
   }) {
     return (
       <section className="promotions-panel">
@@ -532,14 +721,16 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
 
         {termsText ? <p className="promotions-terms">{termsText}</p> : null}
 
-        <div className="promotions-actions">
-          <SeatSelectionButton variant="secondary" onClick={onBack}>
-            {backLabel}
-          </SeatSelectionButton>
-          <SeatSelectionButton variant="primary" onClick={onContinue} disabled={continueDisabled}>
-            {continueLabel}
-          </SeatSelectionButton>
-        </div>
+        {showActions ? (
+          <div className="promotions-actions">
+            <SeatSelectionButton variant="secondary" onClick={onBack}>
+              {backLabel}
+            </SeatSelectionButton>
+            <SeatSelectionButton variant="primary" onClick={onContinue} disabled={continueDisabled}>
+              {continueLabel}
+            </SeatSelectionButton>
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -560,13 +751,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
     );
   }
 
-  if (!activeSession && !expiredVisible) {
-    return (
-      <section className="promotions-status promotions-status-error">
-        <p>No active reservation found. Please select seats again.</p>
-      </section>
-    );
-  }
+  const showExpiredModal = expiredVisible || !activeSession;
 
   async function handleExtendSession() {
     if (!activeSession?.bookingId || isExtending) return;
@@ -770,18 +955,158 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
 
           {isPaymentStage ? (
             <>
-              <section className="promotions-panel promotions-payment-placeholder">
-                <h2>Payment</h2>
-                <p>Payment stage scaffold is ready. Proceed with payment implementation next.</p>
+              {renderOrderSummarySection({
+                showActions: false
+              })}
+
+              <section className="promotions-panel promotions-payment-contact-panel">
+                <h2>Contact Information</h2>
+                <div className="promotions-payment-form-grid">
+                  <div className="promotions-payment-field">
+                    <input
+                      type="text"
+                      value={contactForm.name}
+                      onChange={(event) => handleContactFieldChange("name", event.target.value)}
+                      placeholder="Name"
+                      autoComplete="name"
+                    />
+                    {contactErrors.name ? <p className="promotions-payment-error">{contactErrors.name}</p> : null}
+                  </div>
+
+                  <div className="promotions-payment-field">
+                    <input
+                      type="email"
+                      value={contactForm.email}
+                      onChange={(event) => handleContactFieldChange("email", event.target.value)}
+                      placeholder="Email"
+                      autoComplete="email"
+                    />
+                    {contactErrors.email ? <p className="promotions-payment-error">{contactErrors.email}</p> : null}
+                  </div>
+                </div>
               </section>
 
-              {renderOrderSummarySection({
-                backLabel: "BACK TO ADD ONS",
-                onBack: () => navigateToHash("addons"),
-                continueLabel: "CONTINUE",
-                onContinue: () => null,
-                continueDisabled: true
-              })}
+              <section className="promotions-panel promotions-payment-method-panel">
+                <h2>Payment Method</h2>
+                <div className="promotions-payment-method-grid">
+                  <button
+                    type="button"
+                    className={`promotions-payment-method-card${selectedPaymentMethod === PAYMENT_METHOD_GOOGLE_PAY ? " promotions-payment-method-card-active" : ""}`}
+                    onClick={() => handleSelectPaymentMethod(PAYMENT_METHOD_GOOGLE_PAY)}
+                    aria-pressed={selectedPaymentMethod === PAYMENT_METHOD_GOOGLE_PAY}
+                  >
+                    <span className="promotions-payment-method-logo promotions-payment-method-logo-gpay">G Pay</span>
+                    <strong>Google Pay</strong>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`promotions-payment-method-card${selectedPaymentMethod === PAYMENT_METHOD_VISA_MASTERCARD ? " promotions-payment-method-card-active" : ""}`}
+                    onClick={() => handleSelectPaymentMethod(PAYMENT_METHOD_VISA_MASTERCARD)}
+                    aria-pressed={selectedPaymentMethod === PAYMENT_METHOD_VISA_MASTERCARD}
+                  >
+                    <span className="promotions-payment-method-logo promotions-payment-method-logo-visa">VISA / MC</span>
+                    <strong>Visa / Mastercard</strong>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`promotions-payment-method-card${selectedPaymentMethod === PAYMENT_METHOD_AMEX ? " promotions-payment-method-card-active" : ""}`}
+                    onClick={() => handleSelectPaymentMethod(PAYMENT_METHOD_AMEX)}
+                    aria-pressed={selectedPaymentMethod === PAYMENT_METHOD_AMEX}
+                  >
+                    <span className="promotions-payment-method-logo promotions-payment-method-logo-amex">AMEX</span>
+                    <strong>AMEX</strong>
+                  </button>
+                </div>
+                {paymentErrors.paymentMethod ? (
+                  <p className="promotions-payment-error promotions-payment-method-error">{paymentErrors.paymentMethod}</p>
+                ) : null}
+              </section>
+
+              {requiresCardDetails ? (
+                <section className="promotions-panel promotions-payment-details-panel">
+                  <h2>Payment Details</h2>
+                  <div className="promotions-payment-form-grid">
+                    <div className="promotions-payment-field promotions-payment-field-full">
+                      <input
+                        type="text"
+                        value={cardForm.cardNumber}
+                        onChange={(event) => handleCardFieldChange("cardNumber", event.target.value)}
+                        placeholder="Card Number"
+                        inputMode="numeric"
+                        autoComplete="cc-number"
+                      />
+                      {paymentErrors.cardNumber ? <p className="promotions-payment-error">{paymentErrors.cardNumber}</p> : null}
+                    </div>
+
+                    <div className="promotions-payment-field">
+                      <input
+                        type="text"
+                        value={cardForm.expiry}
+                        onChange={(event) => handleCardFieldChange("expiry", event.target.value)}
+                        placeholder="MM/YY"
+                        inputMode="numeric"
+                        autoComplete="cc-exp"
+                      />
+                      {paymentErrors.expiry ? <p className="promotions-payment-error">{paymentErrors.expiry}</p> : null}
+                    </div>
+
+                    <div className="promotions-payment-field">
+                      <input
+                        type="password"
+                        value={cardForm.cvv}
+                        onChange={(event) => handleCardFieldChange("cvv", event.target.value)}
+                        placeholder="CVV"
+                        inputMode="numeric"
+                        autoComplete="cc-csc"
+                      />
+                      {paymentErrors.cvv ? <p className="promotions-payment-error">{paymentErrors.cvv}</p> : null}
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="promotions-panel promotions-payment-venue-panel">
+                <p>You will be watching your movie at</p>
+                <h3>{venueName}</h3>
+                <img src={venueImageUrl} alt={venueName} />
+              </section>
+
+              <section className="promotions-panel promotions-payment-terms-panel">
+                <p>
+                  By confirmation of payment, you agree to the{" "}
+                  <span>Terms and conditions of use</span>{" "}
+                  which includes no exchanges and cancellations for transactions and are
+                  bounded by the eligibility conditions (i.e. age verification for classified movies)
+                  for entry.
+                </p>
+              </section>
+
+              {payMessage ? (
+                <section className="promotions-panel promotions-payment-status-panel">
+                  <p>{payMessage}</p>
+                </section>
+              ) : null}
+
+              <section className="promotions-panel promotions-payment-actions-panel">
+                <div className="promotions-payment-actions">
+                  <SeatSelectionButton variant="secondary" onClick={() => navigateToHash("addons")}>
+                    BACK TO ADD-ONS
+                  </SeatSelectionButton>
+                  <SeatSelectionButton
+                    variant="ghost"
+                    className="promotions-payment-cancel-btn"
+                    onClick={handleCancelOrder}
+                    disabled={isCancelling}
+                  >
+                    {isCancelling ? "CANCELLING..." : "CANCEL ORDER"}
+                  </SeatSelectionButton>
+                  <SeatSelectionButton variant="primary" onClick={handlePayClick}>
+                    PAY
+                  </SeatSelectionButton>
+                </div>
+              </section>
             </>
           ) : null}
         </div>
@@ -874,13 +1199,12 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
         </div>
       ) : null}
 
-      {expiredVisible ? (
+      {showExpiredModal ? (
         <div className="promotions-modal-backdrop" role="presentation">
           <div className="promotions-modal" role="dialog" aria-modal="true" aria-labelledby="reservationExpiredTitle">
-            <h3 id="reservationExpiredTitle">Cart Expired</h3>
+            <h3 id="reservationExpiredTitle">Booking Session Ended</h3>
             <p>
-              You have exceeded the time allowed for completing the booking.
-              Please proceed with a new booking.
+              Your booking session has ended. Press confirm to return to movie details and start again.
             </p>
             <div className="promotions-modal-actions">
               <SeatSelectionButton

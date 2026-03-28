@@ -15,6 +15,11 @@
           <span class="detail-value"><%= Number(addOn.price || 0).toLocaleString('en-SG', { style: 'currency', currency: 'SGD' }) %></span>
         </div>
 
+        <div class="detail-item">
+          <span class="detail-label">TYPE</span>
+          <span class="detail-value"><%= addOn.type === 'combo' ? 'combo' : 'ala carte' %></span>
+        </div>
+
         <div class="detail-item full-width">
           <span class="detail-label">DESCRIPTION</span>
           <span class="detail-value"><%= addOn.description || 'N/A' %></span>

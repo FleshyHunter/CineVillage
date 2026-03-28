@@ -618,7 +618,199 @@
   color: #cbd5e1;
 }
 
+.promotions-payment-form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.promotions-payment-field {
+  display: grid;
+  gap: 6px;
+}
+
+.promotions-payment-field-full {
+  grid-column: 1 / -1;
+}
+
+.promotions-payment-field input {
+  width: 100%;
+  height: 50px;
+  padding: 0 14px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 10px;
+  background: rgba(51, 65, 85, 0.65);
+  color: #f8fafc;
+  font-size: 1rem;
+}
+
+.promotions-payment-field input::placeholder {
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.promotions-payment-field input:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.55);
+  outline-offset: 1px;
+}
+
+.promotions-payment-method-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.promotions-payment-method-card {
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 10px;
+  background: rgba(55, 65, 81, 0.76);
+  min-height: 142px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  align-content: center;
+  text-align: center;
+  color: #f8fafc;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.promotions-payment-method-card:hover {
+  border-color: rgba(248, 113, 113, 0.72);
+}
+
+.promotions-payment-method-card:active {
+  transform: translateY(1px);
+}
+
+.promotions-payment-method-card-active {
+  border-color: rgba(248, 113, 113, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.4);
+}
+
+.promotions-payment-method-card strong {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.promotions-payment-method-logo {
+  width: 160px;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.promotions-payment-method-logo-gpay {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+
+.promotions-payment-method-logo-visa {
+  background: linear-gradient(90deg, #1d4ed8 0%, #1e3a8a 100%);
+  color: #f8fafc;
+}
+
+.promotions-payment-method-logo-amex {
+  background: #2563eb;
+  color: #dbeafe;
+}
+
+.promotions-payment-method-error {
+  margin-top: 8px;
+}
+
+.promotions-payment-error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 0.84rem;
+}
+
+.promotions-payment-details-panel .promotions-payment-form-grid {
+  grid-template-columns: minmax(0, 1fr) 160px 120px;
+  align-items: start;
+}
+
+.promotions-payment-venue-panel {
+  justify-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.promotions-payment-venue-panel p {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #f8fafc;
+}
+
+.promotions-payment-venue-panel h3 {
+  margin: 0;
+  font-size: 2rem;
+  color: #fbbf24;
+  text-transform: none;
+}
+
+.promotions-payment-venue-panel img {
+  margin-top: 8px;
+  width: min(520px, 100%);
+  max-height: 190px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  object-fit: cover;
+}
+
+.promotions-payment-terms-panel p {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.promotions-payment-terms-panel span {
+  color: #f87171;
+}
+
+.promotions-payment-status-panel p {
+  margin: 0;
+  color: #93c5fd;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.promotions-payment-actions-panel {
+  padding-top: 10px;
+}
+
+.promotions-payment-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.promotions-payment-actions .seat-selection-btn {
+  width: 100%;
+}
+
+.promotions-payment-cancel-btn {
+  border-color: rgba(248, 113, 113, 0.82);
+  color: #fecaca;
+}
+
+.promotions-payment-cancel-btn:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 1);
+  background: rgba(127, 29, 29, 0.25);
+}
+
 @media (max-width: 900px) {
+  .promotions-payment-details-panel .promotions-payment-form-grid {
+    grid-template-columns: 1fr;
+  }
+
   .promotions-addon-modal-main {
     grid-template-columns: 1fr;
   }
@@ -636,6 +828,15 @@
   .promotions-addons-rail {
     --visible-cards: 2.2;
     --rail-gap: 10px;
+  }
+
+  .promotions-payment-method-grid,
+  .promotions-payment-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .promotions-payment-method-logo {
+    width: 100%;
   }
 
   .promotions-addon-modal {

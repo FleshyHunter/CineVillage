@@ -47,12 +47,14 @@ router.get("/create", requireRoles(["Admin", "Manager"]), (req, res) => {
 router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("picture"), async (req, res) => {
   try {
     const addOnData = normalizeAddOnData(req.body);
-    if (!addOnData.name) {
+    if (!addOnData.name || !addOnData.type) {
       return res.render("addons/addOnForm", {
         title: "Add-Ons",
         addOn: addOnData,
         isEdit: false,
-        error: "Add-on name is required.",
+        error: !addOnData.name
+          ? "Add-on name is required."
+          : "Add-on type is required.",
         returnTo: "/addons"
       });
     }
@@ -93,12 +95,14 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("pict
     if (!existing) return res.status(404).send("Add-on not found");
 
     const addOnData = normalizeAddOnData(req.body);
-    if (!addOnData.name) {
+    if (!addOnData.name || !addOnData.type) {
       return res.render("addons/addOnForm", {
         title: "Add-Ons",
         addOn: { ...existing, ...addOnData, _id: req.params.id },
         isEdit: true,
-        error: "Add-on name is required.",
+        error: !addOnData.name
+          ? "Add-on name is required."
+          : "Add-on type is required.",
         returnTo: sanitizeReturnTo(req.body.returnTo || "/addons")
       });
     }
