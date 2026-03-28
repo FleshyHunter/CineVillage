@@ -11,6 +11,7 @@ const BOOKABLE_SCREENING_STATUSES = new Set(["published", "scheduled"]);
 const NON_BOOKABLE_SEAT_STATES = new Set(["removed"]);
 const HOLD_DURATION_MS = 15 * 60 * 1000;
 const HOLD_EXTEND_MS = 5 * 60 * 1000;
+const HOLD_DURATION_MAX_SECONDS = Math.floor(HOLD_DURATION_MS / 1000);
 
 function toObjectIdSafe(value) {
   if (!value) return null;
@@ -131,12 +132,24 @@ function buildBookingCode() {
   return `BK-${timePart}-${randomPart}`;
 }
 
+function resolveRequestedHoldDurationMs(payload = {}) {
+  const requestedSeconds = Number.parseInt(payload?.holdDurationSeconds, 10);
+  if (!Number.isFinite(requestedSeconds)) return HOLD_DURATION_MS;
+
+  const clampedSeconds = Math.min(
+    Math.max(requestedSeconds, 1),
+    HOLD_DURATION_MAX_SECONDS
+  );
+
+  return clampedSeconds * 1000;
+}
+
 function buildBookingDocument(screening, seatLabels, payload = {}, now = new Date()) {
   const seatCount = seatLabels.length;
   const pricePerSeat = Number(screening?.price);
   const normalizedPricePerSeat = Number.isFinite(pricePerSeat) ? pricePerSeat : 0;
   const totalAmount = normalizedPricePerSeat * seatCount;
-  const expiresAt = new Date(now.getTime() + HOLD_DURATION_MS);
+  const expiresAt = new Date(now.getTime() + resolveRequestedHoldDurationMs(payload));
 
   const hallId =
     toObjectIdSafe(screening?.hallSnapshot?.originalHallId) ||
