@@ -1,6 +1,10 @@
 import { useRef } from "react";
 
-export default function MovieRail({ children, label }) {
+function joinClasses(...values) {
+  return values.filter(Boolean).join(" ");
+}
+
+export default function CardRail({ children, label, className = "" }) {
   const railRef = useRef(null);
   const dragStateRef = useRef({
     isDragging: false,
@@ -56,7 +60,7 @@ export default function MovieRail({ children, label }) {
   return (
     <div
       ref={railRef}
-      className="movie-rail"
+      className={joinClasses("movie-rail", className)}
       role="list"
       aria-label={label}
       onWheel={handleWheel}

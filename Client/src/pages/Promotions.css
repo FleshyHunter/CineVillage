@@ -312,7 +312,7 @@
 }
 
 .promotions-card a {
-  color: #f43f5e;
+  color: #93c5fd;
   font-size: 0.8rem;
   font-weight: 700;
 }
@@ -351,6 +351,10 @@
   text-transform: uppercase;
 }
 
+.promotions-summary-body h3:not(:first-child) {
+  margin-top: 14px;
+}
+
 .promotions-summary-row {
   display: grid;
   grid-template-columns: 1fr 90px 120px;
@@ -371,6 +375,10 @@
   font-size: 1rem;
 }
 
+.promotions-summary-row + .promotions-summary-row {
+  margin-top: 10px;
+}
+
 .promotions-summary-footer {
   padding-top: 10px;
 }
@@ -386,6 +394,34 @@
 
 .promotions-summary-total-row-grand {
   font-size: 16px;
+}
+
+.promotions-summary-total-row-discount {
+  color: #93c5fd;
+}
+
+.promotions-addons-rails {
+  display: grid;
+  gap: 18px;
+}
+
+.promotions-addons-rail-group {
+  display: grid;
+  gap: 10px;
+}
+
+.promotions-addons-rail-group h3 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 0.98rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.promotions-addons-rail {
+  --rail-gap: 14px;
+  --visible-cards: 4.6;
+  --rail-left-bleed: 6px;
 }
 
 .promotions-terms {
@@ -447,4 +483,170 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.promotions-addon-modal-backdrop {
+  z-index: 1450;
+}
+
+.promotions-addon-modal {
+  width: min(860px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: linear-gradient(180deg, rgba(29, 29, 31, 0.99) 0%, rgba(17, 17, 19, 0.99) 100%);
+  box-shadow:
+    0 20px 40px rgba(2, 6, 23, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.promotions-addon-modal-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.promotions-addon-modal-top h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.promotions-addon-modal-close {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.16);
+  color: #f8fafc;
+  display: grid;
+  place-items: center;
+}
+
+.promotions-addon-modal-main {
+  display: grid;
+  grid-template-columns: minmax(220px, 340px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.promotions-addon-modal-image-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.promotions-addon-modal-image-wrap img {
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  object-fit: cover;
+  display: block;
+}
+
+.promotions-addon-modal-content {
+  display: grid;
+  gap: 12px;
+}
+
+.promotions-addon-modal-content h4 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.promotions-addon-modal-description {
+  margin: 0;
+  color: #dbe5f4;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.promotions-addon-modal-price {
+  margin: 0;
+  color: #93c5fd;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.promotions-addon-modal-qty {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.32);
+  background: rgba(2, 6, 23, 0.7);
+}
+
+.promotions-addon-modal-qty button {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.2);
+  color: #dbeafe;
+  display: grid;
+  place-items: center;
+}
+
+.promotions-addon-modal-qty span {
+  min-width: 24px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.promotions-addon-modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.promotions-addon-modal-actions .seat-selection-btn {
+  min-width: 130px;
+}
+
+.promotions-payment-placeholder p {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+@media (max-width: 900px) {
+  .promotions-addon-modal-main {
+    grid-template-columns: 1fr;
+  }
+
+  .promotions-addon-modal-image-wrap img {
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 760px) {
+  .promotions-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .promotions-addons-rail {
+    --visible-cards: 2.2;
+    --rail-gap: 10px;
+  }
+
+  .promotions-addon-modal {
+    padding: 16px;
+  }
+
+  .promotions-addon-modal-actions {
+    flex-direction: column;
+  }
+
+  .promotions-addon-modal-actions .seat-selection-btn {
+    width: 100%;
+  }
 }

@@ -12,10 +12,14 @@ import { releaseBookingHold, releaseBookingHoldBestEffort } from "./services/api
 import Home from "./pages/Home";
 import MovieDetails from "./pages/MovieDetails";
 import Movies from "./pages/Movies";
+import AddOns from "./pages/AddOns";
+import Payment from "./pages/Payment";
 import Promotions from "./pages/Promotions";
 import SeatSelection from "./pages/SeatSelection";
 
 const FLOW_GUARD_PAGES = new Set(["promotions", "addons", "payment"]);
+const BOOKING_REFRESH_RECOVERY_KEY = "cinevillage_booking_refresh_recovery";
+const BOOKING_REFRESH_MOVIE_ID_KEY = "cinevillage_booking_refresh_movie_id";
 
 function readClientViewFromHash() {
   const hash = (window.location.hash || "").replace(/^#/, "");
@@ -86,6 +90,8 @@ export default function App() {
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
   const [pendingView, setPendingView] = useState(null);
   const [isReleasingHold, setIsReleasingHold] = useState(false);
+  const [refreshLossMovieId, setRefreshLossMovieId] = useState("");
+  const [refreshLossOpen, setRefreshLossOpen] = useState(false);
   const suppressNextHashChange = useRef(false);
 
   function getHashForView(view) {
@@ -128,27 +134,57 @@ export default function App() {
   }, [clientView]);
 
   useEffect(() => {
-    function handleBeforeUnload(event) {
-      if (!FLOW_GUARD_PAGES.has(clientView.page)) return;
-      if (!hasActiveBookingPipelineSession()) return;
-      event.preventDefault();
-      event.returnValue = "";
+    const navigationEntry = performance.getEntriesByType("navigation")[0];
+    const isReloadNavigation = navigationEntry?.type === "reload";
+
+    if (!isReloadNavigation) {
+      window.sessionStorage.removeItem(BOOKING_REFRESH_RECOVERY_KEY);
+      window.sessionStorage.removeItem(BOOKING_REFRESH_MOVIE_ID_KEY);
+      return;
     }
 
+    if (!FLOW_GUARD_PAGES.has(clientView.page)) {
+      window.sessionStorage.removeItem(BOOKING_REFRESH_RECOVERY_KEY);
+      window.sessionStorage.removeItem(BOOKING_REFRESH_MOVIE_ID_KEY);
+      return;
+    }
+
+    const recoveryFlag = window.sessionStorage.getItem(BOOKING_REFRESH_RECOVERY_KEY);
+    if (!recoveryFlag) return;
+    if (hasActiveBookingPipelineSession()) return;
+
+    const session = readBookingPipelineSession();
+    const movieId = (
+      session?.movieId ||
+      window.sessionStorage.getItem(BOOKING_REFRESH_MOVIE_ID_KEY) ||
+      ""
+    ).toString().trim();
+
+    setRefreshLossMovieId(movieId);
+    setRefreshLossOpen(true);
+  }, [clientView.page]);
+
+  useEffect(() => {
     function handlePageHide() {
       if (!FLOW_GUARD_PAGES.has(clientView.page)) return;
       const session = readBookingPipelineSession();
-      if (!session?.bookingId) return;
+      if (!session) return;
       if (!hasActiveBookingPipelineSession()) return;
 
-      releaseBookingHoldBestEffort(session.bookingId);
+      const movieId = (session.movieId || "").toString().trim();
+      if (movieId) {
+        window.sessionStorage.setItem(BOOKING_REFRESH_MOVIE_ID_KEY, movieId);
+      }
+      window.sessionStorage.setItem(BOOKING_REFRESH_RECOVERY_KEY, "1");
+
+      if (session.bookingId) {
+        releaseBookingHoldBestEffort(session.bookingId);
+      }
       clearBookingPipelineSession();
     }
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
     window.addEventListener("pagehide", handlePageHide);
     return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("pagehide", handlePageHide);
     };
   }, [clientView.page]);
@@ -161,6 +197,8 @@ export default function App() {
         await releaseBookingHold(session.bookingId).catch(() => null);
       }
       clearBookingPipelineSession();
+      window.sessionStorage.removeItem(BOOKING_REFRESH_RECOVERY_KEY);
+      window.sessionStorage.removeItem(BOOKING_REFRESH_MOVIE_ID_KEY);
     } finally {
       setIsReleasingHold(false);
       setLeavePromptOpen(false);
@@ -169,6 +207,19 @@ export default function App() {
       setPendingView(null);
       window.location.hash = getHashForView(next);
     }
+  }
+
+  function handleConfirmRefreshLoss() {
+    window.sessionStorage.removeItem(BOOKING_REFRESH_RECOVERY_KEY);
+    window.sessionStorage.removeItem(BOOKING_REFRESH_MOVIE_ID_KEY);
+    setRefreshLossOpen(false);
+
+    if (refreshLossMovieId) {
+      window.location.hash = `#movie-details/${refreshLossMovieId}`;
+      return;
+    }
+
+    window.location.hash = "#movies";
   }
 
   return (
@@ -187,11 +238,11 @@ export default function App() {
           {clientView.page === "seat-selection" ? (
             <SeatSelection screeningId={clientView.screeningId} />
           ) : clientView.page === "promotions" ? (
-            <Promotions screeningId={clientView.screeningId} flowStage="promotions" />
+            <Promotions screeningId={clientView.screeningId} />
           ) : clientView.page === "addons" ? (
-            <Promotions screeningId={clientView.screeningId} flowStage="addons" />
+            <AddOns screeningId={clientView.screeningId} />
           ) : clientView.page === "payment" ? (
-            <Promotions screeningId={clientView.screeningId} flowStage="payment" />
+            <Payment screeningId={clientView.screeningId} />
           ) : clientView.page === "movie-details" ? (
             <MovieDetails movieId={clientView.movieId} />
           ) : clientView.page === "movies" ? (
@@ -239,6 +290,23 @@ export default function App() {
                 disabled={isReleasingHold}
               >
                 {isReleasingHold ? "Confirming..." : "Confirm"}
+              </SeatSelectionButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {refreshLossOpen ? (
+        <div className="booking-leave-modal-backdrop" role="presentation">
+          <div className="booking-leave-modal" role="dialog" aria-modal="true" aria-labelledby="bookingRefreshLossTitle">
+            <h3 id="bookingRefreshLossTitle">Booking Session Lost</h3>
+            <p>
+              Your booking process data was cleared after refresh.
+              You will be redirected to movie details to start again.
+            </p>
+            <div className="booking-leave-modal-actions">
+              <SeatSelectionButton variant="primary" onClick={handleConfirmRefreshLoss}>
+                Confirm
               </SeatSelectionButton>
             </div>
           </div>

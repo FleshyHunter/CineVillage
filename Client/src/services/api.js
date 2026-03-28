@@ -2,6 +2,7 @@ const MOVIE_API_PATH = "/api/movies";
 const SCREENING_API_PATH = "/api/screenings";
 const BOOKING_API_PATH = "/api/bookings";
 const PROMOTION_API_PATH = "/api/promotions";
+const ADD_ON_API_PATH = "/api/addons";
 const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || "http://localhost:3000";
 
 class ApiError extends Error {
@@ -71,6 +72,12 @@ export async function fetchScreeningSeatPreview(id) {
 export async function fetchPromotions(params = {}) {
   const response = await fetch(`${PROMOTION_API_PATH}${toQueryString(params)}`);
   const payload = await parseJsonResponse(response, "Failed to fetch promotions");
+  return payload.items || [];
+}
+
+export async function fetchAddOns(params = {}) {
+  const response = await fetch(`${ADD_ON_API_PATH}${toQueryString(params)}`);
+  const payload = await parseJsonResponse(response, "Failed to fetch add-ons");
   return payload.items || [];
 }
 

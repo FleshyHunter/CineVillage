@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
+import CardRail from "../components/CardRail";
 import MovieCard from "../components/MovieCard";
-import MovieRail from "../components/MovieRail";
 import ShowcaseCard from "../components/ShowcaseCard";
 import ViewportSection from "../components/ViewportSection";
 import { fetchMovies, resolveMoviePictureUrl } from "../services/api";
@@ -186,11 +186,11 @@ export default function Home() {
           </div>
 
           {section.movies.length > 0 ? (
-            <MovieRail label={section.title}>
+            <CardRail label={section.title}>
               {section.movies.map((movie) => (
                 <MovieCard key={`${section.title}-${movie._id || movie.title}`} movie={movie} />
               ))}
-            </MovieRail>
+            </CardRail>
           ) : (
             <div className="empty-rail-state">
               No movies available in this section yet.

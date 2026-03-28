@@ -1,12 +1,132 @@
 const BOOKING_PIPELINE_SESSION_KEY = "cinevillage_booking_pipeline_session";
 export const BOOKING_TIMER_INITIAL_MS = 15 * 60 * 1000;
 export const BOOKING_TIMER_EXTEND_MS = 5 * 60 * 1000;
+export const BOOKING_FEE_DEFAULT = 2;
+const ADD_ON_TYPE_ALA_CARTE = "ala_carte";
+const ADD_ON_TYPE_COMBO = "combo";
 
 function toIsoDate(value) {
   if (!value) return "";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toISOString();
+}
+
+function normalizeText(value) {
+  return (value || "").toString().trim();
+}
+
+function normalizeNonNegativeNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return fallback;
+  return numeric;
+}
+
+function normalizeSeatLabels(seats = []) {
+  if (!Array.isArray(seats)) return [];
+
+  const seen = new Set();
+  const normalized = [];
+
+  seats.forEach((seat) => {
+    const seatLabel = normalizeText(seat).toUpperCase();
+    if (!seatLabel || seen.has(seatLabel)) return;
+    seen.add(seatLabel);
+    normalized.push(seatLabel);
+  });
+
+  return normalized;
+}
+
+function normalizeAddOnType(value) {
+  const normalized = normalizeText(value).toLowerCase();
+  if (normalized === ADD_ON_TYPE_COMBO) return ADD_ON_TYPE_COMBO;
+  return ADD_ON_TYPE_ALA_CARTE;
+}
+
+function normalizePromo(promo) {
+  if (!promo || typeof promo !== "object") return null;
+
+  const id = normalizeText(promo.id || promo._id);
+  const name = normalizeText(promo.name);
+  const code = normalizeText(promo.code);
+  const discountType = normalizeText(promo.discountType || promo.type).toLowerCase() || "";
+  const discountValue = normalizeNonNegativeNumber(promo.discountValue, 0);
+  const discountAmount = normalizeNonNegativeNumber(promo.discountAmount, 0);
+
+  if (!id && !name && !code && discountValue <= 0 && discountAmount <= 0) {
+    return null;
+  }
+
+  return {
+    id: id || "",
+    name: name || "",
+    code: code || "",
+    discountType,
+    discountValue,
+    discountAmount
+  };
+}
+
+function normalizeAddOns(addons = []) {
+  if (!Array.isArray(addons)) return [];
+
+  return addons
+    .map((addon) => {
+      if (!addon || typeof addon !== "object") return null;
+
+      const id = normalizeText(addon.id || addon._id);
+      const name = normalizeText(addon.name);
+      const qty = Math.max(0, Number.parseInt(addon.qty, 10) || 0);
+      const price = normalizeNonNegativeNumber(addon.price, 0);
+      const image = normalizeText(addon.image || addon.pictureUrl);
+      const description = normalizeText(addon.description);
+
+      if (!id && !name) return null;
+      if (qty <= 0) return null;
+
+      return {
+        id: id || name,
+        name: name || "Add-on",
+        type: normalizeAddOnType(addon.type),
+        price,
+        qty,
+        image,
+        description
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeBookingPipelineSession(input = {}) {
+  const screeningId = normalizeText(input.screeningId);
+  const expiresAt = toIsoDate(input.expiresAt);
+  if (!screeningId || !expiresAt) return null;
+
+  const selectedSeats = normalizeSeatLabels(input.selectedSeats);
+  const ticketPrice = normalizeNonNegativeNumber(input.ticketPrice, 0);
+  const seatCountFallback = selectedSeats.length || 0;
+  const parsedSeatCount = Number.parseInt(input.seatCount, 10);
+  const seatCount = Number.isInteger(parsedSeatCount) && parsedSeatCount >= 0
+    ? parsedSeatCount
+    : seatCountFallback;
+
+  return {
+    bookingId: normalizeText(input.bookingId),
+    screeningId,
+    movieId: normalizeText(input.movieId),
+    stage: normalizeText(input.stage) || "seat-selection",
+    lowTimePrompted: Boolean(input.lowTimePrompted),
+    expiresAt,
+    selectedSeats,
+    seatCount,
+    ticketPrice,
+    seatType: normalizeText(input.seatType) || "Standard",
+    ticketType: normalizeText(input.ticketType) || "Adult",
+    bookingFee: normalizeNonNegativeNumber(input.bookingFee, BOOKING_FEE_DEFAULT),
+    promo: normalizePromo(input.promo),
+    addons: normalizeAddOns(input.addons)
+  };
 }
 
 export function readBookingPipelineSession() {
@@ -17,40 +137,15 @@ export function readBookingPipelineSession() {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
 
-    const bookingId = (parsed.bookingId || "").toString().trim();
-    const screeningId = (parsed.screeningId || "").toString().trim();
-    const movieId = (parsed.movieId || "").toString().trim();
-    const stage = (parsed.stage || "").toString().trim();
-    const expiresAt = toIsoDate(parsed.expiresAt);
-
-    if (!screeningId || !expiresAt) return null;
-
-    return {
-      bookingId,
-      screeningId,
-      movieId,
-      stage: stage || "seat-selection",
-      lowTimePrompted: Boolean(parsed.lowTimePrompted),
-      expiresAt
-    };
+    return normalizeBookingPipelineSession(parsed);
   } catch (_error) {
     return null;
   }
 }
 
 export function saveBookingPipelineSession(session) {
-  if (!session || typeof session !== "object") return;
-
-  const normalized = {
-    bookingId: (session.bookingId || "").toString().trim(),
-    screeningId: (session.screeningId || "").toString().trim(),
-    movieId: (session.movieId || "").toString().trim(),
-    stage: (session.stage || "seat-selection").toString().trim() || "seat-selection",
-    lowTimePrompted: Boolean(session.lowTimePrompted),
-    expiresAt: toIsoDate(session.expiresAt)
-  };
-
-  if (!normalized.screeningId || !normalized.expiresAt) return;
+  const normalized = normalizeBookingPipelineSession(session);
+  if (!normalized) return;
 
   window.sessionStorage.setItem(BOOKING_PIPELINE_SESSION_KEY, JSON.stringify(normalized));
 }
@@ -63,7 +158,15 @@ export function createStageOneBookingSession({ screeningId, movieId = "" }) {
     movieId: (movieId || "").toString().trim(),
     stage: "seat-selection",
     lowTimePrompted: false,
-    expiresAt: new Date(now + BOOKING_TIMER_INITIAL_MS).toISOString()
+    expiresAt: new Date(now + BOOKING_TIMER_INITIAL_MS).toISOString(),
+    selectedSeats: [],
+    seatCount: 0,
+    ticketPrice: 0,
+    seatType: "Standard",
+    ticketType: "Adult",
+    bookingFee: BOOKING_FEE_DEFAULT,
+    promo: null,
+    addons: []
   };
 }
 

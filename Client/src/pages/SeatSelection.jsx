@@ -8,6 +8,7 @@ import {
   resolveMoviePictureUrl
 } from "../services/api";
 import {
+  BOOKING_FEE_DEFAULT,
   BOOKING_TIMER_EXTEND_MS,
   BOOKING_TIMER_INITIAL_MS,
   buildCountdownDigitsFromRemainingMs,
@@ -313,27 +314,23 @@ export default function SeatSelection({ screeningId = "" }) {
   const totalCost = ticketPrice * selectedSeatCount;
 
   function tryAddSeat(seatKey) {
-    let added = false;
+    if (selectedSeats.has(seatKey)) {
+      setSelectionNotice("");
+      setBookingMessage("");
+      setBookingError("");
+      return true;
+    }
 
-    setSelectedSeats((previous) => {
-      const next = new Set(previous);
-
-      if (next.size >= MAX_SELECTED_SEATS) {
-        return previous;
-      }
-
-      if (!next.has(seatKey)) {
-        next.add(seatKey);
-        added = true;
-      }
-
-      return next;
-    });
-
-    if (!added) {
+    if (selectedSeats.size >= MAX_SELECTED_SEATS) {
       setSelectionNotice(`You can select up to ${MAX_SELECTED_SEATS} seats only.`);
       return false;
     }
+
+    setSelectedSeats((previous) => {
+      const next = new Set(previous);
+      next.add(seatKey);
+      return next;
+    });
 
     setSelectionNotice("");
     setBookingMessage("");
@@ -388,13 +385,25 @@ export default function SeatSelection({ screeningId = "" }) {
       const bookingExpiresAt = booking?.expiresAt || null;
 
       if (booking?._id && nextScreeningId && bookingExpiresAt) {
+        const confirmedSeats = Array.isArray(booking?.seats) && booking.seats.length
+          ? booking.seats
+          : selectedSeatLabels;
+
         saveBookingPipelineSession({
           bookingId: booking._id,
           screeningId: nextScreeningId,
           movieId: bookingMovieId,
           stage: "promotions",
           lowTimePrompted: Boolean(activeSession.lowTimePrompted),
-          expiresAt: bookingExpiresAt
+          expiresAt: bookingExpiresAt,
+          selectedSeats: confirmedSeats,
+          seatCount: Number.isFinite(booking?.seatCount) ? booking.seatCount : confirmedSeats.length,
+          ticketPrice: Number.isFinite(booking?.pricePerSeat) ? booking.pricePerSeat : ticketPrice,
+          seatType: preview?.hall?.type || "Standard",
+          ticketType: "Adult",
+          bookingFee: Number.isFinite(activeSession?.bookingFee) ? activeSession.bookingFee : BOOKING_FEE_DEFAULT,
+          promo: null,
+          addons: []
         });
       }
 
