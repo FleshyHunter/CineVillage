@@ -437,8 +437,8 @@
 }
 
 .seat-selection-seat-onhold {
-  background: #16a34a;
-  border-color: #15803d;
+  background: #4b5563;
+  border-color: #374151;
 }
 
 .seat-selection-seat-removed {
@@ -701,14 +701,14 @@
 
 .seat-selection-modal h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--booking-alert-title-size, 1rem);
 }
 
 .seat-selection-modal p {
   margin: 0;
   color: #dbe5f4;
   line-height: 1.5;
-  font-size: 0.92rem;
+  font-size: var(--booking-alert-body-size, 0.92rem);
 }
 
 .seat-selection-modal-actions {

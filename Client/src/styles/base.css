@@ -17,6 +17,8 @@
   --line: #334155;
   --line-strong: #3b82f6;
   --shadow-glow: 0 0 0 1px rgba(59, 130, 246, 0.35), 0 0 14px rgba(37, 99, 235, 0.3);
+  --booking-alert-title-size: 1rem;
+  --booking-alert-body-size: 0.92rem;
 }
 
 * {

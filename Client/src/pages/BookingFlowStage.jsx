@@ -9,6 +9,7 @@ import {
   fetchPromotions,
   fetchScreeningSeatPreview,
   releaseBookingHold,
+  sendBookingInvoice,
   resolveMoviePictureUrl
 } from "../services/api";
 import {
@@ -27,6 +28,12 @@ const FLOW_STAGE_INDEX = {
   addons: 2,
   payment: 3
 };
+const SESSION_STAGE_INDEX = {
+  "seat-selection": 0,
+  promotions: 1,
+  addons: 2,
+  payment: 3
+};
 
 const STEP_CONFIG = [
   { key: "seats", label: "Seats", icon: "bi bi-ticket-perforated" },
@@ -37,7 +44,10 @@ const STEP_CONFIG = [
 
 const ADD_ON_TYPE_ALA_CARTE = "ala_carte";
 const ADD_ON_TYPE_COMBO = "combo";
-const PAYMENT_METHOD_GOOGLE_PAY = "google_pay";
+const PROMOTION_TYPE_ALL = "all";
+const PROMOTION_TYPE_VIP = "vip";
+const PROMOTION_TYPE_IMAX = "imax";
+const PROMOTION_TYPE_STANDARD = "standard";
 const PAYMENT_METHOD_VISA_MASTERCARD = "visa_mastercard";
 const PAYMENT_METHOD_AMEX = "amex";
 
@@ -102,6 +112,129 @@ function normalizeAddOnType(value) {
   return ADD_ON_TYPE_ALA_CARTE;
 }
 
+function normalizePromotionType(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  if (normalized === PROMOTION_TYPE_VIP) return PROMOTION_TYPE_VIP;
+  if (normalized === PROMOTION_TYPE_IMAX) return PROMOTION_TYPE_IMAX;
+  if (normalized === PROMOTION_TYPE_STANDARD) return PROMOTION_TYPE_STANDARD;
+  return PROMOTION_TYPE_ALL;
+}
+
+function normalizeHallTypeForPromotion(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  if (normalized.includes("vip")) return PROMOTION_TYPE_VIP;
+  if (normalized.includes("imax")) return PROMOTION_TYPE_IMAX;
+  return PROMOTION_TYPE_STANDARD;
+}
+
+function normalizePhoneDigits(value) {
+  return (value || "").toString().replace(/\D/g, "");
+}
+
+function formatMobileDisplay(value) {
+  const digits = normalizePhoneDigits(value);
+  if (!digits) return "";
+
+  if (digits.length === 7) {
+    return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+  }
+
+  if (digits.length === 8) {
+    return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+  }
+
+  return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+}
+
+function formatPhoneWithCountry(countryCode, mobile) {
+  const normalizedCountryCode = (countryCode || "+65").toString().trim() || "+65";
+  const formattedMobile = formatMobileDisplay(mobile);
+  if (!formattedMobile) return "";
+  return `(${normalizedCountryCode}) ${formattedMobile}`;
+}
+
+function formatCardNumberDisplay(value) {
+  const digits = normalizePhoneDigits(value).slice(0, 16);
+  if (!digits) return "";
+  return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+}
+
+function formatExpiryDisplay(value) {
+  const digits = normalizePhoneDigits(value).slice(0, 4);
+  if (!digits) return "";
+
+  const monthFirst = digits[0];
+  if (monthFirst !== "0" && monthFirst !== "1") {
+    return "";
+  }
+
+  if (digits.length === 1) {
+    return monthFirst;
+  }
+
+  const monthSecond = digits[1];
+  if (monthFirst === "0") {
+    if (monthSecond === "0") return monthFirst;
+  } else if (Number.parseInt(monthSecond, 10) > 2) {
+    return monthFirst;
+  }
+
+  const month = `${monthFirst}${monthSecond}`;
+  const year = digits.slice(2, 4);
+  if (!year) return month;
+  return `${month}/${year}`;
+}
+
+function formatCvvDisplay(value) {
+  return normalizePhoneDigits(value).slice(0, 3);
+}
+
+function isLuhnValid(cardNumberDigits) {
+  if (!/^\d+$/.test(cardNumberDigits)) return false;
+
+  let sum = 0;
+  let shouldDouble = false;
+
+  for (let index = cardNumberDigits.length - 1; index >= 0; index -= 1) {
+    let digit = Number.parseInt(cardNumberDigits[index], 10);
+    if (!Number.isFinite(digit)) return false;
+
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+
+  return sum % 10 === 0;
+}
+
+function isValidVisaCard(cardNumberDigits) {
+  if (!/^4\d+$/.test(cardNumberDigits)) return false;
+  if (![13, 16, 19].includes(cardNumberDigits.length)) return false;
+  return isLuhnValid(cardNumberDigits);
+}
+
+function isValidMastercardCard(cardNumberDigits) {
+  if (cardNumberDigits.length !== 16 || !/^\d+$/.test(cardNumberDigits)) return false;
+
+  const firstTwo = Number.parseInt(cardNumberDigits.slice(0, 2), 10);
+  const firstFour = Number.parseInt(cardNumberDigits.slice(0, 4), 10);
+  const isLegacyMastercard = firstTwo >= 51 && firstTwo <= 55;
+  const isNewRangeMastercard = firstFour >= 2221 && firstFour <= 2720;
+  if (!isLegacyMastercard && !isNewRangeMastercard) return false;
+
+  return isLuhnValid(cardNumberDigits);
+}
+
+function isValidAmexCard(cardNumberDigits) {
+  if (!/^(34|37)\d+$/.test(cardNumberDigits)) return false;
+  if (cardNumberDigits.length !== 15) return false;
+  return isLuhnValid(cardNumberDigits);
+}
+
 function sanitizeAddOnItem(raw) {
   if (!raw || typeof raw !== "object") return null;
 
@@ -164,7 +297,6 @@ function resolvePromoDiscountAmount(promo, totalBeforeDiscount) {
 
 function normalizePaymentMethod(value) {
   const normalized = (value || "").toString().trim().toLowerCase();
-  if (normalized === PAYMENT_METHOD_GOOGLE_PAY) return PAYMENT_METHOD_GOOGLE_PAY;
   if (normalized === PAYMENT_METHOD_VISA_MASTERCARD) return PAYMENT_METHOD_VISA_MASTERCARD;
   if (normalized === PAYMENT_METHOD_AMEX) return PAYMENT_METHOD_AMEX;
   return "";
@@ -174,13 +306,17 @@ function normalizeContactForm(contactInfo) {
   if (!contactInfo || typeof contactInfo !== "object") {
     return {
       name: "",
-      email: ""
+      email: "",
+      countryCode: "+65",
+      mobile: ""
     };
   }
 
   return {
     name: (contactInfo.name || "").toString(),
-    email: (contactInfo.email || "").toString()
+    email: (contactInfo.email || "").toString(),
+    countryCode: (contactInfo.countryCode || "+65").toString(),
+    mobile: (contactInfo.mobile || "").toString()
   };
 }
 
@@ -203,6 +339,12 @@ function buildCheckoutSteps(flowStage) {
       state: isActive ? "active" : (isComplete ? "complete" : "upcoming")
     };
   });
+}
+
+function getUnlockedStageIndex(sessionStage) {
+  const index = SESSION_STAGE_INDEX[(sessionStage || "").toString().trim().toLowerCase()];
+  if (!Number.isInteger(index)) return FLOW_STAGE_INDEX.promotions;
+  return Math.max(index, FLOW_STAGE_INDEX.promotions);
 }
 
 export default function BookingFlowStage({ screeningId = "", flowStage = "promotions" }) {
@@ -236,6 +378,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   });
   const [paymentErrors, setPaymentErrors] = useState({});
   const [payMessage, setPayMessage] = useState("");
+  const [isPaying, setIsPaying] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
@@ -261,7 +404,12 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
         if (!isActive) return;
 
         setPreview(seatPreview);
-        setPromotions(Array.isArray(promoItems) ? promoItems : []);
+        setPromotions(
+          (Array.isArray(promoItems) ? promoItems : []).map((promotion) => ({
+            ...promotion,
+            type: normalizePromotionType(promotion?.type)
+          }))
+        );
         setAddOns(
           (Array.isArray(addOnItems) ? addOnItems : [])
             .map(sanitizeAddOnItem)
@@ -322,6 +470,8 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
 
   const sessionContactName = (activeSession?.contactInfo?.name || "").toString();
   const sessionContactEmail = (activeSession?.contactInfo?.email || "").toString();
+  const sessionContactCountryCode = (activeSession?.contactInfo?.countryCode || "+65").toString();
+  const sessionContactMobile = (activeSession?.contactInfo?.mobile || "").toString();
   const sessionPaymentMethod = normalizePaymentMethod(activeSession?.paymentMethod);
 
   useEffect(() => {
@@ -329,10 +479,26 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
 
     setContactForm({
       name: sessionContactName,
-      email: sessionContactEmail
+      email: sessionContactEmail,
+      countryCode: sessionContactCountryCode || "+65",
+      mobile: sessionContactMobile
     });
+  }, [
+    isPaymentStage,
+    sessionContactName,
+    sessionContactEmail,
+    sessionContactCountryCode,
+    sessionContactMobile
+  ]);
+
+  useEffect(() => {
+    if (!isPaymentStage) return;
+
     setSelectedPaymentMethod(sessionPaymentMethod);
-  }, [isPaymentStage, sessionContactName, sessionContactEmail, sessionPaymentMethod]);
+  }, [
+    isPaymentStage,
+    sessionPaymentMethod
+  ]);
 
   const remainingMs = getSessionRemainingMs(activeSession, now);
   const countdownDigits = buildCountdownDigitsFromRemainingMs(remainingMs);
@@ -396,6 +562,17 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
 
   const seatType = (activeSession?.seatType || preview?.hall?.type || "Standard").toString();
   const ticketType = (activeSession?.ticketType || "Adult").toString();
+  const hallPromotionType = useMemo(
+    () => normalizeHallTypeForPromotion(preview?.hall?.type || seatType),
+    [preview?.hall?.type, seatType]
+  );
+  const visiblePromotions = useMemo(
+    () => promotions.filter((promotion) => {
+      const promotionType = normalizePromotionType(promotion?.type);
+      return promotionType === PROMOTION_TYPE_ALL || promotionType === hallPromotionType;
+    }),
+    [promotions, hallPromotionType]
+  );
 
   const sessionAddOns = useMemo(
     () => normalizeSessionAddOns(activeSession?.addons),
@@ -450,9 +627,21 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
     return nextSession;
   }
 
-  function navigateToHash(targetStage) {
+  function navigateToHash(targetStage, options = {}) {
     const targetScreeningId = preview?.screeningId || screeningId;
     if (!targetScreeningId) return;
+    const { bypassUnlock = false } = options;
+
+    if (targetStage !== "seat-selection" && !activeSession?.bookingId) {
+      setExpiredVisible(true);
+      return;
+    }
+
+    const targetStageIndex = FLOW_STAGE_INDEX[targetStage];
+    if (!bypassUnlock && Number.isInteger(targetStageIndex)) {
+      const unlockedStageIndex = getUnlockedStageIndex(activeSession?.stage);
+      if (targetStageIndex > unlockedStageIndex) return;
+    }
 
     if (targetStage === "seat-selection") {
       window.location.hash = `#seat-selection/${targetScreeningId}`;
@@ -551,9 +740,18 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   }
 
   function handleCardFieldChange(field, value) {
+    let nextValue = value;
+    if (field === "cardNumber") {
+      nextValue = formatCardNumberDisplay(value);
+    } else if (field === "expiry") {
+      nextValue = formatExpiryDisplay(value);
+    } else if (field === "cvv") {
+      nextValue = formatCvvDisplay(value);
+    }
+
     setCardForm((previous) => ({
       ...previous,
-      [field]: value
+      [field]: nextValue
     }));
     setPaymentErrors((previous) => ({
       ...previous,
@@ -568,6 +766,11 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
 
     const trimmedName = contactForm.name.trim();
     const trimmedEmail = contactForm.email.trim();
+    const trimmedCountryCode = (contactForm.countryCode || "+65").trim() || "+65";
+    const trimmedMobile = contactForm.mobile.trim();
+    const digitsOnlyMobile = normalizePhoneDigits(trimmedMobile);
+    const formattedMobile = formatMobileDisplay(digitsOnlyMobile);
+    const formattedPhone = formatPhoneWithCountry(trimmedCountryCode, digitsOnlyMobile);
     const digitsOnlyCard = cardForm.cardNumber.replace(/\D/g, "");
     const trimmedExpiry = cardForm.expiry.trim();
     const trimmedCvv = cardForm.cvv.trim();
@@ -582,20 +785,43 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
       nextContactErrors.email = "Enter a valid email address.";
     }
 
+    if (!digitsOnlyMobile) {
+      nextContactErrors.mobile = "Mobile number is required.";
+    } else if (digitsOnlyMobile.length < 7) {
+      nextContactErrors.mobile = "Enter a valid mobile number.";
+    }
+
     if (!selectedPaymentMethod) {
       nextPaymentErrors.paymentMethod = "Select a payment method.";
     }
 
     if (requiresCardDetails) {
-      if (digitsOnlyCard.length < 12) {
+      if (digitsOnlyCard.length !== 16) {
+        nextPaymentErrors.cardNumber = "Enter a valid 16-digit card number.";
+      } else if (selectedPaymentMethod === PAYMENT_METHOD_VISA_MASTERCARD) {
+        const isValidVisaOrMastercard =
+          isValidVisaCard(digitsOnlyCard) || isValidMastercardCard(digitsOnlyCard);
+        if (!isValidVisaOrMastercard) {
+          nextPaymentErrors.cardNumber = "Enter a valid Visa or Mastercard number.";
+        }
+      } else if (selectedPaymentMethod === PAYMENT_METHOD_AMEX) {
+        if (!isLuhnValid(digitsOnlyCard)) {
+          nextPaymentErrors.cardNumber = "Enter a valid 16-digit card number.";
+        }
+      } else if (!isLuhnValid(digitsOnlyCard)) {
         nextPaymentErrors.cardNumber = "Enter a valid card number.";
       }
 
       if (!/^\d{2}\/\d{2}$/.test(trimmedExpiry)) {
         nextPaymentErrors.expiry = "Use MM/YY format.";
+      } else {
+        const expiryMonth = Number.parseInt(trimmedExpiry.slice(0, 2), 10);
+        if (!Number.isInteger(expiryMonth) || expiryMonth < 1 || expiryMonth > 12) {
+          nextPaymentErrors.expiry = "Month must be between 01 and 12.";
+        }
       }
 
-      if (!/^\d{3,4}$/.test(trimmedCvv)) {
+      if (!/^\d{3}$/.test(trimmedCvv)) {
         nextPaymentErrors.cvv = "Enter a valid CVV.";
       }
     }
@@ -607,24 +833,78 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
       isValid: Object.keys(nextContactErrors).length === 0
         && Object.keys(nextPaymentErrors).length === 0,
       trimmedName,
-      trimmedEmail
+      trimmedEmail,
+      trimmedCountryCode,
+      trimmedMobile,
+      formattedMobile,
+      formattedPhone
     };
   }
 
-  function handlePayClick() {
+  async function handlePayClick() {
+    if (!activeSession?.bookingId) {
+      setExpiredVisible(true);
+      return;
+    }
+
     const validation = validatePaymentStageForm();
     if (!validation.isValid) return;
 
     persistSessionPatch({
       contactInfo: {
         name: validation.trimmedName,
-        email: validation.trimmedEmail
+        email: validation.trimmedEmail,
+        countryCode: validation.trimmedCountryCode,
+        mobile: validation.formattedMobile || validation.trimmedMobile
       },
       paymentMethod: normalizePaymentMethod(selectedPaymentMethod),
       stage: "payment"
     });
 
-    setPayMessage("Payment gateway integration will be added next. Form data has been saved.");
+    setIsPaying(true);
+    try {
+      const invoiceResponse = await sendBookingInvoice(activeSession.bookingId, {
+        name: validation.trimmedName,
+        email: validation.trimmedEmail,
+        phone: validation.formattedPhone || `${validation.trimmedCountryCode}${validation.trimmedMobile}`,
+        paymentMethod: normalizePaymentMethod(selectedPaymentMethod),
+        movieName: (heroMovie?.name || preview?.movie?.name || "N/A").toString(),
+        advisory: (heroMovie?.ageRestriction || preview?.movie?.ageRestriction || "").toString(),
+        screeningDate: formatScreeningDate(preview?.startDateTime),
+        screeningTime: (preview?.time || "N/A").toString(),
+        cinemaName: venueName,
+        seats: selectedSeats,
+        hallName: (preview?.hall?.name || "N/A").toString(),
+        screenFormat: (preview?.hall?.type || seatType || "Standard").toString(),
+        seatType,
+        ticketType,
+        addOns: sessionAddOns.map((item) => ({
+          name: item.name,
+          qty: item.qty,
+          price: Number(item.price),
+          amount: Number(item.price * item.qty)
+        })),
+        seatSubtotal: Number(seatsAmount),
+        addOnsSubtotal: Number(addOnsAmount),
+        bookingFee: Number(bookingFee),
+        promoDiscount: Number(promoDiscountAmount),
+        totalPrice: Number(grandTotal)
+      });
+
+      const invoice = invoiceResponse?.invoice && typeof invoiceResponse.invoice === "object"
+        ? invoiceResponse.invoice
+        : null;
+
+      persistSessionPatch({
+        stage: "payment-success",
+        paymentConfirmation: invoice
+      });
+      window.location.hash = `#payment-success/${preview?.screeningId || screeningId}`;
+    } catch (invoiceError) {
+      setPayMessage(invoiceError?.message || "Unable to send invoice email right now.");
+    } finally {
+      setIsPaying(false);
+    }
   }
 
   async function handleCancelOrder() {
@@ -867,8 +1147,8 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
               <section className="promotions-panel">
                 <h2>Promotions</h2>
                 <div className="promotions-list">
-                  {promotions.length ? (
-                    promotions.map((promotion) => (
+                  {visiblePromotions.length ? (
+                    visiblePromotions.map((promotion) => (
                       <article key={promotion._id} className="promotions-card">
                         <img
                           src={resolveMoviePictureUrl(promotion.pictureUrl)}
@@ -879,7 +1159,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                       </article>
                     ))
                   ) : (
-                    <p className="promotions-empty">No promotions available.</p>
+                    <p className="promotions-empty">No promotions available for this hall type.</p>
                   )}
                 </div>
               </section>
@@ -890,7 +1170,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                 continueLabel: "CONTINUE",
                 onContinue: () => {
                   persistSessionPatch({ stage: "addons" });
-                  navigateToHash("addons");
+                  navigateToHash("addons", { bypassUnlock: true });
                 },
                 termsText: "By clicking on continue, you agree to all terms and conditions of the promotion(s) applied."
               })}
@@ -947,7 +1227,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                 continueLabel: "CONTINUE",
                 onContinue: () => {
                   persistSessionPatch({ stage: "payment" });
-                  navigateToHash("payment");
+                  navigateToHash("payment", { bypassUnlock: true });
                 }
               })}
             </>
@@ -983,6 +1263,33 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                     />
                     {contactErrors.email ? <p className="promotions-payment-error">{contactErrors.email}</p> : null}
                   </div>
+
+                  <div className="promotions-payment-mobile-row">
+                    <div className="promotions-payment-country-wrap">
+                      <select
+                        value={contactForm.countryCode}
+                        onChange={(event) => handleContactFieldChange("countryCode", event.target.value)}
+                        aria-label="Country code"
+                      >
+                        <option value="+65">+65</option>
+                        <option value="+60">+60</option>
+                        <option value="+62">+62</option>
+                        <option value="+1">+1</option>
+                        <option value="+44">+44</option>
+                      </select>
+                    </div>
+
+                    <div className="promotions-payment-field promotions-payment-mobile-field">
+                      <input
+                        type="tel"
+                        value={contactForm.mobile}
+                        onChange={(event) => handleContactFieldChange("mobile", event.target.value)}
+                        placeholder="Mobile Number"
+                        autoComplete="tel"
+                      />
+                      {contactErrors.mobile ? <p className="promotions-payment-error">{contactErrors.mobile}</p> : null}
+                    </div>
+                  </div>
                 </div>
               </section>
 
@@ -991,21 +1298,18 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                 <div className="promotions-payment-method-grid">
                   <button
                     type="button"
-                    className={`promotions-payment-method-card${selectedPaymentMethod === PAYMENT_METHOD_GOOGLE_PAY ? " promotions-payment-method-card-active" : ""}`}
-                    onClick={() => handleSelectPaymentMethod(PAYMENT_METHOD_GOOGLE_PAY)}
-                    aria-pressed={selectedPaymentMethod === PAYMENT_METHOD_GOOGLE_PAY}
-                  >
-                    <span className="promotions-payment-method-logo promotions-payment-method-logo-gpay">G Pay</span>
-                    <strong>Google Pay</strong>
-                  </button>
-
-                  <button
-                    type="button"
                     className={`promotions-payment-method-card${selectedPaymentMethod === PAYMENT_METHOD_VISA_MASTERCARD ? " promotions-payment-method-card-active" : ""}`}
                     onClick={() => handleSelectPaymentMethod(PAYMENT_METHOD_VISA_MASTERCARD)}
                     aria-pressed={selectedPaymentMethod === PAYMENT_METHOD_VISA_MASTERCARD}
                   >
-                    <span className="promotions-payment-method-logo promotions-payment-method-logo-visa">VISA / MC</span>
+                    <span className="promotions-payment-method-logo promotions-payment-method-logo-visa">
+                      <span className="promotions-payment-logo-surface">
+                        <img src="/VISA.png" alt="Visa" />
+                      </span>
+                      <span className="promotions-payment-logo-surface">
+                        <img src="/MasterCard.png" alt="Mastercard" />
+                      </span>
+                    </span>
                     <strong>Visa / Mastercard</strong>
                   </button>
 
@@ -1015,7 +1319,11 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                     onClick={() => handleSelectPaymentMethod(PAYMENT_METHOD_AMEX)}
                     aria-pressed={selectedPaymentMethod === PAYMENT_METHOD_AMEX}
                   >
-                    <span className="promotions-payment-method-logo promotions-payment-method-logo-amex">AMEX</span>
+                    <span className="promotions-payment-method-logo promotions-payment-method-logo-amex">
+                      <span className="promotions-payment-logo-surface promotions-payment-logo-surface-amex">
+                        <img src="/AMEX.png" alt="American Express" />
+                      </span>
+                    </span>
                     <strong>AMEX</strong>
                   </button>
                 </div>
@@ -1035,6 +1343,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                         onChange={(event) => handleCardFieldChange("cardNumber", event.target.value)}
                         placeholder="Card Number"
                         inputMode="numeric"
+                        maxLength={19}
                         autoComplete="cc-number"
                       />
                       {paymentErrors.cardNumber ? <p className="promotions-payment-error">{paymentErrors.cardNumber}</p> : null}
@@ -1047,6 +1356,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                         onChange={(event) => handleCardFieldChange("expiry", event.target.value)}
                         placeholder="MM/YY"
                         inputMode="numeric"
+                        maxLength={5}
                         autoComplete="cc-exp"
                       />
                       {paymentErrors.expiry ? <p className="promotions-payment-error">{paymentErrors.expiry}</p> : null}
@@ -1059,6 +1369,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                         onChange={(event) => handleCardFieldChange("cvv", event.target.value)}
                         placeholder="CVV"
                         inputMode="numeric"
+                        maxLength={3}
                         autoComplete="cc-csc"
                       />
                       {paymentErrors.cvv ? <p className="promotions-payment-error">{paymentErrors.cvv}</p> : null}
@@ -1102,8 +1413,8 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                   >
                     {isCancelling ? "CANCELLING..." : "CANCEL ORDER"}
                   </SeatSelectionButton>
-                  <SeatSelectionButton variant="primary" onClick={handlePayClick}>
-                    PAY
+                  <SeatSelectionButton variant="primary" onClick={handlePayClick} disabled={isPaying}>
+                    {isPaying ? "SENDING..." : "PAY"}
                   </SeatSelectionButton>
                 </div>
               </section>

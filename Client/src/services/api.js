@@ -4,6 +4,10 @@ const BOOKING_API_PATH = "/api/bookings";
 const PROMOTION_API_PATH = "/api/promotions";
 const ADD_ON_API_PATH = "/api/addons";
 const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || "http://localhost:3000";
+const TMDB_API_KEY = (import.meta.env.VITE_TMDB_API_KEY || "").toString().trim();
+const TMDB_API_BASE_URL = "https://api.themoviedb.org/3";
+const TMDB_POSTER_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w780";
+const TMDB_BACKDROP_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w1280";
 
 class ApiError extends Error {
   constructor(message, options = {}) {
@@ -143,6 +147,59 @@ export async function extendBookingHold(bookingId) {
   });
 
   return parseJsonResponse(response, "Failed to extend booking hold");
+}
+
+export async function sendBookingInvoice(bookingId, payload = {}) {
+  const response = await fetch(`${BOOKING_API_PATH}/${bookingId}/send-invoice`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  return parseJsonResponse(response, "Failed to send invoice email");
+}
+
+export async function fetchTmdbShowcaseImageUrlByTitle({
+  title = "",
+  releaseDate = "",
+  imageType = "backdrop"
+} = {}) {
+  const normalizedTitle = (title || "").toString().trim();
+  if (!normalizedTitle || !TMDB_API_KEY) return "";
+
+  const query = new URLSearchParams({
+    api_key: TMDB_API_KEY,
+    query: normalizedTitle,
+    include_adult: "false",
+    language: "en-US",
+    page: "1"
+  });
+
+  const releaseYear = Number.parseInt((releaseDate || "").toString().slice(0, 4), 10);
+  if (Number.isInteger(releaseYear) && releaseYear > 1900 && releaseYear < 2200) {
+    query.set("year", String(releaseYear));
+  }
+
+  try {
+    const response = await fetch(`${TMDB_API_BASE_URL}/search/movie?${query.toString()}`);
+    if (!response.ok) return "";
+
+    const payload = await response.json().catch(() => null);
+    const firstResult = Array.isArray(payload?.results) ? payload.results[0] : null;
+    const posterPath = (firstResult?.poster_path || "").toString().trim();
+    const backdropPath = (firstResult?.backdrop_path || "").toString().trim();
+    const normalizedImageType = (imageType || "").toString().trim().toLowerCase();
+
+    if (normalizedImageType === "poster") {
+      return posterPath ? `${TMDB_POSTER_IMAGE_BASE_URL}${posterPath}` : "";
+    }
+
+    return backdropPath ? `${TMDB_BACKDROP_IMAGE_BASE_URL}${backdropPath}` : "";
+  } catch (_error) {
+    return "";
+  }
 }
 
 export function resolveMoviePictureUrl(pictureUrl) {

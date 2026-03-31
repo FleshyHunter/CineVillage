@@ -1,16 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CardRail from "../components/CardRail";
 import MovieCard from "../components/MovieCard";
 import ShowcaseCard from "../components/ShowcaseCard";
 import ViewportSection from "../components/ViewportSection";
-import { fetchMovies, resolveMoviePictureUrl } from "../services/api";
+import {
+  fetchMovies,
+  fetchTmdbShowcaseImageUrlByTitle,
+  resolveMoviePictureUrl
+} from "../services/api";
 import "./Home.css";
 
 const SHOWCASE_SLOT_CLASSES = [
   "showcase-card showcase-card-main",
-  "showcase-card showcase-card-side",
-  "showcase-card showcase-card-strip",
-  "showcase-card showcase-card-promo"
+  "showcase-card showcase-card-side"
 ];
 
 function toMovieTimestamp(movie) {
@@ -31,6 +33,10 @@ function compareSoonestFirst(a, b) {
   return toMovieTimestamp(a) - toMovieTimestamp(b);
 }
 
+function isNowShowing(movie) {
+  return (movie?.status || "").toString().trim().toLowerCase() === "now showing";
+}
+
 function mapMovieToCard(movie, defaultBadge = "Movie") {
   const durationText = movie.duration ? `${movie.duration} mins` : "N/A";
   const ratingValue = (movie.ageRestriction || "NR").toString().trim() || "NR";
@@ -46,7 +52,7 @@ function mapMovieToCard(movie, defaultBadge = "Movie") {
   };
 }
 
-function buildShowcaseItems(movies) {
+function buildShowcaseItems(movies, tmdbPosterByMovieId = {}) {
   const fallbackItems = [
     {
       title: "CineVillage",
@@ -57,30 +63,18 @@ function buildShowcaseItems(movies) {
       title: "Book Your Seats",
       label: "Now Showing",
       image: resolveMoviePictureUrl("")
-    },
-    {
-      title: "Dining Promos",
-      label: "Cinema Offers",
-      image: resolveMoviePictureUrl("")
-    },
-    {
-      title: "Coming Soon",
-      label: "Upcoming Release",
-      image: resolveMoviePictureUrl("")
     }
   ];
 
   const selected = [...movies]
-    .filter((movie) => movie.pictureUrl)
-    .sort(compareNewestFirst)
-    .slice(0, 4)
+    .slice(0, 2)
     .map((movie, index) => ({
       title: movie.name || "Untitled Movie",
       label:
         index === 1
           ? "Get Tickets"
           : movie.status || "Featured Release",
-      image: resolveMoviePictureUrl(movie.pictureUrl)
+      image: tmdbPosterByMovieId[movie._id] || resolveMoviePictureUrl(movie.pictureUrl)
     }));
 
   return fallbackItems.map((fallbackItem, index) => selected[index] || fallbackItem);
@@ -88,7 +82,7 @@ function buildShowcaseItems(movies) {
 
 function buildMovieSections(movies) {
   const nowShowing = [...movies]
-    .filter((movie) => movie.status === "Now Showing")
+    .filter((movie) => isNowShowing(movie))
     .sort(compareNewestFirst);
 
   const advanceSales = [...movies]
@@ -119,6 +113,7 @@ export default function Home() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [tmdbPosterByMovieId, setTmdbPosterByMovieId] = useState({});
 
   useEffect(() => {
     let isActive = true;
@@ -127,9 +122,9 @@ export default function Home() {
       try {
         setLoading(true);
         setError("");
-        const items = await fetchMovies();
+        const movieItems = await fetchMovies();
         if (!isActive) return;
-        setMovies(items);
+        setMovies(Array.isArray(movieItems) ? movieItems : []);
       } catch (loadError) {
         if (!isActive) return;
         setError(loadError.message || "Failed to load movies");
@@ -145,7 +140,55 @@ export default function Home() {
     };
   }, []);
 
-  const showcaseItems = buildShowcaseItems(movies);
+  const nowShowingForShowcase = useMemo(
+    () => [...movies].filter((movie) => isNowShowing(movie)).sort(compareNewestFirst).slice(0, 2),
+    [movies]
+  );
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadShowcaseTmdbPosters() {
+      if (!nowShowingForShowcase.length) {
+        setTmdbPosterByMovieId({});
+        return;
+      }
+
+      const posterEntries = await Promise.all(
+        nowShowingForShowcase.map(async (movie, index) => {
+          const movieId = (movie?._id || "").toString().trim();
+          if (!movieId) return null;
+
+          const tmdbPosterUrl = await fetchTmdbShowcaseImageUrlByTitle({
+            title: movie?.name || "",
+            releaseDate: movie?.releaseDate || "",
+            imageType: index === 0 ? "backdrop" : "poster"
+          });
+
+          if (!tmdbPosterUrl) return null;
+          return [movieId, tmdbPosterUrl];
+        })
+      );
+
+      if (!isActive) return;
+
+      const nextMap = {};
+      posterEntries.forEach((entry) => {
+        if (!Array.isArray(entry) || entry.length !== 2) return;
+        const [movieId, posterUrl] = entry;
+        nextMap[movieId] = posterUrl;
+      });
+
+      setTmdbPosterByMovieId(nextMap);
+    }
+
+    loadShowcaseTmdbPosters();
+    return () => {
+      isActive = false;
+    };
+  }, [nowShowingForShowcase]);
+
+  const showcaseItems = buildShowcaseItems(nowShowingForShowcase, tmdbPosterByMovieId);
   const sections = buildMovieSections(movies);
 
   return (
@@ -154,11 +197,6 @@ export default function Home() {
         <div className="showcase-primary-grid">
           <ShowcaseCard item={showcaseItems[0]} className={SHOWCASE_SLOT_CLASSES[0]} />
           <ShowcaseCard item={showcaseItems[1]} className={SHOWCASE_SLOT_CLASSES[1]} />
-        </div>
-
-        <div className="showcase-secondary-grid">
-          <ShowcaseCard item={showcaseItems[2]} className={SHOWCASE_SLOT_CLASSES[2]} />
-          <ShowcaseCard item={showcaseItems[3]} className={SHOWCASE_SLOT_CLASSES[3]} />
         </div>
       </section>
 

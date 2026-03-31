@@ -4,11 +4,9 @@ export const BOOKING_TIMER_EXTEND_MS = 5 * 60 * 1000;
 export const BOOKING_FEE_DEFAULT = 2;
 const ADD_ON_TYPE_ALA_CARTE = "ala_carte";
 const ADD_ON_TYPE_COMBO = "combo";
-const PAYMENT_METHOD_GOOGLE_PAY = "google_pay";
 const PAYMENT_METHOD_VISA_MASTERCARD = "visa_mastercard";
 const PAYMENT_METHOD_AMEX = "amex";
 const PAYMENT_METHODS = new Set([
-  PAYMENT_METHOD_GOOGLE_PAY,
   PAYMENT_METHOD_VISA_MASTERCARD,
   PAYMENT_METHOD_AMEX
 ]);
@@ -110,13 +108,19 @@ function normalizeContactInfo(contactInfo) {
   if (!contactInfo || typeof contactInfo !== "object") {
     return {
       name: "",
-      email: ""
+      email: "",
+      countryCode: "+65",
+      mobile: ""
     };
   }
 
+  const normalizedCountryCode = normalizeText(contactInfo.countryCode) || "+65";
+
   return {
     name: normalizeText(contactInfo.name),
-    email: normalizeText(contactInfo.email)
+    email: normalizeText(contactInfo.email),
+    countryCode: normalizedCountryCode,
+    mobile: normalizeText(contactInfo.mobile)
   };
 }
 
@@ -124,6 +128,36 @@ function normalizePaymentMethod(value) {
   const normalized = normalizeText(value).toLowerCase();
   if (!PAYMENT_METHODS.has(normalized)) return "";
   return normalized;
+}
+
+function normalizePaymentConfirmation(paymentConfirmation) {
+  if (!paymentConfirmation || typeof paymentConfirmation !== "object") return null;
+
+  const bookingReference = normalizeText(paymentConfirmation.bookingReference);
+  const transactionId = normalizeText(paymentConfirmation.transactionId);
+  const qrPayloadText = normalizeText(paymentConfirmation.qrPayloadText);
+  const qrCodeUrl = normalizeText(paymentConfirmation.qrCodeUrl);
+  const invoiceSubject = normalizeText(paymentConfirmation.invoiceSubject);
+  const recipientEmail = normalizeText(paymentConfirmation.recipientEmail).toLowerCase();
+  const currency = normalizeText(paymentConfirmation.currency).toUpperCase() || "SGD";
+  const confirmedAt = toIsoDate(paymentConfirmation.confirmedAt);
+  const finalizedTotal = normalizeNonNegativeNumber(paymentConfirmation.finalizedTotal, 0);
+
+  if (!bookingReference && !transactionId && !qrCodeUrl && !qrPayloadText) {
+    return null;
+  }
+
+  return {
+    bookingReference,
+    transactionId,
+    qrPayloadText,
+    qrCodeUrl,
+    invoiceSubject,
+    recipientEmail,
+    currency,
+    finalizedTotal,
+    confirmedAt
+  };
 }
 
 function normalizeBookingPipelineSession(input = {}) {
@@ -155,7 +189,8 @@ function normalizeBookingPipelineSession(input = {}) {
     promo: normalizePromo(input.promo),
     addons: normalizeAddOns(input.addons),
     contactInfo: normalizeContactInfo(input.contactInfo),
-    paymentMethod: normalizePaymentMethod(input.paymentMethod)
+    paymentMethod: normalizePaymentMethod(input.paymentMethod),
+    paymentConfirmation: normalizePaymentConfirmation(input.paymentConfirmation)
   };
 }
 
@@ -199,9 +234,12 @@ export function createStageOneBookingSession({ screeningId, movieId = "" }) {
     addons: [],
     contactInfo: {
       name: "",
-      email: ""
+      email: "",
+      countryCode: "+65",
+      mobile: ""
     },
-    paymentMethod: ""
+    paymentMethod: "",
+    paymentConfirmation: null
   };
 }
 

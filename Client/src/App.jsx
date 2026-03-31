@@ -14,6 +14,7 @@ import MovieDetails from "./pages/MovieDetails";
 import Movies from "./pages/Movies";
 import AddOns from "./pages/AddOns";
 import Payment from "./pages/Payment";
+import PaymentSuccess from "./pages/PaymentSuccess";
 import Promotions from "./pages/Promotions";
 import SeatSelection from "./pages/SeatSelection";
 
@@ -46,6 +47,15 @@ function readClientViewFromHash() {
     const [, screeningId = ""] = hash.split("/");
     return {
       page: "addons",
+      movieId: "",
+      screeningId
+    };
+  }
+
+  if (hash.startsWith("payment-success")) {
+    const [, screeningId = ""] = hash.split("/");
+    return {
+      page: "payment-success",
       movieId: "",
       screeningId
     };
@@ -101,6 +111,7 @@ export default function App() {
     if (view.page === "promotions") return `#promotions/${view.screeningId || ""}`;
     if (view.page === "addons") return `#addons/${view.screeningId || ""}`;
     if (view.page === "payment") return `#payment/${view.screeningId || ""}`;
+    if (view.page === "payment-success") return `#payment-success/${view.screeningId || ""}`;
     if (view.page === "movies") return "#movies";
     return "#";
   }
@@ -115,8 +126,15 @@ export default function App() {
       const nextView = readClientViewFromHash();
       const isCurrentGuardPage = FLOW_GUARD_PAGES.has(clientView.page);
       const isLeavingProtectedFlow = !FLOW_GUARD_PAGES.has(nextView.page);
+      const isPayToSuccessTransition =
+        clientView.page === "payment" && nextView.page === "payment-success";
 
-      if (isCurrentGuardPage && isLeavingProtectedFlow && hasActiveBookingPipelineSession()) {
+      if (
+        isCurrentGuardPage
+        && isLeavingProtectedFlow
+        && !isPayToSuccessTransition
+        && hasActiveBookingPipelineSession()
+      ) {
         setPendingView(nextView);
         setLeavePromptOpen(true);
         suppressNextHashChange.current = true;
@@ -243,6 +261,8 @@ export default function App() {
             <AddOns screeningId={clientView.screeningId} />
           ) : clientView.page === "payment" ? (
             <Payment screeningId={clientView.screeningId} />
+          ) : clientView.page === "payment-success" ? (
+            <PaymentSuccess screeningId={clientView.screeningId} />
           ) : clientView.page === "movie-details" ? (
             <MovieDetails movieId={clientView.movieId} />
           ) : clientView.page === "movies" ? (

@@ -384,28 +384,31 @@ export default function SeatSelection({ screeningId = "" }) {
       const bookingMovieId = booking?.movieId || heroMovie._id || preview.movie?._id || "";
       const bookingExpiresAt = booking?.expiresAt || null;
 
-      if (booking?._id && nextScreeningId && bookingExpiresAt) {
-        const confirmedSeats = Array.isArray(booking?.seats) && booking.seats.length
-          ? booking.seats
-          : selectedSeatLabels;
-
-        saveBookingPipelineSession({
-          bookingId: booking._id,
-          screeningId: nextScreeningId,
-          movieId: bookingMovieId,
-          stage: "promotions",
-          lowTimePrompted: Boolean(activeSession.lowTimePrompted),
-          expiresAt: bookingExpiresAt,
-          selectedSeats: confirmedSeats,
-          seatCount: Number.isFinite(booking?.seatCount) ? booking.seatCount : confirmedSeats.length,
-          ticketPrice: Number.isFinite(booking?.pricePerSeat) ? booking.pricePerSeat : ticketPrice,
-          seatType: preview?.hall?.type || "Standard",
-          ticketType: "Adult",
-          bookingFee: Number.isFinite(activeSession?.bookingFee) ? activeSession.bookingFee : BOOKING_FEE_DEFAULT,
-          promo: null,
-          addons: []
-        });
+      if (!booking?._id || !nextScreeningId || !bookingExpiresAt) {
+        setBookingError("Unable to confirm your booking hold. Please try again.");
+        return;
       }
+
+      const confirmedSeats = Array.isArray(booking?.seats) && booking.seats.length
+        ? booking.seats
+        : selectedSeatLabels;
+
+      saveBookingPipelineSession({
+        bookingId: booking._id,
+        screeningId: nextScreeningId,
+        movieId: bookingMovieId,
+        stage: "promotions",
+        lowTimePrompted: Boolean(activeSession.lowTimePrompted),
+        expiresAt: bookingExpiresAt,
+        selectedSeats: confirmedSeats,
+        seatCount: Number.isFinite(booking?.seatCount) ? booking.seatCount : confirmedSeats.length,
+        ticketPrice: Number.isFinite(booking?.pricePerSeat) ? booking.pricePerSeat : ticketPrice,
+        seatType: preview?.hall?.type || "Standard",
+        ticketType: "Adult",
+        bookingFee: Number.isFinite(activeSession?.bookingFee) ? activeSession.bookingFee : BOOKING_FEE_DEFAULT,
+        promo: null,
+        addons: []
+      });
 
       window.location.hash = `#promotions/${nextScreeningId}`;
       return;
@@ -663,7 +666,6 @@ export default function SeatSelection({ screeningId = "" }) {
               <div className="seat-selection-legend">
                 <span><i className="seat-selection-seat seat-selection-seat-normal" />Available Seats</span>
                 <span><i className="seat-selection-seat seat-selection-seat-selected" />Selected Seats</span>
-                <span><i className="seat-selection-seat seat-selection-seat-onhold" />On-hold Seat</span>
                 <span><i className="seat-selection-seat seat-selection-seat-removed" />Unavailable Seats</span>
                 <span><i className="seat-selection-seat seat-selection-seat-wheelchair" />Wheelchair Berth</span>
               </div>
