@@ -10,6 +10,14 @@ const {
 const { updateScreeningStatuses } = require("../screeningController");
 const { cleanupExpiredBookingHolds } = require("./bookingApiController");
 
+function toObjectIdSafe(value) {
+  if (!value) return null;
+  if (value instanceof ObjectId) return value;
+  if (typeof value === "string" && ObjectId.isValid(value)) return new ObjectId(value);
+  if (typeof value === "object" && value._id) return toObjectIdSafe(value._id);
+  return null;
+}
+
 function serializeSeatConfig(seatConfig) {
   if (!seatConfig || typeof seatConfig !== "object") return {};
   return seatConfig;
@@ -22,6 +30,7 @@ function buildSnapshotHallPayload(screening, liveHall) {
         ? screening.hallSnapshot.originalHallId.toString()
         : (screening.hallId ? screening.hallId.toString() : ""),
       name: screening.hallSnapshot.hallName || "Unknown Hall",
+      pictureUrl: screening.hallSnapshot.pictureUrl || liveHall?.pictureUrl || "",
       type: screening.hallSnapshot.hallType || "Standard",
       rows: Number.parseInt(screening.hallSnapshot.rows, 10) || 0,
       columns: Number.parseInt(screening.hallSnapshot.columns, 10) || 0,
@@ -37,6 +46,7 @@ function buildSnapshotHallPayload(screening, liveHall) {
   return {
     _id: liveHall._id.toString(),
     name: liveHall.name || "Unknown Hall",
+    pictureUrl: liveHall.pictureUrl || "",
     type: liveHall.type || "Standard",
     rows: Number.parseInt(liveHall.rows, 10) || 0,
     columns: Number.parseInt(liveHall.columns, 10) || 0,
@@ -54,6 +64,7 @@ function buildSeatReservationFilter(screeningId) {
     screeningId,
     $or: [
       { expiresAt: { $gt: now } },
+      { expiresAt: null },
       { expiresAt: { $exists: false } }
     ]
   };
@@ -110,8 +121,12 @@ async function getScreeningSeatPreview(req, res) {
       return res.status(404).json({ error: "Screening not found" });
     }
 
+    const hallLookupId =
+      toObjectIdSafe(screening?.hallSnapshot?.originalHallId)
+      || toObjectIdSafe(screening?.hallId);
+
     const [hall, movie] = await Promise.all([
-      screening.hallSnapshot ? Promise.resolve(null) : collectionHall.findOne({ _id: screening.hallId }),
+      hallLookupId ? collectionHall.findOne({ _id: hallLookupId }) : Promise.resolve(null),
       collectionMovie.findOne({ _id: screening.movieId })
     ]);
 

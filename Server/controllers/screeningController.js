@@ -117,6 +117,7 @@ function buildHallSnapshot(hall) {
   return {
     originalHallId: toObjectIdSafe(hall._id),
     hallName: hall.name || '',
+    pictureUrl: hall.pictureUrl || '',
     hallType: hall.type || 'Standard',
     rows,
     columns,
@@ -143,6 +144,7 @@ function getScreeningHallPresentation(screening, liveHall = null) {
     return {
       _id: screening.hallSnapshot.originalHallId || toObjectIdSafe(screening.hallId),
       name: screening.hallSnapshot.hallName || 'Unknown Hall',
+      pictureUrl: screening.hallSnapshot.pictureUrl || liveHall?.pictureUrl || '',
       type: screening.hallSnapshot.hallType || 'Standard',
       rows: screening.hallSnapshot.rows || 0,
       columns: screening.hallSnapshot.columns || 0,
@@ -158,6 +160,7 @@ function getScreeningHallPresentation(screening, liveHall = null) {
   return {
     _id: liveHall._id,
     name: liveHall.name || 'Unknown Hall',
+    pictureUrl: liveHall.pictureUrl || '',
     type: liveHall.type || 'Standard',
     rows: Number.parseInt(liveHall.rows, 10) || 0,
     columns: Number.parseInt(liveHall.columns, 10) || 0,

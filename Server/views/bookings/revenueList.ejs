@@ -1,16 +1,7 @@
 <%- include('../layouts/header') %>
 
 <div class="container">
-  <h2 style="margin-bottom: 20px;">Bookings</h2>
-
-  <div class="movie-filters" style="margin-bottom: 20px;">
-    <button class="filter-btn active" type="button" data-booking-filter="all">
-      <i class="bi bi-list-ul"></i> All
-    </button>
-    <button class="filter-btn" type="button" data-booking-filter="advance">
-      <i class="bi bi-ticket-perforated"></i> Advance Sales
-    </button>
-  </div>
+  <h2 style="margin-bottom: 20px;">Revenue</h2>
 
   <div class="search-filter-bar">
     <div class="search-controls">
@@ -20,14 +11,23 @@
         </svg>
         <input
           type="text"
-          id="bookingSearchInput"
+          id="revenueSearchInput"
           class="search-input"
           placeholder="Search movie..."
         >
       </div>
 
+      <div class="filter-dropdown" style="max-width: 220px;">
+        <input
+          type="date"
+          id="revenueDateFilter"
+          class="filter-select date-input"
+          title="Filter by exact date"
+        >
+      </div>
+
       <div class="filter-dropdown" style="max-width: 240px;">
-        <select id="bookingSortFilter" class="filter-select">
+        <select id="revenueSortFilter" class="filter-select">
           <option value="latest">Sort By: Latest First</option>
           <option value="earliest">Sort By: Earliest First</option>
           <option value="revenueHigh">Sort By: Revenue (High-Low)</option>
@@ -40,7 +40,7 @@
   </div>
 
   <div class="view-section" style="display: block;">
-    <% if (bookings && bookings.length > 0) { %>
+    <% if (revenues && revenues.length > 0) { %>
       <div class="table-responsive">
         <table class="table table-dark table-hover">
           <thead>
@@ -53,15 +53,16 @@
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="bookingTableBody">
-            <% bookings.forEach((booking) => { %>
-              <% const bookingDate = booking.bookingDateTime ? new Date(booking.bookingDateTime) : null; %>
+          <tbody id="revenueTableBody">
+            <% revenues.forEach((entry) => { %>
+              <% const bookingDate = entry.bookingDateTime ? new Date(entry.bookingDateTime) : null; %>
+              <% const bookingDateValue = bookingDate ? `${bookingDate.getFullYear()}-${String(bookingDate.getMonth() + 1).padStart(2, '0')}-${String(bookingDate.getDate()).padStart(2, '0')}` : ''; %>
               <tr
-                data-movie="<%= (booking.movieName || '').toLowerCase() %>"
+                data-movie="<%= (entry.movieName || '').toLowerCase() %>"
                 data-time="<%= bookingDate ? bookingDate.getTime() : 0 %>"
-                data-revenue="<%= Number(booking.revenue || 0) %>"
-                data-qty="<%= Number(booking.qty || 0) %>"
-                data-status="<%= (booking.movieStatus || '').toLowerCase() %>"
+                data-date="<%= bookingDateValue %>"
+                data-revenue="<%= Number(entry.revenue || 0) %>"
+                data-qty="<%= Number(entry.qty || 0) %>"
               >
                 <td>
                   <% if (bookingDate) { %>
@@ -77,13 +78,13 @@
                     N/A
                   <% } %>
                 </td>
-                <td><%= booking.movieName || 'N/A' %></td>
-                <td><%= booking.qty || 0 %></td>
+                <td><%= entry.movieName || 'N/A' %></td>
+                <td><%= entry.qty || 0 %></td>
                 <td>
-                  <%= Number(booking.revenue || 0).toLocaleString('en-SG', { style: 'currency', currency: 'SGD' }) %>
+                  <%= Number(entry.revenue || 0).toLocaleString('en-SG', { style: 'currency', currency: 'SGD' }) %>
                 </td>
                 <td>
-                  <a href="/bookings/view/<%= booking._id %>?returnTo=<%= encodeURIComponent('/bookings') %>" class="btn btn-sm btn-secondary">
+                  <a href="/bookings/view/<%= entry._id %>?returnTo=<%= encodeURIComponent('/bookings/revenue') %>" class="btn btn-sm btn-secondary">
                     View
                   </a>
                 </td>
@@ -94,9 +95,9 @@
       </div>
     <% } else { %>
       <div class="text-center py-5" style="background-color: #1e293b; border-radius: 8px;">
-        <i class="bi bi-ticket-perforated" style="font-size: 3rem; color: #64748b;"></i>
-        <h4 style="margin-top: 20px;">No bookings found</h4>
-        <p>No booking records are available yet.</p>
+        <i class="bi bi-cash-coin" style="font-size: 3rem; color: #64748b;"></i>
+        <h4 style="margin-top: 20px;">No revenue records found</h4>
+        <p>No completed bookings are available yet.</p>
       </div>
     <% } %>
   </div>
@@ -104,31 +105,25 @@
 
 <script>
   (function () {
-    const tableBody = document.getElementById("bookingTableBody");
+    const tableBody = document.getElementById("revenueTableBody");
     if (!tableBody) return;
 
-    const searchInput = document.getElementById("bookingSearchInput");
-    const sortFilter = document.getElementById("bookingSortFilter");
-    const filterButtons = Array.from(document.querySelectorAll("[data-booking-filter]"));
+    const searchInput = document.getElementById("revenueSearchInput");
+    const dateFilter = document.getElementById("revenueDateFilter");
+    const sortFilter = document.getElementById("revenueSortFilter");
     const rows = Array.from(tableBody.querySelectorAll("tr"));
-    let currentFilter = "all";
-
-    function normalizeBookingFilter(value) {
-      const normalized = (value || "").toString().trim().toLowerCase();
-      if (normalized === "advance") return "advance";
-      return "all";
-    }
 
     function applyFiltersAndSort() {
       const term = (searchInput?.value || "").trim().toLowerCase();
+      const selectedDate = (dateFilter?.value || "").trim();
       const sortValue = sortFilter?.value || "latest";
 
       const visibleRows = rows.filter((row) => {
         const movieName = row.dataset.movie || "";
-        const movieStatus = (row.dataset.status || "").toLowerCase();
-        const isAdvanceVisible = currentFilter !== "advance" || movieStatus === "advance sales";
-        const isSearchVisible = !term || movieName.includes(term);
-        const isVisible = isAdvanceVisible && isSearchVisible;
+        const rowDate = row.dataset.date || "";
+        const searchMatch = !term || movieName.includes(term);
+        const dateMatch = !selectedDate || rowDate === selectedDate;
+        const isVisible = searchMatch && dateMatch;
         row.style.display = isVisible ? "" : "none";
         return isVisible;
       });
@@ -155,18 +150,12 @@
     if (searchInput) {
       searchInput.addEventListener("input", applyFiltersAndSort);
     }
+    if (dateFilter) {
+      dateFilter.addEventListener("change", applyFiltersAndSort);
+    }
     if (sortFilter) {
       sortFilter.addEventListener("change", applyFiltersAndSort);
     }
-
-    filterButtons.forEach((button) => {
-      button.addEventListener("click", function () {
-        currentFilter = normalizeBookingFilter(button.dataset.bookingFilter);
-        filterButtons.forEach((item) => item.classList.remove("active"));
-        button.classList.add("active");
-        applyFiltersAndSort();
-      });
-    });
 
     applyFiltersAndSort();
   })();

@@ -8,11 +8,19 @@ function normalizeText(value) {
   return (value || "").toString().trim();
 }
 
+const PROMOTION_TYPES = new Set(["all", "vip", "imax", "standard"]);
+
 function normalizeDateString(value) {
   const raw = normalizeText(value);
   if (!raw) return "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
   return raw;
+}
+
+function normalizePromotionType(value) {
+  const normalized = normalizeText(value).toLowerCase();
+  if (!PROMOTION_TYPES.has(normalized)) return "all";
+  return normalized;
 }
 
 function toObjectIdSafe(value) {
@@ -25,6 +33,7 @@ function toObjectIdSafe(value) {
 function normalizePromotionData(raw = {}) {
   return {
     name: normalizeText(raw.name),
+    type: normalizePromotionType(raw.type),
     description: normalizeText(raw.description),
     promotionStartDate: normalizeDateString(raw.promotionStartDate),
     promotionEndDate: normalizeDateString(raw.promotionEndDate),
@@ -99,6 +108,7 @@ async function deletePromotion(id) {
 }
 
 module.exports = {
+  PROMOTION_TYPES,
   normalizePromotionData,
   validatePromotionDateRange,
   createPromotion,

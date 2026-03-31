@@ -7,6 +7,15 @@
     <button class="filter-btn active" data-filter="all">
       <i class="bi bi-grid-3x3-gap"></i> All
     </button>
+    <button class="filter-btn" data-filter="standard">
+      <i class="bi bi-display"></i> Standard
+    </button>
+    <button class="filter-btn" data-filter="imax">
+      <i class="bi bi-badge-4k"></i> IMAX
+    </button>
+    <button class="filter-btn" data-filter="vip">
+      <i class="bi bi-star"></i> VIP
+    </button>
   </div>
 
   <div class="search-filter-bar">
@@ -44,6 +53,7 @@
         class="movie-card-link"
         data-name="<%= (promotion.name || '').toLowerCase() %>"
         data-created="<%= promotion.created ? new Date(promotion.created).toISOString() : '' %>"
+        data-type="<%= (promotion.type || 'all').toString().trim().toLowerCase() %>"
       >
         <div class="movie-card card promotion-card">
           <div class="movie-card-img-wrapper">
@@ -64,6 +74,10 @@
                 : '';
             %>
             <div class="movie-name"><%= promotion.name || 'Untitled Promotion' %></div>
+            <div class="promotion-date-line">
+              <span class="promotion-date-label">Type:</span>
+              <span><%= (promotion.type || 'all').toString().toUpperCase() %></span>
+            </div>
             <div class="promotion-date-lines">
               <div class="promotion-date-line">
                 <span class="promotion-date-label">Start:</span>
@@ -94,6 +108,7 @@
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const cards = Array.from(document.querySelectorAll(".movie-card-link"));
+    const filterBtns = Array.from(document.querySelectorAll(".movie-filters .filter-btn"));
     const searchInput = document.getElementById("promotionSearch");
     const sortFilter = document.getElementById("promotionSort");
     const prevPageBtn = document.getElementById("prevPage");
@@ -102,13 +117,17 @@
     const grid = document.querySelector(".movies-grid");
 
     let currentPage = 1;
+    let activeTypeFilter = "all";
     const itemsPerPage = 20;
 
     function getFiltered() {
       const term = (searchInput.value || "").trim().toLowerCase();
       return cards.filter((card) => {
         const name = card.dataset.name || "";
-        return !term || name.includes(term);
+        const type = (card.dataset.type || "all").toLowerCase();
+        const typeMatch = activeTypeFilter === "all" || type === activeTypeFilter;
+        const searchMatch = !term || name.includes(term);
+        return typeMatch && searchMatch;
       });
     }
 
@@ -156,6 +175,16 @@
     searchInput.addEventListener("input", () => {
       currentPage = 1;
       render();
+    });
+
+    filterBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activeTypeFilter = (btn.dataset.filter || "all").toLowerCase();
+        filterBtns.forEach((item) => item.classList.remove("active"));
+        btn.classList.add("active");
+        currentPage = 1;
+        render();
+      });
     });
 
     sortFilter.addEventListener("change", () => {

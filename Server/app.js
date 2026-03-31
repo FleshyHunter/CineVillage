@@ -5,7 +5,8 @@ const {disconnect, initDBIfNecessary} = require("./config/database");
 const {
     getCollectionMovie,
     getCollectionHall,
-    getCollectionScreening
+    getCollectionScreening,
+    getCollectionBooking
 } = require("./config/database");
 const { attachCurrentAccount, requireAuth, requireRoles } = require("./config/session");
 
@@ -95,17 +96,49 @@ function isHallUnderMaintenanceNow(hall, now) {
     return now >= window.start && now <= window.end;
 }
 
+function toNonNegativeNumber(value) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric >= 0) return numeric;
+
+    if (value && typeof value === "object" && typeof value.toString === "function") {
+        const parsed = Number(value.toString());
+        if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+    }
+
+    return 0;
+}
+
+function isCompletedBooking(booking) {
+    const status = (booking?.status || "").toString().trim().toLowerCase();
+    const paymentStatus = (booking?.paymentStatus || "").toString().trim().toLowerCase();
+    return status === "completed" && paymentStatus === "completed";
+}
+
+function resolveBookingRevenueDate(booking) {
+    return booking?.confirmedAt || booking?.bookedAt || booking?.createdAt || null;
+}
+
+function formatCurrencyNumber(value) {
+    const numeric = toNonNegativeNumber(value);
+    return numeric.toLocaleString("en-SG", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
 app.get("/dashboard", requireAuth, async (req, res) => {
     try {
         await initDBIfNecessary();
         const collectionMovie = getCollectionMovie();
         const collectionHall = getCollectionHall();
         const collectionScreening = getCollectionScreening();
+        const collectionBooking = getCollectionBooking();
 
-        const [movies, halls, screenings] = await Promise.all([
+        const [movies, halls, screenings, bookings] = await Promise.all([
             collectionMovie.find({}).toArray(),
             collectionHall.find({}).toArray(),
-            collectionScreening.find({}).toArray()
+            collectionScreening.find({}).toArray(),
+            collectionBooking.find({}).toArray()
         ]);
 
         const now = new Date();
@@ -139,6 +172,31 @@ app.get("/dashboard", requireAuth, async (req, res) => {
             }).length
         };
 
+        const completedBookings = bookings.filter(isCompletedBooking);
+        const revenueTotal = completedBookings.reduce((sum, booking) => {
+            const bookingRevenue = toNonNegativeNumber(booking.totalPrice) || toNonNegativeNumber(booking.totalAmount);
+            return sum + bookingRevenue;
+        }, 0);
+
+        const revenueToday = completedBookings.reduce((sum, booking) => {
+            const revenueDate = resolveBookingRevenueDate(booking);
+            if (!revenueDate) return sum;
+
+            const resolvedDate = new Date(revenueDate);
+            if (Number.isNaN(resolvedDate.getTime())) return sum;
+            if (resolvedDate < startOfToday || resolvedDate > endOfToday) return sum;
+
+            const bookingRevenue = toNonNegativeNumber(booking.totalPrice) || toNonNegativeNumber(booking.totalAmount);
+            return sum + bookingRevenue;
+        }, 0);
+
+        const revenueStats = {
+            today: revenueToday,
+            total: revenueTotal,
+            todayFormatted: formatCurrencyNumber(revenueToday),
+            totalFormatted: formatCurrencyNumber(revenueTotal)
+        };
+
         const newMovies = movies
             .filter(m => m.releaseDate)
             .sort((a, b) => new Date(b.releaseDate) - new Date(a.releaseDate))
@@ -161,6 +219,7 @@ app.get("/dashboard", requireAuth, async (req, res) => {
             movieStats,
             hallStats,
             screeningStats,
+            revenueStats,
             newMovies,
             upcomingScreenings: activeScreenings
         });

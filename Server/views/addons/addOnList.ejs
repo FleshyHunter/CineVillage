@@ -7,6 +7,12 @@
     <button class="filter-btn active" data-filter="all">
       <i class="bi bi-grid-3x3-gap"></i> All
     </button>
+    <button class="filter-btn" data-filter="ala_carte">
+      <i class="bi bi-cup-hot"></i> ala carte
+    </button>
+    <button class="filter-btn" data-filter="combo">
+      <i class="bi bi-cup-straw"></i> combo
+    </button>
   </div>
 
   <div class="search-filter-bar">
@@ -47,6 +53,7 @@
         data-name="<%= (addOn.name || '').toLowerCase() %>"
         data-price="<%= Number(addOn.price || 0) %>"
         data-created="<%= addOn.created ? new Date(addOn.created).toISOString() : '' %>"
+        data-type="<%= (addOn.type || '').toString().trim().toLowerCase() %>"
       >
         <div class="movie-card card addon-card">
           <div class="movie-card-img-wrapper">
@@ -81,6 +88,7 @@
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const cards = Array.from(document.querySelectorAll(".movie-card-link"));
+    const filterBtns = Array.from(document.querySelectorAll(".movie-filters .filter-btn"));
     const searchInput = document.getElementById("addOnSearch");
     const sortFilter = document.getElementById("addOnSort");
     const prevPageBtn = document.getElementById("prevPage");
@@ -89,13 +97,17 @@
     const grid = document.querySelector(".movies-grid");
 
     let currentPage = 1;
+    let activeTypeFilter = "all";
     const itemsPerPage = 20;
 
     function getFiltered() {
       const term = (searchInput.value || "").trim().toLowerCase();
       return cards.filter((card) => {
         const name = card.dataset.name || "";
-        return !term || name.includes(term);
+        const type = (card.dataset.type || "").toLowerCase();
+        const typeMatch = activeTypeFilter === "all" || type === activeTypeFilter;
+        const searchMatch = !term || name.includes(term);
+        return typeMatch && searchMatch;
       });
     }
 
@@ -147,6 +159,16 @@
     searchInput.addEventListener("input", () => {
       currentPage = 1;
       render();
+    });
+
+    filterBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activeTypeFilter = (btn.dataset.filter || "all").toLowerCase();
+        filterBtns.forEach((item) => item.classList.remove("active"));
+        btn.classList.add("active");
+        currentPage = 1;
+        render();
+      });
     });
 
     sortFilter.addEventListener("change", () => {

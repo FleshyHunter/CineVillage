@@ -4,6 +4,8 @@ const {
   getCollectionPromotion
 } = require("../../config/database");
 
+const PROMOTION_TYPES = new Set(["all", "vip", "imax", "standard"]);
+
 function normalizeDateString(value) {
   if (!value) return "";
 
@@ -24,6 +26,12 @@ function normalizeDateString(value) {
   }
 
   return parsed.toISOString().slice(0, 10);
+}
+
+function normalizePromotionType(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  if (!PROMOTION_TYPES.has(normalized)) return "all";
+  return normalized;
 }
 
 function getTodayIsoDate() {
@@ -47,6 +55,7 @@ function serializePromotion(promotion, asOfDate = getTodayIsoDate()) {
   return {
     ...promotion,
     _id: String(promotion._id),
+    type: normalizePromotionType(promotion.type),
     created: promotion.created instanceof Date
       ? promotion.created.toISOString()
       : (promotion.created || ""),
@@ -66,6 +75,11 @@ function buildPromotionFilters(query = {}) {
 
   if (query.status) {
     filters.status = query.status.toString().trim();
+  }
+
+  const promotionType = normalizePromotionType(query.type);
+  if (query.type) {
+    filters.type = promotionType;
   }
 
   if (query.code) {

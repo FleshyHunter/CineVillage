@@ -93,10 +93,10 @@ function getBookingValidator() {
                     minimum: 0
                 },
                 status: {
-                    enum: ["pending", "confirmed", "cancelled", "expired"]
+                    enum: ["pending", "confirmed", "completed", "cancelled", "expired"]
                 },
                 paymentStatus: {
-                    enum: ["unpaid", "paid", "refunded"]
+                    enum: ["unpaid", "paid", "completed", "refunded"]
                 },
                 bookedAt: {
                     bsonType: "date"
@@ -114,6 +114,9 @@ function getBookingValidator() {
                     bsonType: ["string", "null"]
                 },
                 customerEmail: {
+                    bsonType: ["string", "null"]
+                },
+                customerPhone: {
                     bsonType: ["string", "null"]
                 },
                 notes: {

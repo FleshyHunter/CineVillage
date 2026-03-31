@@ -68,6 +68,15 @@
             <label for="code" class="form-label">Code</label>
             <input type="text" id="code" name="code" class="form-control" value="<%= promotion ? promotion.code : '' %>" maxlength="40">
           </div>
+          <div class="form-group">
+            <label for="type" class="form-label">Type</label>
+            <select id="type" name="type" class="form-control">
+              <option value="all" <%= !promotion || !promotion.type || String(promotion.type).toLowerCase() === 'all' ? 'selected' : '' %>>All</option>
+              <option value="vip" <%= promotion && String(promotion.type).toLowerCase() === 'vip' ? 'selected' : '' %>>VIP</option>
+              <option value="imax" <%= promotion && String(promotion.type).toLowerCase() === 'imax' ? 'selected' : '' %>>IMAX</option>
+              <option value="standard" <%= promotion && String(promotion.type).toLowerCase() === 'standard' ? 'selected' : '' %>>Standard</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-group">
@@ -97,6 +106,7 @@
     const nameInput = document.getElementById('name');
     const startDateInput = document.getElementById('promotionStartDate');
     const endDateInput = document.getElementById('promotionEndDate');
+    const typeInput = document.getElementById('type');
     const fallbackPoster = '/images/cameraplaceholder.jpg';
 
     function setPreview(src) {
@@ -147,6 +157,7 @@
 
         if (startDateInput) startDateInput.setCustomValidity('');
         if (endDateInput) endDateInput.setCustomValidity('');
+        if (typeInput) typeInput.setCustomValidity('');
         nameInput.setCustomValidity('');
       });
     }

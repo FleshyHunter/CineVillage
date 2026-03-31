@@ -35,7 +35,67 @@ async function getAllBookingsPage(req, res) {
   const collectionMovie = getCollectionMovie();
 
   const bookings = await collectionBooking
-    .find({})
+    .find({
+      status: "completed",
+      paymentStatus: "completed"
+    })
+    .sort({ bookedAt: -1, createdAt: -1, created: -1 })
+    .toArray();
+
+  const movieIds = [...new Set(
+    bookings
+      .map((booking) => toObjectIdSafe(booking.movieId))
+      .filter(Boolean)
+      .map((id) => id.toString())
+  )];
+
+  const movies = movieIds.length
+    ? await collectionMovie
+      .find({ _id: { $in: movieIds.map((id) => new ObjectId(id)) } })
+      .project({ name: 1, status: 1 })
+      .toArray()
+    : [];
+
+  const movieNameById = new Map(movies.map((movie) => [movie._id.toString(), movie.name || "N/A"]));
+  const movieStatusById = new Map(movies.map((movie) => [movie._id.toString(), movie.status || ""]));
+
+  const rows = bookings.map((booking) => {
+    const seatQty = Number.parseInt(booking.seatCount, 10)
+      || (Array.isArray(booking.seats) ? booking.seats.length : 0)
+      || 0;
+
+    const pricePerSeat = toFiniteNumber(booking.pricePerSeat);
+    const totalAmount = toFiniteNumber(booking.totalAmount);
+    const totalPrice = toFiniteNumber(booking.totalPrice);
+
+    return {
+      ...booking,
+      movieName: movieNameById.get((booking.movieId || "").toString()) || "N/A",
+      movieStatus: movieStatusById.get((booking.movieId || "").toString()) || "",
+      bookingDateTime: booking.bookedAt || booking.createdAt || booking.created || null,
+      qty: seatQty,
+      revenue: totalAmount || totalPrice || (pricePerSeat * seatQty)
+    };
+  });
+
+  res.render("bookings/bookingList", {
+    title: "Bookings",
+    pageTitle: "Bookings",
+    bookings: rows
+  });
+}
+
+async function getRevenueListPage(req, res) {
+  await initDBIfNecessary();
+
+  const collectionBooking = getCollectionBooking();
+  const collectionMovie = getCollectionMovie();
+
+  const bookings = await collectionBooking
+    .find({
+      status: "completed",
+      paymentStatus: "completed"
+    })
     .sort({ bookedAt: -1, createdAt: -1, created: -1 })
     .toArray();
 
@@ -55,7 +115,7 @@ async function getAllBookingsPage(req, res) {
 
   const movieNameById = new Map(movies.map((movie) => [movie._id.toString(), movie.name || "N/A"]));
 
-  const rows = bookings.map((booking) => {
+  const revenues = bookings.map((booking) => {
     const seatQty = Number.parseInt(booking.seatCount, 10)
       || (Array.isArray(booking.seats) ? booking.seats.length : 0)
       || 0;
@@ -67,16 +127,16 @@ async function getAllBookingsPage(req, res) {
     return {
       ...booking,
       movieName: movieNameById.get((booking.movieId || "").toString()) || "N/A",
-      bookingDateTime: booking.bookedAt || booking.createdAt || booking.created || null,
+      bookingDateTime: booking.confirmedAt || booking.bookedAt || booking.createdAt || booking.created || null,
       qty: seatQty,
       revenue: totalAmount || totalPrice || (pricePerSeat * seatQty)
     };
   });
 
-  res.render("bookings/bookingList", {
-    title: "Bookings",
-    pageTitle: "Bookings",
-    bookings: rows
+  res.render("bookings/revenueList", {
+    title: "Revenue",
+    pageTitle: "Revenue",
+    revenues
   });
 }
 
@@ -136,5 +196,6 @@ async function getBookingByIdPage(req, res) {
 
 module.exports = {
   getAllBookingsPage,
+  getRevenueListPage,
   getBookingByIdPage
 };

@@ -29,6 +29,11 @@
           <span class="detail-value"><%= promotion.code || 'N/A' %></span>
         </div>
 
+        <div class="detail-item">
+          <span class="detail-label">TYPE</span>
+          <span class="detail-value"><%= (promotion.type || 'all').toString().toUpperCase() %></span>
+        </div>
+
         <div class="detail-item full-width">
           <span class="detail-label">DESCRIPTION</span>
           <span class="detail-value"><%= promotion.description || 'N/A' %></span>

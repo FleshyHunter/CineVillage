@@ -129,42 +129,33 @@
 }
 
 .sidebar-nav-group {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   position: relative;
   z-index: 1;
-}
-
-.sidebar-nav-group-main {
-  margin-bottom: 16px;
-}
-
-.sidebar-nav-group-management {
-  margin-bottom: 70px;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  flex: 1;
-  overflow: hidden;
 }
 
-.sidebar-nav-group-management-links {
+.sidebar-nav-group-links {
   min-height: 0;
+  max-height: 150px;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
 }
 
-.sidebar-nav-group-management-links::-webkit-scrollbar {
+.sidebar-nav-group-links::-webkit-scrollbar {
   width: 6px;
 }
 
-.sidebar-nav-group-management-links::-webkit-scrollbar-thumb {
+.sidebar-nav-group-links::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.35);
   border-radius: 999px;
 }
 
 .sidebar-nav-label {
-  color: #cbd5e1;
+  color: var(--management-gold);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -173,10 +164,18 @@
 }
 
 .sidebar-nav-label-main {
-  color: #cbd5e1;
+  color: var(--management-gold);
 }
 
-.sidebar-nav-label-management {
+.sidebar-nav-label-ops {
+  color: var(--management-gold);
+}
+
+.sidebar-nav-label-market {
+  color: var(--management-gold);
+}
+
+.sidebar-nav-label-admin {
   color: var(--management-gold);
 }
 
@@ -199,31 +198,6 @@
 .sidebar-link i {
   font-size: 15px;
   width: 18px;
-}
-
-.sidebar-icon-combo {
-  position: relative;
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.sidebar-icon-combo > i.bi-cup-straw {
-  font-size: 15px;
-}
-
-.sidebar-icon-combo-badge {
-  position: absolute;
-  right: -5px;
-  bottom: -4px;
-  font-size: 9px;
-  color: #60a5fa;
-  background: #0f172a;
-  border-radius: 999px;
-  line-height: 1;
 }
 
 .sidebar-link:hover {
