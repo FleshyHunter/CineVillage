@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ViewportSection from "../components/ViewportSection";
 import {
   fetchMovieById,
@@ -227,6 +227,72 @@ function buildSeatPreviewRows(hall) {
   });
 }
 
+function buildTrailerEmbedUrl(rawUrl) {
+  const source = (rawUrl || "").toString().trim();
+  if (!source) return "";
+
+  let parsed;
+
+  try {
+    parsed = new URL(source);
+  } catch {
+    return source;
+  }
+
+  const hostname = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+  const isYoutube = hostname.includes("youtube.com") || hostname.includes("youtu.be");
+  const isVimeo = hostname.includes("vimeo.com");
+
+  if (isYoutube) {
+    const videoMatch = parsed.pathname.match(/\/embed\/([^/?#]+)/i);
+    const videoId = videoMatch?.[1] || "";
+
+    parsed.searchParams.set("autoplay", "1");
+    parsed.searchParams.set("mute", "1");
+    parsed.searchParams.set("controls", "0");
+    parsed.searchParams.set("loop", "1");
+    parsed.searchParams.set("modestbranding", "1");
+    parsed.searchParams.set("rel", "0");
+    parsed.searchParams.set("playsinline", "1");
+    parsed.searchParams.set("enablejsapi", "1");
+    if (typeof window !== "undefined" && window.location?.origin) {
+      parsed.searchParams.set("origin", window.location.origin);
+    }
+    if (videoId) parsed.searchParams.set("playlist", videoId);
+  } else if (isVimeo) {
+    parsed.searchParams.set("autoplay", "1");
+    parsed.searchParams.set("muted", "1");
+    parsed.searchParams.set("loop", "1");
+    parsed.searchParams.set("playsinline", "1");
+    parsed.searchParams.set("title", "0");
+    parsed.searchParams.set("byline", "0");
+    parsed.searchParams.set("portrait", "0");
+    parsed.searchParams.set("api", "1");
+  } else {
+    parsed.searchParams.set("autoplay", "1");
+    parsed.searchParams.set("muted", "1");
+  }
+
+  return parsed.toString();
+}
+
+function getTrailerProvider(embedUrl) {
+  const source = (embedUrl || "").toString().trim();
+  if (!source) return "unknown";
+
+  try {
+    const parsed = new URL(source);
+    const hostname = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+
+    if (hostname.includes("youtube.com") || hostname.includes("youtu.be")) return "youtube";
+    if (hostname.includes("vimeo.com")) return "vimeo";
+  } catch {
+    return "unknown";
+  }
+
+  return "unknown";
+}
+
 export default function MovieDetails({ movieId = "" }) {
   const [movie, setMovie] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -236,6 +302,9 @@ export default function MovieDetails({ movieId = "" }) {
   const [selectedScreeningPreview, setSelectedScreeningPreview] = useState(null);
   const [seatPreviewLoading, setSeatPreviewLoading] = useState(false);
   const [seatPreviewError, setSeatPreviewError] = useState("");
+  const [isTrailerMuted, setIsTrailerMuted] = useState(true);
+  const [isTrailerFullscreen, setIsTrailerFullscreen] = useState(false);
+  const trailerFrameRef = useRef(null);
 
   useEffect(() => {
     let isActive = true;
@@ -287,7 +356,32 @@ export default function MovieDetails({ movieId = "" }) {
     setWeekStartDate(startOfDay(new Date()));
     setSelectedScreeningPreview(null);
     setSeatPreviewError("");
+    setIsTrailerMuted(true);
+    setIsTrailerFullscreen(false);
   }, [movie]);
+
+  useEffect(() => {
+    function handleFullscreenChange() {
+      setIsTrailerFullscreen(document.fullscreenElement === trailerFrameRef.current);
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  const trailerEmbedUrl = (movie?.trailer?.embedUrl || "").toString().trim();
+  const trailerWatchUrl = (movie?.trailer?.watchUrl || "").toString().trim();
+  const controlledTrailerEmbedUrl = useMemo(
+    () => buildTrailerEmbedUrl(trailerEmbedUrl),
+    [trailerEmbedUrl]
+  );
+  const trailerProvider = useMemo(
+    () => getTrailerProvider(controlledTrailerEmbedUrl),
+    [controlledTrailerEmbedUrl]
+  );
 
   if (loading) {
     return (
@@ -308,8 +402,6 @@ export default function MovieDetails({ movieId = "" }) {
   const posterUrl = resolveMoviePictureUrl(movie.pictureUrl);
   const advisoryText = getAdvisoryText(movie);
   const synopsisLines = splitTextLines(movie.description);
-  const trailerEmbedUrl = (movie.trailer?.embedUrl || "").toString().trim();
-  const trailerWatchUrl = (movie.trailer?.watchUrl || "").toString().trim();
   const showtimeDays = Array.isArray(movie.showtimes) ? movie.showtimes : [];
   const emptyShowtimeMessage = movie.status === "Coming Soon"
     ? "Upcoming screenings coming soon."
@@ -375,6 +467,54 @@ export default function MovieDetails({ movieId = "" }) {
     window.location.hash = `#seat-selection/${showtime.screeningId}`;
   }
 
+  function handleToggleTrailerMute() {
+    if (!trailerEmbedUrl) return;
+
+    const trailerFrame = trailerFrameRef.current;
+    const targetWindow = trailerFrame?.contentWindow || null;
+    const nextMuted = !isTrailerMuted;
+
+    if (targetWindow) {
+      if (trailerProvider === "youtube") {
+        targetWindow.postMessage(
+          JSON.stringify({
+            event: "command",
+            func: nextMuted ? "mute" : "unMute",
+            args: []
+          }),
+          "*"
+        );
+      } else if (trailerProvider === "vimeo") {
+        targetWindow.postMessage(
+          {
+            method: "setVolume",
+            value: nextMuted ? 0 : 1
+          },
+          "*"
+        );
+      }
+    }
+
+    setIsTrailerMuted(nextMuted);
+  }
+
+  async function handleExpandTrailer() {
+    if (!trailerEmbedUrl) return;
+
+    const trailerFrame = trailerFrameRef.current;
+    if (!trailerFrame) return;
+
+    try {
+      if (document.fullscreenElement === trailerFrame) {
+        await document.exitFullscreen();
+      } else if (typeof trailerFrame.requestFullscreen === "function") {
+        await trailerFrame.requestFullscreen();
+      }
+    } catch {
+      setIsTrailerFullscreen(document.fullscreenElement === trailerFrame);
+    }
+  }
+
   const selectedScreeningRows = buildSeatPreviewRows(selectedScreeningPreview?.hall);
 
   return (
@@ -387,10 +527,12 @@ export default function MovieDetails({ movieId = "" }) {
           {trailerEmbedUrl ? (
             <div className="movie-details-stage-video-wrap" aria-hidden="true">
               <iframe
+                ref={trailerFrameRef}
                 className="movie-details-stage-video"
-                src={trailerEmbedUrl}
+                src={controlledTrailerEmbedUrl}
                 title={`${movie.name || "Movie"} trailer background`}
-                allow="autoplay; encrypted-media; picture-in-picture"
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowFullScreen
                 referrerPolicy="strict-origin-when-cross-origin"
                 tabIndex="-1"
               />
@@ -424,12 +566,26 @@ export default function MovieDetails({ movieId = "" }) {
                 </div>
               </div>
 
-              <div className="movie-details-stage-controls" aria-hidden="true">
-                <button type="button" className="movie-details-stage-icon">
-                  <i className="bi bi-volume-mute" />
+              <div className="movie-details-stage-controls">
+                <button
+                  type="button"
+                  className={`movie-details-stage-icon${isTrailerMuted ? "" : " is-active"}`}
+                  onClick={handleToggleTrailerMute}
+                  disabled={!trailerEmbedUrl}
+                  aria-label={isTrailerMuted ? "Unmute trailer" : "Mute trailer"}
+                  title={isTrailerMuted ? "Unmute trailer" : "Mute trailer"}
+                >
+                  <i className={`bi ${isTrailerMuted ? "bi-volume-mute" : "bi-volume-up"}`} />
                 </button>
-                <button type="button" className="movie-details-stage-icon">
-                  <i className="bi bi-arrows-fullscreen" />
+                <button
+                  type="button"
+                  className={`movie-details-stage-icon${isTrailerFullscreen ? " is-active" : ""}`}
+                  onClick={handleExpandTrailer}
+                  disabled={!trailerEmbedUrl}
+                  aria-label={isTrailerFullscreen ? "Exit fullscreen trailer" : "Expand trailer"}
+                  title={isTrailerFullscreen ? "Exit fullscreen trailer" : "Expand trailer"}
+                >
+                  <i className={`bi ${isTrailerFullscreen ? "bi-fullscreen-exit" : "bi-arrows-fullscreen"}`} />
                 </button>
               </div>
             </div>
@@ -690,6 +846,7 @@ export default function MovieDetails({ movieId = "" }) {
           </div>
         ) : null}
       </ViewportSection>
+
     </section>
   );
 }

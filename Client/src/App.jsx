@@ -3,6 +3,7 @@ import Footer from "./components/Footer";
 import Header from "./components/Header";
 import SeatSelectionButton from "./components/SeatSelectionButton";
 import Sidebar from "./components/Sidebar";
+import { useAccount } from "./context/AccountContext";
 import {
   clearBookingPipelineSession,
   hasActiveBookingPipelineSession,
@@ -13,17 +14,37 @@ import Home from "./pages/Home";
 import MovieDetails from "./pages/MovieDetails";
 import Movies from "./pages/Movies";
 import AddOns from "./pages/AddOns";
+import AddOn from "./pages/AddOn";
+import BookingDetails from "./pages/BookingDetails";
+import CreateAccount from "./pages/CreateAccount";
+import Login from "./pages/Login";
 import Payment from "./pages/Payment";
 import PaymentSuccess from "./pages/PaymentSuccess";
+import Profile from "./pages/Profile";
 import Promotions from "./pages/Promotions";
+import PromotionsList from "./pages/PromotionsList";
 import SeatSelection from "./pages/SeatSelection";
+import Tickets from "./pages/Tickets";
 
 const FLOW_GUARD_PAGES = new Set(["promotions", "addons", "payment"]);
+const ACCOUNT_GUARD_PAGES = new Set(["profile", "my-tickets", "ticket-details"]);
+const SIDEBAR_HIDDEN_PAGES = new Set(["login", "create-account"]);
 const BOOKING_REFRESH_RECOVERY_KEY = "cinevillage_booking_refresh_recovery";
 const BOOKING_REFRESH_MOVIE_ID_KEY = "cinevillage_booking_refresh_movie_id";
+const MOVIE_HALL_TYPE_SLUGS = new Set(["standard", "imax", "vip"]);
+
+function normalizeMovieHallTypeSlug(value) {
+  const slug = (value || "").toString().trim().toLowerCase();
+  if (MOVIE_HALL_TYPE_SLUGS.has(slug)) return slug;
+  return "";
+}
 
 function readClientViewFromHash() {
-  const hash = (window.location.hash || "").replace(/^#/, "");
+  const hash = (window.location.hash || "")
+    .replace(/^#/, "")
+    .replace(/^\/+/, "")
+    .split("?")[0]
+    .trim();
 
   if (hash.startsWith("seat-selection")) {
     const [, screeningId = ""] = hash.split("/");
@@ -31,6 +52,22 @@ function readClientViewFromHash() {
       page: "seat-selection",
       movieId: "",
       screeningId
+    };
+  }
+
+  if (hash === "promotions-list") {
+    return {
+      page: "promotions-list",
+      movieId: "",
+      screeningId: ""
+    };
+  }
+
+  if (hash === "addons-list") {
+    return {
+      page: "addons-list",
+      movieId: "",
+      screeningId: ""
     };
   }
 
@@ -70,6 +107,16 @@ function readClientViewFromHash() {
     };
   }
 
+  if (hash.startsWith("ticket")) {
+    const [, bookingId = ""] = hash.split("/");
+    return {
+      page: "ticket-details",
+      movieId: "",
+      screeningId: "",
+      bookingId
+    };
+  }
+
   if (hash.startsWith("movie-details")) {
     const [, movieId = ""] = hash.split("/");
     return {
@@ -79,9 +126,51 @@ function readClientViewFromHash() {
     };
   }
 
-  if (hash === "movies") {
+  if (hash.startsWith("movies")) {
+    const [, hallTypeRaw = ""] = hash.split("/");
     return {
       page: "movies",
+      movieId: "",
+      screeningId: "",
+      hallType: normalizeMovieHallTypeSlug(hallTypeRaw)
+    };
+  }
+
+  if (hash === "my-tickets") {
+    return {
+      page: "my-tickets",
+      movieId: "",
+      screeningId: ""
+    };
+  }
+
+  if (hash === "profile") {
+    return {
+      page: "profile",
+      movieId: "",
+      screeningId: ""
+    };
+  }
+
+  if (hash === "edit-profile") {
+    return {
+      page: "profile",
+      movieId: "",
+      screeningId: ""
+    };
+  }
+
+  if (hash === "login") {
+    return {
+      page: "login",
+      movieId: "",
+      screeningId: ""
+    };
+  }
+
+  if (hash === "create-account") {
+    return {
+      page: "create-account",
       movieId: "",
       screeningId: ""
     };
@@ -90,11 +179,14 @@ function readClientViewFromHash() {
   return {
     page: "home",
     movieId: "",
-    screeningId: ""
+    screeningId: "",
+    bookingId: "",
+    hallType: ""
   };
 }
 
 export default function App() {
+  const { isAuthenticated, isAuthHydrating } = useAccount();
   const [menuOpen, setMenuOpen] = useState(false);
   const [clientView, setClientView] = useState(readClientViewFromHash);
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
@@ -102,7 +194,22 @@ export default function App() {
   const [isReleasingHold, setIsReleasingHold] = useState(false);
   const [refreshLossMovieId, setRefreshLossMovieId] = useState("");
   const [refreshLossOpen, setRefreshLossOpen] = useState(false);
+  const [accountAuthPromptOpen, setAccountAuthPromptOpen] = useState(false);
+  const [accountGuardBackView, setAccountGuardBackView] = useState({
+    page: "home",
+    movieId: "",
+    screeningId: "",
+    bookingId: "",
+    hallType: ""
+  });
   const suppressNextHashChange = useRef(false);
+  const hideSidebar = SIDEBAR_HIDDEN_PAGES.has(clientView.page);
+
+  useEffect(() => {
+    if (hideSidebar && menuOpen) {
+      setMenuOpen(false);
+    }
+  }, [hideSidebar, menuOpen]);
 
   function getHashForView(view) {
     if (!view || !view.page) return "#";
@@ -112,7 +219,17 @@ export default function App() {
     if (view.page === "addons") return `#addons/${view.screeningId || ""}`;
     if (view.page === "payment") return `#payment/${view.screeningId || ""}`;
     if (view.page === "payment-success") return `#payment-success/${view.screeningId || ""}`;
-    if (view.page === "movies") return "#movies";
+    if (view.page === "ticket-details") return `#ticket/${view.bookingId || ""}`;
+    if (view.page === "my-tickets") return "#my-tickets";
+    if (view.page === "profile") return "#profile";
+    if (view.page === "login") return "#login";
+    if (view.page === "create-account") return "#create-account";
+    if (view.page === "promotions-list") return "#promotions-list";
+    if (view.page === "addons-list") return "#addons-list";
+    if (view.page === "movies") {
+      const normalizedHallType = normalizeMovieHallTypeSlug(view.hallType);
+      return normalizedHallType ? `#movies/${normalizedHallType}` : "#movies";
+    }
     return "#";
   }
 
@@ -124,6 +241,15 @@ export default function App() {
       }
 
       const nextView = readClientViewFromHash();
+      const isGuardedAccountRoute = ACCOUNT_GUARD_PAGES.has(nextView.page);
+      if (!isAuthHydrating && !isAuthenticated && isGuardedAccountRoute) {
+        setAccountGuardBackView(clientView);
+        setAccountAuthPromptOpen(true);
+        suppressNextHashChange.current = true;
+        window.location.hash = getHashForView(clientView);
+        return;
+      }
+
       const isCurrentGuardPage = FLOW_GUARD_PAGES.has(clientView.page);
       const isLeavingProtectedFlow = !FLOW_GUARD_PAGES.has(nextView.page);
       const isPayToSuccessTransition =
@@ -149,7 +275,26 @@ export default function App() {
     return () => {
       window.removeEventListener("hashchange", handleHashChange);
     };
-  }, [clientView]);
+  }, [clientView, isAuthHydrating, isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthHydrating || isAuthenticated) return;
+    if (!ACCOUNT_GUARD_PAGES.has(clientView.page)) return;
+
+    const fallbackView = {
+      page: "home",
+      movieId: "",
+      screeningId: "",
+      bookingId: "",
+      hallType: ""
+    };
+
+    setAccountGuardBackView(fallbackView);
+    setAccountAuthPromptOpen(true);
+    setClientView(fallbackView);
+    suppressNextHashChange.current = true;
+    window.location.hash = getHashForView(fallbackView);
+  }, [clientView.page, isAuthHydrating, isAuthenticated]);
 
   useEffect(() => {
     const navigationEntry = performance.getEntriesByType("navigation")[0];
@@ -242,13 +387,17 @@ export default function App() {
 
   return (
     <div className="client-shell">
-      <div
-        className={`client-backdrop${menuOpen ? " open" : ""}`}
-        onClick={() => setMenuOpen(false)}
-        aria-hidden="true"
-      />
+      {!hideSidebar ? (
+        <>
+          <div
+            className={`client-backdrop${menuOpen ? " open" : ""}`}
+            onClick={() => setMenuOpen(false)}
+            aria-hidden="true"
+          />
 
-      <Sidebar menuOpen={menuOpen} />
+          <Sidebar menuOpen={menuOpen} />
+        </>
+      ) : null}
 
       <div className="client-main">
         <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
@@ -263,10 +412,24 @@ export default function App() {
             <Payment screeningId={clientView.screeningId} />
           ) : clientView.page === "payment-success" ? (
             <PaymentSuccess screeningId={clientView.screeningId} />
+          ) : clientView.page === "ticket-details" ? (
+            <BookingDetails bookingId={clientView.bookingId} />
+          ) : clientView.page === "my-tickets" ? (
+            <Tickets />
+          ) : clientView.page === "profile" ? (
+            <Profile />
+          ) : clientView.page === "promotions-list" ? (
+            <PromotionsList />
+          ) : clientView.page === "addons-list" ? (
+            <AddOn />
+          ) : clientView.page === "login" ? (
+            <Login />
+          ) : clientView.page === "create-account" ? (
+            <CreateAccount />
           ) : clientView.page === "movie-details" ? (
             <MovieDetails movieId={clientView.movieId} />
           ) : clientView.page === "movies" ? (
-            <Movies />
+            <Movies selectedHallType={clientView.hallType} />
           ) : (
             <Home />
           )}
@@ -310,6 +473,35 @@ export default function App() {
                 disabled={isReleasingHold}
               >
                 {isReleasingHold ? "Confirming..." : "Confirm"}
+              </SeatSelectionButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {accountAuthPromptOpen ? (
+        <div className="booking-leave-modal-backdrop" role="presentation">
+          <div className="booking-leave-modal" role="dialog" aria-modal="true" aria-labelledby="accountAuthPromptTitle">
+            <h3 id="accountAuthPromptTitle">Sign In Required</h3>
+            <p>Please sign in to access more account functions.</p>
+            <div className="booking-leave-modal-actions">
+              <SeatSelectionButton
+                variant="secondary"
+                onClick={() => {
+                  setAccountAuthPromptOpen(false);
+                  window.location.hash = getHashForView(accountGuardBackView);
+                }}
+              >
+                Back
+              </SeatSelectionButton>
+              <SeatSelectionButton
+                variant="primary"
+                onClick={() => {
+                  setAccountAuthPromptOpen(false);
+                  window.location.hash = "#login";
+                }}
+              >
+                Sign In
               </SeatSelectionButton>
             </div>
           </div>

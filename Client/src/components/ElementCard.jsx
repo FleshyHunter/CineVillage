@@ -1,8 +1,8 @@
 import "./MovieCard.css";
 
-export default function MovieCard({ movie }) {
-  const actionLabel = movie.badge === "Coming Soon" ? "MORE" : "BUY";
-  const detailsHref = movie._id ? `#movie-details/${movie._id}` : "#movie-details";
+export default function ElementCard({ movie }) {
+  const actionLabel = movie.actionLabel || (movie.badge === "Coming Soon" ? "MORE" : "BUY");
+  const detailsHref = movie.detailsHref || (movie._id ? `#movie-details/${movie._id}` : "#movie-details");
 
   return (
     <article className="movie-card" role="listitem">

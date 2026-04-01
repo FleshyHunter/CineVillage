@@ -34,6 +34,42 @@
           <span class="detail-value"><%= (promotion.type || 'all').toString().toUpperCase() %></span>
         </div>
 
+        <div class="detail-item">
+          <span class="detail-label">BENEFIT</span>
+          <span class="detail-value">
+            <% if (promotion.benefit && promotion.benefit.type) { %>
+              <%= `${String(promotion.benefit.type).toUpperCase()} · ${promotion.benefit.target || 'cart'} · ${promotion.benefit.value ?? 0}` %>
+            <% } else { %>
+              N/A
+            <% } %>
+          </span>
+        </div>
+
+        <div class="detail-item">
+          <span class="detail-label">PRIORITY / STACKABLE</span>
+          <span class="detail-value"><%= `${Number.parseInt(promotion.priority, 10) || 0} / ${promotion.stackable ? 'YES' : 'NO'}` %></span>
+        </div>
+
+        <div class="detail-item">
+          <span class="detail-label">USAGE LIMIT</span>
+          <span class="detail-value"><%= promotion.usageLimit || promotion?.validity?.usageLimit || 'N/A' %></span>
+        </div>
+
+        <div class="detail-item full-width">
+          <span class="detail-label">CONDITIONS</span>
+          <span class="detail-value">
+            <% if (Array.isArray(promotion.conditions) && promotion.conditions.length > 0) { %>
+              <ul style="margin: 0; padding-left: 18px;">
+                <% promotion.conditions.forEach((condition) => { %>
+                  <li><%= `${condition.type || 'N/A'}: ${condition.value ?? 'N/A'}` %></li>
+                <% }); %>
+              </ul>
+            <% } else { %>
+              No conditions (applies broadly)
+            <% } %>
+          </span>
+        </div>
+
         <div class="detail-item full-width">
           <span class="detail-label">DESCRIPTION</span>
           <span class="detail-value"><%= promotion.description || 'N/A' %></span>

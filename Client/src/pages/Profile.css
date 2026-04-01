@@ -1,0 +1,66 @@
+.profile-inline-page {
+  width: 100%;
+}
+
+.profile-inline-card {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.profile-inline-photo {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.edit-profile-photo-label {
+  color: #93c5fd;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.profile-inline-avatar {
+  width: 136px;
+  height: 136px;
+  border-radius: 999px;
+  border: 2px solid rgba(59, 130, 246, 0.5);
+  object-fit: cover;
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.profile-inline-avatar-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  cursor: default;
+}
+
+.profile-inline-avatar-button.is-editable {
+  cursor: pointer;
+}
+
+.profile-inline-avatar-button.is-editable:hover .profile-inline-avatar {
+  border-color: rgba(59, 130, 246, 0.9);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.26);
+}
+
+.profile-inline-avatar-input {
+  display: none;
+}
+
+.profile-inline-avatar-hint {
+  font-size: 0.76rem;
+  color: #93c5fd;
+}
+
+.profile-inline-actions {
+  justify-content: center;
+}
+
+.profile-inline-card .edit-profile-field input[readonly] {
+  cursor: default;
+}

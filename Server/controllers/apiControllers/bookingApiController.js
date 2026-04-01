@@ -4,6 +4,8 @@ const {
   initDBIfNecessary,
   getMongoClient,
   getCollectionBooking,
+  getCollectionMovie,
+  getCollectionHall,
   getCollectionScreening,
   getCollectionSeatReservation
 } = require("../../config/database");
@@ -130,6 +132,39 @@ function sanitizeOptionalString(value, { lowerCase = false } = {}) {
   return lowerCase ? text.toLowerCase() : text;
 }
 
+function resolveAuthenticatedCustomerId(req) {
+  return toObjectIdSafe(req.currentCustomer?.customerId);
+}
+
+function resolveAuthenticatedCustomerEmail(req) {
+  return sanitizeOptionalString(req.currentCustomer?.email, { lowerCase: true });
+}
+
+function buildCustomerBookingFilter(req) {
+  const customerId = resolveAuthenticatedCustomerId(req);
+  const customerEmail = resolveAuthenticatedCustomerEmail(req);
+
+  if (customerId && customerEmail) {
+    return {
+      $or: [
+        { customerId },
+        { customerId: { $exists: false }, customerEmail },
+        { customerId: null, customerEmail }
+      ]
+    };
+  }
+
+  if (customerId) {
+    return { customerId };
+  }
+
+  if (customerEmail) {
+    return { customerEmail };
+  }
+
+  return null;
+}
+
 function isValidEmail(value) {
   const normalized = sanitizeOptionalString(value, { lowerCase: true });
   if (!normalized) return false;
@@ -207,8 +242,11 @@ function buildBookingDocument(screening, seatLabels, payload = {}, now = new Dat
     totalPrice: totalAmount,
     status: "pending",
     paymentStatus: "unpaid",
+    customerId: toObjectIdSafe(payload.customerId),
     customerName: sanitizeOptionalString(payload.customerName),
-    customerEmail: sanitizeOptionalString(payload.customerEmail, { lowerCase: true }),
+    customerEmail:
+      sanitizeOptionalString(payload.customerEmail, { lowerCase: true })
+      || sanitizeOptionalString(payload.customerEmailFromAuth, { lowerCase: true }),
     bookedAt: now,
     createdAt: now,
     expiresAt,
@@ -255,6 +293,101 @@ function serializeBooking(booking) {
   };
 }
 
+function normalizeTicketStatus(booking = {}, screening = {}, now = new Date()) {
+  const bookingStatus = (booking.status || "").toString().trim().toLowerCase();
+  if (bookingStatus === "cancelled") return "cancelled";
+
+  const paymentStatus = (booking.paymentStatus || "").toString().trim().toLowerCase();
+  if (bookingStatus === "pending" || bookingStatus === "expired" || paymentStatus === "unpaid") {
+    return "incomplete";
+  }
+
+  const screeningStart = screening?.startDateTime ? new Date(screening.startDateTime) : null;
+  if (screeningStart && !Number.isNaN(screeningStart.getTime()) && screeningStart.getTime() > now.getTime()) {
+    return "scheduled";
+  }
+
+  return "completed";
+}
+
+function serializeTicketBooking(booking, context = {}) {
+  if (!booking) return null;
+
+  const screening = context.screening || null;
+  const movie = context.movie || null;
+  const hall = context.hall || null;
+  const now = context.now || new Date();
+
+  const purchaseDateRaw = booking.confirmedAt || booking.bookedAt || booking.createdAt || booking.created || null;
+  const purchaseDate = purchaseDateRaw ? new Date(purchaseDateRaw) : null;
+  const safePurchaseDate = purchaseDate && !Number.isNaN(purchaseDate.getTime()) ? purchaseDate : null;
+  const seatList = Array.isArray(booking.seats) ? booking.seats : [];
+  const addOnList = Array.isArray(booking.addOns) ? booking.addOns : [];
+  const totalAmount = Number(booking.totalPrice ?? booking.totalAmount ?? 0);
+  const safeTotal = Number.isFinite(totalAmount) && totalAmount >= 0 ? totalAmount : 0;
+
+  const hallType = (
+    screening?.hallSnapshot?.hallType
+    || hall?.type
+    || "Standard"
+  ).toString();
+
+  const screeningStartRaw = screening?.startDateTime || null;
+  const screeningStart = screeningStartRaw ? new Date(screeningStartRaw) : null;
+  const safeScreeningStart = screeningStart && !Number.isNaN(screeningStart.getTime())
+    ? screeningStart
+    : null;
+
+  return {
+    id: booking._id?.toString(),
+    bookingId: booking._id?.toString(),
+    bookingCode: (booking.bookingCode || "").toString(),
+    movieId: booking.movieId?.toString(),
+    screeningId: booking.screeningId?.toString(),
+    hallId: booking.hallId?.toString(),
+    movieName: (movie?.name || booking.movieName || "N/A").toString(),
+    hallName: (
+      screening?.hallSnapshot?.hallName
+      || hall?.name
+      || "N/A"
+    ).toString(),
+    hallType,
+    date: safeScreeningStart
+      ? safeScreeningStart.toISOString().slice(0, 10)
+      : "",
+    time: safeScreeningStart
+      ? safeScreeningStart.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", hour12: false })
+      : "N/A",
+    purchaseDate: safePurchaseDate
+      ? safePurchaseDate.toISOString().slice(0, 10)
+      : "",
+    purchaseTime: safePurchaseDate
+      ? safePurchaseDate.toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", hour12: false })
+      : "N/A",
+    purchaseDateTime: safePurchaseDate ? safePurchaseDate.toISOString() : "",
+    status: normalizeTicketStatus(booking, screening, now),
+    seats: seatList,
+    addons: addOnList,
+    total: safeTotal,
+    promoDiscount: Number(booking.promoDiscount || 0) || 0,
+    bookingFee: Number(booking.bookingFee || 0) || 0,
+    ticketSubtotal: Number(booking.seatSubtotal || 0) || 0,
+    qrCodeUrl: (booking.qrCodeUrl || "").toString(),
+    qrPayloadText: (booking.qrPayloadText || "").toString(),
+    customerName: (booking.customerName || "").toString(),
+    customerEmail: (booking.customerEmail || "").toString(),
+    customerPhone: (booking.customerPhone || "").toString(),
+    rawStatus: booking.status || "",
+    paymentStatus: booking.paymentStatus || ""
+  };
+}
+
+function isScreeningInFuture(screening) {
+  const startDate = screening?.startDateTime ? new Date(screening.startDateTime) : null;
+  if (!startDate || Number.isNaN(startDate.getTime())) return false;
+  return startDate.getTime() > Date.now();
+}
+
 async function cleanupExpiredBookingHolds(collectionBooking, collectionSeatReservation) {
   const now = new Date();
 
@@ -276,15 +409,39 @@ async function cleanupExpiredBookingHolds(collectionBooking, collectionSeatReser
     collectionSeatReservation.deleteMany({
       bookingId: { $in: expiredBookingIds }
     }),
-    collectionBooking.updateMany(
-      { _id: { $in: expiredBookingIds } },
+    collectionBooking.deleteMany({ _id: { $in: expiredBookingIds } })
+  ]);
+}
+
+async function cleanupPendingBookingsForCustomer(
+  collectionBooking,
+  collectionSeatReservation,
+  ownershipFilter
+) {
+  if (!ownershipFilter || typeof ownershipFilter !== "object") return;
+
+  const pendingBookings = await collectionBooking
+    .find(
       {
-        $set: {
-          status: "expired",
-          updated: now
-        }
-      }
+        $and: [
+          ownershipFilter,
+          { status: { $in: ["pending", "expired"] } }
+        ]
+      },
+      { projection: { _id: 1 } }
     )
+    .toArray();
+
+  if (!pendingBookings.length) return;
+
+  const pendingBookingIds = pendingBookings.map((item) => item._id);
+  await Promise.all([
+    collectionSeatReservation.deleteMany({
+      bookingId: { $in: pendingBookingIds }
+    }),
+    collectionBooking.deleteMany({
+      _id: { $in: pendingBookingIds }
+    })
   ]);
 }
 
@@ -449,6 +606,14 @@ async function createBooking(req, res) {
       });
     }
 
+    const authCustomerId = resolveAuthenticatedCustomerId(req);
+    const authCustomerEmail = resolveAuthenticatedCustomerEmail(req);
+    const payloadWithCustomer = {
+      ...req.body,
+      customerId: authCustomerId ? authCustomerId.toString() : "",
+      customerEmailFromAuth: authCustomerEmail || ""
+    };
+
     let booking = null;
 
     try {
@@ -457,7 +622,7 @@ async function createBooking(req, res) {
         collectionSeatReservation,
         screening,
         seatLabels,
-        payload: req.body
+        payload: payloadWithCustomer
       });
     } catch (error) {
       if (isTransactionUnsupportedError(error)) {
@@ -466,7 +631,7 @@ async function createBooking(req, res) {
           collectionSeatReservation,
           screening,
           seatLabels,
-          payload: req.body
+          payload: payloadWithCustomer
         });
       } else {
         throw error;
@@ -538,26 +703,14 @@ async function releaseBookingHold(req, res) {
       });
     }
 
-    const now = new Date();
-
     await Promise.all([
       collectionSeatReservation.deleteMany({ bookingId }),
-      collectionBooking.updateOne(
-        { _id: bookingId },
-        {
-          $set: {
-            status: "cancelled",
-            updated: now
-          }
-        }
-      )
+      collectionBooking.deleteOne({ _id: bookingId })
     ]);
 
-    const updatedBooking = await collectionBooking.findOne({ _id: bookingId });
-
     return res.status(200).json({
-      message: "Booking hold released.",
-      booking: serializeBooking(updatedBooking)
+      message: "Booking hold released and removed.",
+      bookingId: bookingId.toString()
     });
   } catch (error) {
     console.error("Error releasing booking hold:", error);
@@ -896,15 +1049,38 @@ async function sendBookingInvoice(req, res) {
     if (!booking) {
       return res.status(404).json({ message: "Booking not found." });
     }
+
+    const authCustomerId = resolveAuthenticatedCustomerId(req);
+    const authCustomerEmail = resolveAuthenticatedCustomerEmail(req) || "";
+    if (req.currentCustomer?.authenticated) {
+      const bookingCustomerId = toObjectIdSafe(booking.customerId);
+      const bookingCustomerEmail = sanitizeOptionalString(booking.customerEmail, { lowerCase: true }) || "";
+      const ownedById = Boolean(
+        authCustomerId
+        && bookingCustomerId
+        && authCustomerId.toString() === bookingCustomerId.toString()
+      );
+      const ownedByLegacyEmail = Boolean(!bookingCustomerId && authCustomerEmail && bookingCustomerEmail === authCustomerEmail);
+
+      if (!ownedById && !ownedByLegacyEmail) {
+        return res.status(403).json({ message: "Forbidden: booking does not belong to current customer." });
+      }
+    }
+
     const currentStatus = (booking.status || "").toString().trim().toLowerCase();
     if (currentStatus !== "pending" && currentStatus !== "completed") {
       return res.status(409).json({ message: "Only pending bookings can be completed." });
     }
 
-    const customerName = sanitizeOptionalString(req.body?.name) || sanitizeOptionalString(booking.customerName) || "";
+    const customerName =
+      sanitizeOptionalString(req.body?.name)
+      || sanitizeOptionalString(booking.customerName)
+      || sanitizeOptionalString(req.currentCustomer?.name)
+      || "";
     const customerEmail =
       sanitizeOptionalString(req.body?.email, { lowerCase: true })
       || sanitizeOptionalString(booking.customerEmail, { lowerCase: true })
+      || authCustomerEmail
       || "";
     const customerPhone = sanitizeOptionalString(req.body?.phone) || "";
     const movieName = sanitizeOptionalString(req.body?.movieName) || "";
@@ -995,6 +1171,7 @@ async function sendBookingInvoice(req, res) {
         { _id: bookingId },
         {
           $set: {
+            customerId: authCustomerId || toObjectIdSafe(booking.customerId) || null,
             customerName: customerName || null,
             customerEmail,
             customerPhone: customerPhone || null,
@@ -1002,6 +1179,18 @@ async function sendBookingInvoice(req, res) {
             paymentStatus: "completed",
             totalAmount: finalizedTotal,
             totalPrice: finalizedTotal,
+            addOns,
+            seatSubtotal,
+            addOnsSubtotal,
+            bookingFee,
+            promoDiscount,
+            qrPayloadText,
+            qrCodeUrl,
+            paymentMethod: paymentMethodLabel || null,
+            screeningDate: screeningDate || null,
+            screeningTime: screeningTime || null,
+            hallName: hallName || null,
+            screenFormat: screenFormat || null,
             confirmedAt: now,
             expiresAt: null,
             updated: now
@@ -1042,10 +1231,262 @@ async function sendBookingInvoice(req, res) {
   }
 }
 
+async function listTicketBookings(req, res) {
+  try {
+    await initDBIfNecessary();
+
+    const collectionBooking = getCollectionBooking();
+    const collectionScreening = getCollectionScreening();
+    const collectionMovie = getCollectionMovie();
+    const collectionHall = getCollectionHall();
+    const collectionSeatReservation = getCollectionSeatReservation();
+
+    const filters = buildCustomerBookingFilter(req);
+    if (!filters) {
+      return res.status(401).json({
+        message: "Authentication required."
+      });
+    }
+
+    await cleanupExpiredBookingHolds(collectionBooking, collectionSeatReservation);
+    await cleanupPendingBookingsForCustomer(collectionBooking, collectionSeatReservation, filters);
+
+    const bookings = await collectionBooking
+      .find(filters)
+      .sort({ confirmedAt: -1, bookedAt: -1, createdAt: -1, created: -1, _id: -1 })
+      .toArray();
+
+    const screeningIds = [...new Set(
+      bookings
+        .map((booking) => toObjectIdSafe(booking.screeningId))
+        .filter(Boolean)
+        .map((id) => id.toString())
+    )];
+
+    const movieIds = [...new Set(
+      bookings
+        .map((booking) => toObjectIdSafe(booking.movieId))
+        .filter(Boolean)
+        .map((id) => id.toString())
+    )];
+
+    const hallIds = [...new Set(
+      bookings
+        .map((booking) => toObjectIdSafe(booking.hallId))
+        .filter(Boolean)
+        .map((id) => id.toString())
+    )];
+
+    const [screenings, movies, halls] = await Promise.all([
+      screeningIds.length
+        ? collectionScreening.find({ _id: { $in: screeningIds.map((id) => new ObjectId(id)) } }).toArray()
+        : Promise.resolve([]),
+      movieIds.length
+        ? collectionMovie.find({ _id: { $in: movieIds.map((id) => new ObjectId(id)) } }).toArray()
+        : Promise.resolve([]),
+      hallIds.length
+        ? collectionHall.find({ _id: { $in: hallIds.map((id) => new ObjectId(id)) } }).toArray()
+        : Promise.resolve([])
+    ]);
+
+    const screeningById = new Map(screenings.map((item) => [item._id.toString(), item]));
+    const movieById = new Map(movies.map((item) => [item._id.toString(), item]));
+    const hallById = new Map(halls.map((item) => [item._id.toString(), item]));
+
+    const now = new Date();
+    const items = bookings
+      .map((booking) => {
+        const screening = screeningById.get((booking.screeningId || "").toString()) || null;
+        const movie = movieById.get((booking.movieId || "").toString()) || null;
+        const hall = hallById.get((booking.hallId || "").toString()) || null;
+
+        return serializeTicketBooking(booking, {
+          screening,
+          movie,
+          hall,
+          now
+        });
+      })
+      .filter(Boolean);
+
+    return res.status(200).json({
+      items,
+      total: items.length
+    });
+  } catch (error) {
+    console.error("Error listing ticket bookings:", error);
+    return res.status(500).json({
+      message: "Failed to fetch ticket bookings."
+    });
+  }
+}
+
+async function getTicketBookingDetails(req, res) {
+  try {
+    await initDBIfNecessary();
+
+    const bookingIdRaw = (req.params.id || "").toString().trim();
+    if (!ObjectId.isValid(bookingIdRaw)) {
+      return res.status(400).json({ message: "Invalid booking ID." });
+    }
+
+    const bookingId = new ObjectId(bookingIdRaw);
+    const collectionBooking = getCollectionBooking();
+    const collectionScreening = getCollectionScreening();
+    const collectionMovie = getCollectionMovie();
+    const collectionHall = getCollectionHall();
+
+    const ownershipFilter = buildCustomerBookingFilter(req);
+    if (!ownershipFilter) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
+
+    const booking = await collectionBooking.findOne({
+      _id: bookingId,
+      ...ownershipFilter
+    });
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found." });
+    }
+
+    const [screening, movie, hall] = await Promise.all([
+      toObjectIdSafe(booking.screeningId)
+        ? collectionScreening.findOne({ _id: toObjectIdSafe(booking.screeningId) })
+        : Promise.resolve(null),
+      toObjectIdSafe(booking.movieId)
+        ? collectionMovie.findOne({ _id: toObjectIdSafe(booking.movieId) })
+        : Promise.resolve(null),
+      toObjectIdSafe(booking.hallId)
+        ? collectionHall.findOne({ _id: toObjectIdSafe(booking.hallId) })
+        : Promise.resolve(null)
+    ]);
+
+    const item = serializeTicketBooking(booking, {
+      screening,
+      movie,
+      hall,
+      now: new Date()
+    });
+
+    return res.status(200).json({
+      item
+    });
+  } catch (error) {
+    console.error("Error fetching ticket booking details:", error);
+    return res.status(500).json({
+      message: "Failed to fetch booking details."
+    });
+  }
+}
+
+async function cancelTicketBooking(req, res) {
+  try {
+    await initDBIfNecessary();
+
+    const bookingIdRaw = (req.params.id || "").toString().trim();
+    if (!ObjectId.isValid(bookingIdRaw)) {
+      return res.status(400).json({ message: "Invalid booking ID." });
+    }
+
+    const bookingId = new ObjectId(bookingIdRaw);
+    const collectionBooking = getCollectionBooking();
+    const collectionScreening = getCollectionScreening();
+    const collectionMovie = getCollectionMovie();
+    const collectionHall = getCollectionHall();
+    const collectionSeatReservation = getCollectionSeatReservation();
+
+    const ownershipFilter = buildCustomerBookingFilter(req);
+    if (!ownershipFilter) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
+
+    const booking = await collectionBooking.findOne({
+      _id: bookingId,
+      ...ownershipFilter
+    });
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found." });
+    }
+
+    const currentStatus = (booking.status || "").toString().trim().toLowerCase();
+    if (currentStatus === "cancelled") {
+      const [screening, movie, hall] = await Promise.all([
+        toObjectIdSafe(booking.screeningId)
+          ? collectionScreening.findOne({ _id: toObjectIdSafe(booking.screeningId) })
+          : Promise.resolve(null),
+        toObjectIdSafe(booking.movieId)
+          ? collectionMovie.findOne({ _id: toObjectIdSafe(booking.movieId) })
+          : Promise.resolve(null),
+        toObjectIdSafe(booking.hallId)
+          ? collectionHall.findOne({ _id: toObjectIdSafe(booking.hallId) })
+          : Promise.resolve(null)
+      ]);
+
+      return res.status(200).json({
+        message: "Booking already cancelled.",
+        item: serializeTicketBooking(booking, { screening, movie, hall, now: new Date() })
+      });
+    }
+
+    const screening = toObjectIdSafe(booking.screeningId)
+      ? await collectionScreening.findOne({ _id: toObjectIdSafe(booking.screeningId) })
+      : null;
+
+    if (screening && !isScreeningInFuture(screening)) {
+      return res.status(409).json({
+        message: "Booking cannot be cancelled after showtime has started."
+      });
+    }
+
+    const now = new Date();
+    await Promise.all([
+      collectionBooking.updateOne(
+        { _id: bookingId },
+        {
+          $set: {
+            status: "cancelled",
+            updated: now,
+            cancelledAt: now
+          }
+        }
+      ),
+      collectionSeatReservation.deleteMany({ bookingId })
+    ]);
+
+    const [updatedBooking, movie, hall] = await Promise.all([
+      collectionBooking.findOne({ _id: bookingId }),
+      toObjectIdSafe(booking.movieId)
+        ? collectionMovie.findOne({ _id: toObjectIdSafe(booking.movieId) })
+        : Promise.resolve(null),
+      toObjectIdSafe(booking.hallId)
+        ? collectionHall.findOne({ _id: toObjectIdSafe(booking.hallId) })
+        : Promise.resolve(null)
+    ]);
+
+    return res.status(200).json({
+      message: "Booking cancelled successfully.",
+      item: serializeTicketBooking(updatedBooking, {
+        screening,
+        movie,
+        hall,
+        now
+      })
+    });
+  } catch (error) {
+    console.error("Error cancelling booking:", error);
+    return res.status(500).json({
+      message: "Failed to cancel booking."
+    });
+  }
+}
+
 module.exports = {
   createBooking,
   releaseBookingHold,
   extendBookingHold,
   sendBookingInvoice,
+  listTicketBookings,
+  getTicketBookingDetails,
+  cancelTicketBooking,
   cleanupExpiredBookingHolds
 };

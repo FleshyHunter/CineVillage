@@ -175,6 +175,29 @@
   background: rgba(2, 6, 23, 0.42);
   color: #f8fafc;
   font-size: 1.2rem;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.movie-details-stage-icon:hover:not(:disabled) {
+  border-color: rgba(96, 165, 250, 0.72);
+  background: rgba(30, 64, 175, 0.45);
+  transform: translateY(-1px);
+}
+
+.movie-details-stage-icon:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.movie-details-stage-icon.is-active {
+  border-color: rgba(96, 165, 250, 0.86);
+  background: rgba(30, 64, 175, 0.56);
+  color: #bfdbfe;
 }
 
 .movie-details-content {
@@ -396,6 +419,7 @@
   gap: 14px;
   padding: 16px;
   border-radius: 18px;
+  margin-top: 10px;
 }
 
 .movie-showtimes-day-header {
@@ -760,4 +784,5 @@
     flex: 1 1 118px;
     min-width: 0;
   }
+
 }

@@ -36,8 +36,8 @@ async function getAllBookingsPage(req, res) {
 
   const bookings = await collectionBooking
     .find({
-      status: "completed",
-      paymentStatus: "completed"
+      status: { $in: ["completed", "cancelled"] },
+      paymentStatus: { $in: ["completed", "paid"] }
     })
     .sort({ bookedAt: -1, createdAt: -1, created: -1 })
     .toArray();
@@ -73,6 +73,7 @@ async function getAllBookingsPage(req, res) {
       movieName: movieNameById.get((booking.movieId || "").toString()) || "N/A",
       movieStatus: movieStatusById.get((booking.movieId || "").toString()) || "",
       bookingDateTime: booking.bookedAt || booking.createdAt || booking.created || null,
+      status: (booking.status || "").toString().toLowerCase() || "completed",
       qty: seatQty,
       revenue: totalAmount || totalPrice || (pricePerSeat * seatQty)
     };

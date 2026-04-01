@@ -1,0 +1,92 @@
+.my-tickets-page {
+  width: 100%;
+  display: grid;
+  gap: 14px;
+}
+
+.my-tickets-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.my-tickets-header h2 {
+  margin: 0;
+}
+
+.my-tickets-filters {
+  gap: 15px;
+}
+
+.my-tickets-table-wrap {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.82);
+  overflow: hidden;
+}
+
+.my-tickets-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.my-tickets-table thead {
+  background: rgba(30, 41, 59, 0.85);
+}
+
+.my-tickets-table th,
+.my-tickets-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.my-ticket-status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  text-transform: capitalize;
+  font-weight: 700;
+}
+
+.my-ticket-status-scheduled {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+}
+
+.my-ticket-status-completed {
+  background: rgba(100, 116, 139, 0.28);
+  color: #cbd5e1;
+}
+
+.my-ticket-status-incomplete {
+  background: rgba(245, 158, 11, 0.24);
+  color: #fcd34d;
+}
+
+.my-ticket-status-cancelled {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+.my-tickets-empty,
+.my-tickets-status {
+  padding: 16px;
+  color: #cbd5e1;
+}
+
+.my-tickets-status-error {
+  color: #fecaca;
+}
+
+@media (max-width: 900px) {
+  .my-tickets-table-wrap {
+    overflow-x: auto;
+  }
+
+  .my-tickets-table {
+    min-width: 760px;
+  }
+}

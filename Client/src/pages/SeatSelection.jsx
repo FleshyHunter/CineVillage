@@ -155,6 +155,17 @@ function formatCurrency(amount) {
   }).format(numeric);
 }
 
+function getSeatTooltipAnchor(target) {
+  if (!target || typeof target.getBoundingClientRect !== "function") return null;
+
+  const rect = target.getBoundingClientRect();
+
+  return {
+    left: rect.left + rect.width / 2,
+    top: rect.top
+  };
+}
+
 const checkoutSteps = [
   { label: "Seats", icon: "seat", active: true },
   { label: "Promos", icon: "bi bi-ticket-detailed" },
@@ -181,6 +192,12 @@ export default function SeatSelection({ screeningId = "" }) {
   const [warningVisible, setWarningVisible] = useState(false);
   const [expiredVisible, setExpiredVisible] = useState(false);
   const [isExtending, setIsExtending] = useState(false);
+  const [seatTooltip, setSeatTooltip] = useState({
+    visible: false,
+    label: "",
+    left: 0,
+    top: 0
+  });
 
   useEffect(() => {
     if (!screeningId) {
@@ -224,6 +241,22 @@ export default function SeatSelection({ screeningId = "" }) {
       isActive = false;
     };
   }, [screeningId]);
+
+  useEffect(() => {
+    if (!seatTooltip.visible) return undefined;
+
+    function hideTooltip() {
+      setSeatTooltip((previous) => (previous.visible ? { ...previous, visible: false } : previous));
+    }
+
+    window.addEventListener("scroll", hideTooltip, true);
+    window.addEventListener("resize", hideTooltip);
+
+    return () => {
+      window.removeEventListener("scroll", hideTooltip, true);
+      window.removeEventListener("resize", hideTooltip);
+    };
+  }, [seatTooltip.visible]);
 
   useEffect(() => {
     if (!preview?.screeningId) return;
@@ -359,6 +392,22 @@ export default function SeatSelection({ screeningId = "" }) {
     }
 
     tryAddSeat(cell.seatKey);
+  }
+
+  function showSeatTooltip(target, seatKey) {
+    const anchor = getSeatTooltipAnchor(target);
+    if (!anchor) return;
+
+    setSeatTooltip({
+      visible: true,
+      label: formatSeatLabel(seatKey),
+      left: anchor.left,
+      top: anchor.top
+    });
+  }
+
+  function hideSeatTooltip() {
+    setSeatTooltip((previous) => (previous.visible ? { ...previous, visible: false } : previous));
   }
 
   async function handleConfirmBooking() {
@@ -644,7 +693,13 @@ export default function SeatSelection({ screeningId = "" }) {
                                   cell.state !== "selected" &&
                                   cell.baseState !== "wheelchair"
                                 }
-                                aria-label={`Seat ${row.label}`}
+                                onMouseEnter={(event) => showSeatTooltip(event.currentTarget, cell.seatKey)}
+                                onMouseMove={(event) => showSeatTooltip(event.currentTarget, cell.seatKey)}
+                                onMouseLeave={hideSeatTooltip}
+                                onFocus={(event) => showSeatTooltip(event.currentTarget, cell.seatKey)}
+                                onBlur={hideSeatTooltip}
+                                aria-label={`Seat ${formatSeatLabel(cell.seatKey)}`}
+                                data-seat-label={formatSeatLabel(cell.seatKey)}
                               />
                             )
                           ))}
@@ -767,6 +822,16 @@ export default function SeatSelection({ screeningId = "" }) {
           </div>
         </div>
       </div>
+
+      {seatTooltip.visible ? (
+        <div
+          className="seat-selection-seat-tooltip"
+          style={{ left: `${seatTooltip.left}px`, top: `${seatTooltip.top}px` }}
+          aria-hidden="true"
+        >
+          {`Seat\n${seatTooltip.label}`}
+        </div>
+      ) : null}
 
       {warningVisible ? (
         <div className="seat-selection-modal-backdrop" role="presentation">

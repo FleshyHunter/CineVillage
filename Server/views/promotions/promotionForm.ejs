@@ -1,29 +1,78 @@
 <%- include('../layouts/header') %>
 
+<%
+  const currentPromotion = promotion || {};
+
+  function toDateInput(value) {
+    if (!value) return '';
+    const raw = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+  }
+
+  const fallbackConditions = [];
+  if (currentPromotion.type && String(currentPromotion.type).toLowerCase() !== 'all') {
+    fallbackConditions.push({
+      type: 'HALL_TYPE',
+      value: String(currentPromotion.type).toLowerCase()
+    });
+  }
+  const initialConditions = Array.isArray(currentPromotion.conditions)
+    ? currentPromotion.conditions
+    : fallbackConditions;
+
+  const fallbackBenefitValue = Number(currentPromotion.discountAmount || currentPromotion.discountValue || 0);
+  const initialBenefit = currentPromotion.benefit && typeof currentPromotion.benefit === 'object'
+    ? currentPromotion.benefit
+    : (fallbackBenefitValue > 0
+      ? {
+          type: 'DISCOUNT',
+          target: 'cart',
+          value: fallbackBenefitValue
+        }
+      : null);
+
+  const initialValidity = currentPromotion.validity && typeof currentPromotion.validity === 'object'
+    ? currentPromotion.validity
+    : {
+        startDate: toDateInput(currentPromotion.promotionStartDate),
+        endDate: toDateInput(currentPromotion.promotionEndDate),
+        usageLimit: currentPromotion.usageLimit || ''
+      };
+
+  const initialPriority = Number.parseInt(currentPromotion.priority, 10);
+  const safePriority = Number.isInteger(initialPriority) ? initialPriority : 0;
+  const isStackable = Boolean(currentPromotion.stackable);
+%>
+
 <div class="container">
   <h2 class="mb-30"><%= isEdit ? 'Edit Promotion' : 'Create Promotion' %></h2>
 
   <div class="movie-detail-container">
     <form
       id="promotionForm"
-      action="<%= isEdit ? '/promotions/edit/' + promotion._id : '/promotions/create' %>"
+      action="<%= isEdit ? '/promotions/edit/' + currentPromotion._id : '/promotions/create' %>"
       method="POST"
       enctype="multipart/form-data"
       style="display: contents;"
     >
       <input type="hidden" name="returnTo" value="<%= returnTo || '/promotions' %>">
+      <input type="hidden" id="conditionsJson" name="conditionsJson" value="">
+      <input type="hidden" id="benefitJson" name="benefitJson" value="">
 
       <div class="movie-detail-poster">
         <label for="picture" style="cursor: pointer; display: block;">
           <img
             id="placeholderImg"
-            src="<%= isEdit && promotion && promotion.pictureUrl ? promotion.pictureUrl : '/images/cameraplaceholder.jpg' %>"
+            src="<%= isEdit && currentPromotion.pictureUrl ? currentPromotion.pictureUrl : '/images/cameraplaceholder.jpg' %>"
             alt="Upload promotion image"
             style="width: 100%; border-radius: 8px; border: 2px dashed #94a3b8; object-fit: cover; min-height: 400px;"
           >
         </label>
         <input type="file" id="picture" name="picture" accept="image/*" style="display: none;">
-        <input type="hidden" id="pictureUrl" name="pictureUrl" value="<%= promotion && promotion.pictureUrl ? promotion.pictureUrl : '' %>">
+        <input type="hidden" id="pictureUrl" name="pictureUrl" value="<%= currentPromotion.pictureUrl || '' %>">
         <p class="form-help-text">Click to upload image</p>
       </div>
 
@@ -37,54 +86,198 @@
               </span>
             <% } %>
           </div>
-          <input type="text" id="name" name="name" class="form-control" value="<%= promotion ? promotion.name : '' %>" required maxlength="80">
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="promotionStartDate" class="form-label">Start Date</label>
-            <input
-              type="date"
-              id="promotionStartDate"
-              name="promotionStartDate"
-              class="form-control"
-              value="<%= promotion && promotion.promotionStartDate ? new Date(promotion.promotionStartDate).toISOString().split('T')[0] : '' %>"
-            >
-          </div>
-          <div class="form-group">
-            <label for="promotionEndDate" class="form-label">End Date</label>
-            <input
-              type="date"
-              id="promotionEndDate"
-              name="promotionEndDate"
-              class="form-control"
-              value="<%= promotion && promotion.promotionEndDate ? new Date(promotion.promotionEndDate).toISOString().split('T')[0] : '' %>"
-            >
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="code" class="form-label">Code</label>
-            <input type="text" id="code" name="code" class="form-control" value="<%= promotion ? promotion.code : '' %>" maxlength="40">
-          </div>
-          <div class="form-group">
-            <label for="type" class="form-label">Type</label>
-            <select id="type" name="type" class="form-control">
-              <option value="all" <%= !promotion || !promotion.type || String(promotion.type).toLowerCase() === 'all' ? 'selected' : '' %>>All</option>
-              <option value="vip" <%= promotion && String(promotion.type).toLowerCase() === 'vip' ? 'selected' : '' %>>VIP</option>
-              <option value="imax" <%= promotion && String(promotion.type).toLowerCase() === 'imax' ? 'selected' : '' %>>IMAX</option>
-              <option value="standard" <%= promotion && String(promotion.type).toLowerCase() === 'standard' ? 'selected' : '' %>>Standard</option>
-            </select>
-          </div>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            class="form-control"
+            value="<%= currentPromotion.name || '' %>"
+            required
+            maxlength="80"
+          >
         </div>
 
         <div class="form-group">
           <label for="description" class="form-label">Description</label>
-          <textarea id="description" name="description" rows="6" class="form-control" style="resize: vertical;"><%= promotion ? promotion.description : '' %></textarea>
+          <textarea
+            id="description"
+            name="description"
+            rows="4"
+            class="form-control"
+            style="resize: vertical;"
+          ><%= currentPromotion.description || '' %></textarea>
         </div>
 
-        <div class="movie-detail-actions">
+        <div class="form-group">
+          <label for="code" class="form-label">Promo Code (Optional)</label>
+          <input
+            type="text"
+            id="code"
+            name="code"
+            class="form-control"
+            value="<%= currentPromotion.code || '' %>"
+            maxlength="40"
+          >
+        </div>
+
+        <div class="form-group" style="margin-top: 18px;">
+          <div class="label-row">
+            <label class="form-label">Conditions Builder</label>
+          </div>
+          <div id="conditionRows" style="display: flex; flex-direction: column; gap: 10px;"></div>
+          <button type="button" id="addConditionBtn" class="btn btn-secondary" style="margin-top: 10px;">
+            <i class="bi bi-plus-circle"></i> Add Condition
+          </button>
+          <p class="form-help-text" style="margin-top: 8px;">
+            Conditions are stored as: <code>{ type, value }</code>
+          </p>
+        </div>
+
+        <div class="form-group" style="margin-top: 18px;">
+          <label for="benefitType" class="form-label">Benefit *</label>
+          <div class="form-row">
+            <div class="form-group">
+              <select id="benefitType" class="form-control" required>
+                <option value="">Select benefit type</option>
+                <option value="DISCOUNT">Discount</option>
+                <option value="CREDIT">Credit</option>
+                <option value="FIXED_PRICE">Fixed Price</option>
+                <option value="BUNDLE_PRICE">Bundle Price</option>
+                <option value="CART_CAP">Cart Cap</option>
+                <option value="SET_FINAL_PRICE">Set Final Price</option>
+              </select>
+            </div>
+            <div class="form-group" id="benefitTargetGroup">
+              <select id="benefitTarget" class="form-control"></select>
+            </div>
+            <div class="form-group" id="benefitValueGroup">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                id="benefitValue"
+                class="form-control"
+                placeholder="Value"
+              >
+            </div>
+          </div>
+          <p class="form-help-text">Benefit is stored as: <code>{ type, target, value }</code></p>
+        </div>
+
+        <div class="form-group" style="margin-top: 18px;">
+          <label class="form-label">Validity</label>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="promotionStartDate" class="form-label">Start Date *</label>
+              <input
+                type="date"
+                id="promotionStartDate"
+                name="promotionStartDate"
+                class="form-control"
+                value="<%= toDateInput(initialValidity.startDate) %>"
+              >
+            </div>
+            <div class="form-group">
+              <label for="promotionEndDate" class="form-label">End Date *</label>
+              <input
+                type="date"
+                id="promotionEndDate"
+                name="promotionEndDate"
+                class="form-control"
+                value="<%= toDateInput(initialValidity.endDate) %>"
+              >
+            </div>
+            <div class="form-group">
+              <label for="usageLimit" class="form-label">Usage Limit (Optional)</label>
+              <input
+                type="number"
+                id="usageLimit"
+                name="usageLimit"
+                min="1"
+                step="1"
+                class="form-control"
+                value="<%= initialValidity.usageLimit || '' %>"
+                placeholder="No limit"
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 18px;">
+          <label class="form-label">Priority & Stackability</label>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="priority" class="form-label">Priority</label>
+              <input
+                type="number"
+                id="priority"
+                name="priority"
+                class="form-control"
+                step="1"
+                value="<%= safePriority %>"
+              >
+            </div>
+            <div class="form-group" style="display: flex; align-items: flex-end;">
+              <label style="display: inline-flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <input type="checkbox" id="stackable" name="stackable" <%= isStackable ? 'checked' : '' %>>
+                <span>Stackable with other promotions</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 18px;">
+          <label class="form-label">Preview Simulator (Optional)</label>
+          <div class="form-row">
+            <div class="form-group">
+              <input type="number" min="0" step="0.01" id="simTicketSubtotal" class="form-control" placeholder="Ticket subtotal">
+            </div>
+            <div class="form-group">
+              <input type="number" min="0" step="0.01" id="simAddOnSubtotal" class="form-control" placeholder="Add-ons subtotal">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <select id="simUserRole" class="form-control">
+                <option value="member">User: member</option>
+                <option value="student">User: student</option>
+                <option value="adult">User: adult</option>
+                <option value="senior">User: senior</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <select id="simHallType" class="form-control">
+                <option value="standard">Hall: standard</option>
+                <option value="imax">Hall: imax</option>
+                <option value="vip">Hall: vip</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <select id="simPaymentMethod" class="form-control">
+                <option value="visa_mastercard">Pay: visa/mastercard</option>
+                <option value="amex">Pay: amex</option>
+                <option value="cash">Pay: cash</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <select id="simDayOfWeek" class="form-control">
+                <option value="monday">Monday</option>
+                <option value="tuesday">Tuesday</option>
+                <option value="wednesday">Wednesday</option>
+                <option value="thursday">Thursday</option>
+                <option value="friday">Friday</option>
+                <option value="saturday">Saturday</option>
+                <option value="sunday">Sunday</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" id="runPreviewBtn" class="btn btn-secondary" style="margin-top: 10px;">
+            Simulate
+          </button>
+          <p id="previewResult" class="form-help-text" style="margin-top: 8px;"></p>
+        </div>
+
+        <div class="movie-detail-actions" style="margin-top: 22px;">
           <a href="<%= returnTo || '/promotions' %>" class="btn btn-secondary">
             ← Back to Promotions
           </a>
@@ -99,66 +292,408 @@
 
 <script>
   (function () {
-    const pictureInput = document.getElementById('picture');
-    const pictureUrlInput = document.getElementById('pictureUrl');
-    const placeholderImg = document.getElementById('placeholderImg');
-    const form = document.getElementById('promotionForm');
-    const nameInput = document.getElementById('name');
-    const startDateInput = document.getElementById('promotionStartDate');
-    const endDateInput = document.getElementById('promotionEndDate');
-    const typeInput = document.getElementById('type');
-    const fallbackPoster = '/images/cameraplaceholder.jpg';
+    const CONDITION_OPTIONS = [
+      { value: "USER_ROLE", label: "User Role" },
+      { value: "HALL_TYPE", label: "Hall Type" },
+      { value: "MINIMUM_SPEND", label: "Minimum Spend" },
+      { value: "DAY_OF_WEEK", label: "Day of Week" },
+      { value: "PAYMENT_METHOD", label: "Payment Method" }
+    ];
+
+    const CONDITION_VALUE_OPTIONS = {
+      USER_ROLE: [
+        { value: "member", label: "member" },
+        { value: "student", label: "student" },
+        { value: "adult", label: "adult" },
+        { value: "senior", label: "senior" }
+      ],
+      HALL_TYPE: [
+        { value: "all", label: "all" },
+        { value: "standard", label: "standard" },
+        { value: "imax", label: "imax" },
+        { value: "vip", label: "vip" }
+      ],
+      DAY_OF_WEEK: [
+        { value: "monday", label: "monday" },
+        { value: "tuesday", label: "tuesday" },
+        { value: "wednesday", label: "wednesday" },
+        { value: "thursday", label: "thursday" },
+        { value: "friday", label: "friday" },
+        { value: "saturday", label: "saturday" },
+        { value: "sunday", label: "sunday" }
+      ],
+      PAYMENT_METHOD: [
+        { value: "visa_mastercard", label: "visa/mastercard" },
+        { value: "amex", label: "amex" },
+        { value: "cash", label: "cash" }
+      ]
+    };
+
+    const BENEFIT_TARGETS = {
+      DISCOUNT: [
+        { value: "cart", label: "cart" },
+        { value: "tickets", label: "tickets" },
+        { value: "addons", label: "add-ons" }
+      ],
+      CREDIT: [
+        { value: "addons", label: "add-ons" },
+        { value: "cart", label: "cart" }
+      ],
+      FIXED_PRICE: [
+        { value: "tickets", label: "tickets" }
+      ],
+      BUNDLE_PRICE: [
+        { value: "cart", label: "cart" }
+      ],
+      CART_CAP: [
+        { value: "cart", label: "cart" }
+      ],
+      SET_FINAL_PRICE: [
+        { value: "cart", label: "cart" }
+      ]
+    };
+
+    const initialConditions = <%- JSON.stringify(initialConditions || []).replace(/</g, "\\u003c") %>;
+    const initialBenefit = <%- JSON.stringify(initialBenefit || null).replace(/</g, "\\u003c") %>;
+
+    const pictureInput = document.getElementById("picture");
+    const pictureUrlInput = document.getElementById("pictureUrl");
+    const placeholderImg = document.getElementById("placeholderImg");
+    const form = document.getElementById("promotionForm");
+    const nameInput = document.getElementById("name");
+    const startDateInput = document.getElementById("promotionStartDate");
+    const endDateInput = document.getElementById("promotionEndDate");
+    const conditionsJsonInput = document.getElementById("conditionsJson");
+    const benefitJsonInput = document.getElementById("benefitJson");
+    const conditionRows = document.getElementById("conditionRows");
+    const addConditionBtn = document.getElementById("addConditionBtn");
+    const benefitTypeInput = document.getElementById("benefitType");
+    const benefitTargetInput = document.getElementById("benefitTarget");
+    const benefitTargetGroup = document.getElementById("benefitTargetGroup");
+    const benefitValueInput = document.getElementById("benefitValue");
+    const benefitValueGroup = document.getElementById("benefitValueGroup");
+    const runPreviewBtn = document.getElementById("runPreviewBtn");
+    const previewResult = document.getElementById("previewResult");
+    const fallbackPoster = "/images/cameraplaceholder.jpg";
 
     function setPreview(src) {
       if (!placeholderImg) return;
       placeholderImg.src = src || fallbackPoster;
     }
 
-    if (pictureInput) {
-      pictureInput.addEventListener('change', () => {
-        const file = pictureInput.files && pictureInput.files[0];
-        if (!file) return;
-        setPreview(URL.createObjectURL(file));
-        if (pictureUrlInput) pictureUrlInput.value = '';
+    function createSelectOptions(selectElement, options = [], selectedValue = "") {
+      selectElement.innerHTML = "";
+      options.forEach((option) => {
+        const item = document.createElement("option");
+        item.value = option.value;
+        item.textContent = option.label;
+        if (option.value === selectedValue) item.selected = true;
+        selectElement.appendChild(item);
       });
     }
 
+    function getConditionDefaultValue(type) {
+      if (type === "MINIMUM_SPEND") return 0;
+      const options = CONDITION_VALUE_OPTIONS[type];
+      if (Array.isArray(options) && options.length > 0) return options[0].value;
+      return "";
+    }
+
+    function renderConditionValueInput(row, type, value) {
+      const valueWrap = row.querySelector(".condition-value-wrap");
+      valueWrap.innerHTML = "";
+
+      const safeType = (type || "").toString().toUpperCase();
+      const normalizedValue = (value === undefined || value === null) ? getConditionDefaultValue(safeType) : value;
+
+      if (safeType === "MINIMUM_SPEND") {
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "0";
+        input.step = "0.01";
+        input.className = "form-control condition-value";
+        input.value = Number(normalizedValue) || 0;
+        valueWrap.appendChild(input);
+        return;
+      }
+
+      if (CONDITION_VALUE_OPTIONS[safeType]) {
+        const select = document.createElement("select");
+        select.className = "form-control condition-value";
+        createSelectOptions(select, CONDITION_VALUE_OPTIONS[safeType], String(normalizedValue || "").toLowerCase());
+        valueWrap.appendChild(select);
+        return;
+      }
+
+      const fallbackInput = document.createElement("input");
+      fallbackInput.type = "text";
+      fallbackInput.className = "form-control condition-value";
+      fallbackInput.value = String(normalizedValue || "");
+      valueWrap.appendChild(fallbackInput);
+    }
+
+    function addConditionRow(initial = {}) {
+      const row = document.createElement("div");
+      row.className = "form-row condition-row";
+      row.style.alignItems = "center";
+
+      const typeGroup = document.createElement("div");
+      typeGroup.className = "form-group";
+
+      const typeSelect = document.createElement("select");
+      typeSelect.className = "form-control condition-type";
+      createSelectOptions(typeSelect, CONDITION_OPTIONS, (initial.type || "HALL_TYPE").toString().toUpperCase());
+      typeGroup.appendChild(typeSelect);
+
+      const valueGroup = document.createElement("div");
+      valueGroup.className = "form-group condition-value-wrap";
+
+      const actionGroup = document.createElement("div");
+      actionGroup.className = "form-group";
+      actionGroup.style.display = "flex";
+      actionGroup.style.justifyContent = "flex-end";
+      actionGroup.style.alignItems = "flex-end";
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "btn btn-danger";
+      removeBtn.textContent = "Remove";
+      removeBtn.addEventListener("click", () => {
+        row.remove();
+      });
+      actionGroup.appendChild(removeBtn);
+
+      row.appendChild(typeGroup);
+      row.appendChild(valueGroup);
+      row.appendChild(actionGroup);
+      conditionRows.appendChild(row);
+
+      renderConditionValueInput(row, typeSelect.value, initial.value);
+      typeSelect.addEventListener("change", () => {
+        renderConditionValueInput(row, typeSelect.value, undefined);
+      });
+    }
+
+    function getConditionsPayload() {
+      const rows = Array.from(conditionRows.querySelectorAll(".condition-row"));
+      const conditions = [];
+
+      for (const row of rows) {
+        const type = (row.querySelector(".condition-type")?.value || "").toString().trim().toUpperCase();
+        const valueControl = row.querySelector(".condition-value");
+        if (!type || !valueControl) continue;
+
+        let value = valueControl.value;
+        if (type === "MINIMUM_SPEND") {
+          const parsed = Number(value);
+          value = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+        } else {
+          value = (value || "").toString().trim().toLowerCase();
+        }
+
+        if (value === "") continue;
+        conditions.push({ type, value });
+      }
+
+      return conditions;
+    }
+
+    function renderBenefitFields() {
+      const type = (benefitTypeInput?.value || "").toString().trim().toUpperCase();
+      const targets = BENEFIT_TARGETS[type] || [];
+      const hasBenefitType = Boolean(type);
+
+      benefitTargetGroup.style.display = hasBenefitType ? "" : "none";
+      benefitValueGroup.style.display = hasBenefitType ? "" : "none";
+
+      if (!hasBenefitType) {
+        benefitTargetInput.innerHTML = "";
+        benefitValueInput.value = "";
+        return;
+      }
+
+      const currentTarget = (benefitTargetInput.dataset.currentValue || benefitTargetInput.value || "").toString().trim().toLowerCase();
+      const fallbackTarget = targets[0] ? targets[0].value : "cart";
+      const selectedTarget = targets.some((item) => item.value === currentTarget) ? currentTarget : fallbackTarget;
+      createSelectOptions(benefitTargetInput, targets, selectedTarget);
+      benefitTargetInput.dataset.currentValue = selectedTarget;
+    }
+
+    function getBenefitPayload() {
+      const type = (benefitTypeInput.value || "").toString().trim().toUpperCase();
+      const target = (benefitTargetInput.value || "").toString().trim().toLowerCase();
+      const numericValue = Number(benefitValueInput.value);
+      const value = Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0;
+
+      if (!type) return null;
+      return { type, target: target || "cart", value };
+    }
+
+    function evaluateCondition(condition, scenario) {
+      if (!condition || typeof condition !== "object") return true;
+      const type = (condition.type || "").toString().toUpperCase();
+      const value = condition.value;
+
+      if (type === "USER_ROLE") {
+        return scenario.userRole === String(value || "").toLowerCase();
+      }
+      if (type === "HALL_TYPE") {
+        return String(value || "").toLowerCase() === "all"
+          || scenario.hallType === String(value || "").toLowerCase();
+      }
+      if (type === "MINIMUM_SPEND") {
+        return scenario.total >= Number(value || 0);
+      }
+      if (type === "DAY_OF_WEEK") {
+        return scenario.dayOfWeek === String(value || "").toLowerCase();
+      }
+      if (type === "PAYMENT_METHOD") {
+        return scenario.paymentMethod === String(value || "").toLowerCase();
+      }
+
+      return true;
+    }
+
+    function applyBenefit(total, ticketSubtotal, addOnSubtotal, benefit) {
+      if (!benefit) return total;
+      const type = (benefit.type || "").toString().toUpperCase();
+      const value = Number(benefit.value || 0);
+      const safeValue = Number.isFinite(value) && value >= 0 ? value : 0;
+
+      if (type === "DISCOUNT" || type === "CREDIT") {
+        return Math.max(total - safeValue, 0);
+      }
+      if (type === "FIXED_PRICE") {
+        return Math.max(safeValue + addOnSubtotal, 0);
+      }
+      if (type === "BUNDLE_PRICE" || type === "SET_FINAL_PRICE") {
+        return Math.max(safeValue, 0);
+      }
+      if (type === "CART_CAP") {
+        return Math.max(Math.min(total, safeValue), 0);
+      }
+
+      return total;
+    }
+
+    function runPreview() {
+      if (!previewResult) return;
+
+      const ticketSubtotal = Math.max(Number(document.getElementById("simTicketSubtotal")?.value || 0), 0);
+      const addOnSubtotal = Math.max(Number(document.getElementById("simAddOnSubtotal")?.value || 0), 0);
+      const scenario = {
+        userRole: (document.getElementById("simUserRole")?.value || "").toLowerCase(),
+        hallType: (document.getElementById("simHallType")?.value || "").toLowerCase(),
+        paymentMethod: (document.getElementById("simPaymentMethod")?.value || "").toLowerCase(),
+        dayOfWeek: (document.getElementById("simDayOfWeek")?.value || "").toLowerCase(),
+        total: ticketSubtotal + addOnSubtotal
+      };
+
+      const conditions = getConditionsPayload();
+      const benefit = getBenefitPayload();
+
+      const firstFailedCondition = conditions.find((condition) => !evaluateCondition(condition, scenario));
+      if (firstFailedCondition) {
+        previewResult.textContent = `Conditions not met (${firstFailedCondition.type}).`;
+        return;
+      }
+
+      const finalPrice = applyBenefit(scenario.total, ticketSubtotal, addOnSubtotal, benefit);
+      previewResult.textContent = `Simulated total after promo: SGD ${finalPrice.toFixed(2)}`;
+    }
+
+    if (pictureInput) {
+      pictureInput.addEventListener("change", () => {
+        const file = pictureInput.files && pictureInput.files[0];
+        if (!file) return;
+        setPreview(URL.createObjectURL(file));
+        if (pictureUrlInput) pictureUrlInput.value = "";
+      });
+    }
+
+    if (Array.isArray(initialConditions) && initialConditions.length > 0) {
+      initialConditions.forEach((condition) => addConditionRow(condition));
+    } else {
+      addConditionRow({ type: "HALL_TYPE", value: "all" });
+    }
+
+    if (addConditionBtn) {
+      addConditionBtn.addEventListener("click", () => {
+        addConditionRow({ type: "HALL_TYPE", value: "all" });
+      });
+    }
+
+    if (initialBenefit && typeof initialBenefit === "object") {
+      benefitTypeInput.value = (initialBenefit.type || "").toString().toUpperCase();
+      benefitTargetInput.dataset.currentValue = (initialBenefit.target || "").toString().trim().toLowerCase();
+      benefitValueInput.value = Number(initialBenefit.value || 0);
+    }
+
+    renderBenefitFields();
+    benefitTypeInput.addEventListener("change", () => {
+      benefitTargetInput.dataset.currentValue = "";
+      renderBenefitFields();
+    });
+
+    if (runPreviewBtn) {
+      runPreviewBtn.addEventListener("click", runPreview);
+    }
+
     if (form) {
-      form.addEventListener('submit', (event) => {
-        const name = (nameInput?.value || '').trim();
+      form.addEventListener("submit", (event) => {
+        const name = (nameInput?.value || "").trim();
         if (!name) {
           event.preventDefault();
-          nameInput.setCustomValidity('Promotion name is required.');
+          nameInput.setCustomValidity("Promotion name is required.");
           nameInput.reportValidity();
           return;
         }
 
-        const startDate = (startDateInput?.value || '').trim();
-        const endDate = (endDateInput?.value || '').trim();
-
+        const startDate = (startDateInput?.value || "").trim();
+        const endDate = (endDateInput?.value || "").trim();
         if ((startDate && !endDate) || (!startDate && endDate)) {
           event.preventDefault();
-          const target = startDateInput?.value ? endDateInput : startDateInput;
-          if (target) {
-            target.setCustomValidity('Please provide both start date and end date.');
-            target.reportValidity();
-          }
+          const target = startDate ? endDateInput : startDateInput;
+          target?.setCustomValidity("Please provide both start date and end date.");
+          target?.reportValidity();
           return;
         }
-
         if (startDate && endDate && endDate < startDate) {
           event.preventDefault();
-          if (endDateInput) {
-            endDateInput.setCustomValidity('End date must be on or after start date.');
-            endDateInput.reportValidity();
-          }
+          endDateInput?.setCustomValidity("End date must be on or after start date.");
+          endDateInput?.reportValidity();
           return;
         }
 
-        if (startDateInput) startDateInput.setCustomValidity('');
-        if (endDateInput) endDateInput.setCustomValidity('');
-        if (typeInput) typeInput.setCustomValidity('');
-        nameInput.setCustomValidity('');
+        const benefit = getBenefitPayload();
+        if (!benefit || !benefit.type) {
+          event.preventDefault();
+          benefitTypeInput.setCustomValidity("Please choose a promotion benefit.");
+          benefitTypeInput.reportValidity();
+          return;
+        }
+
+        const benefitValueNumber = Number(benefit.value);
+        if (!Number.isFinite(benefitValueNumber) || benefitValueNumber < 0) {
+          event.preventDefault();
+          benefitValueInput.setCustomValidity("Please provide a valid non-negative benefit value.");
+          benefitValueInput.reportValidity();
+          return;
+        }
+
+        const conditions = getConditionsPayload();
+        if (conditionsJsonInput) {
+          conditionsJsonInput.value = JSON.stringify(conditions);
+        }
+        if (benefitJsonInput) {
+          benefitJsonInput.value = JSON.stringify(benefit);
+        }
+
+        startDateInput?.setCustomValidity("");
+        endDateInput?.setCustomValidity("");
+        benefitTypeInput.setCustomValidity("");
+        benefitValueInput.setCustomValidity("");
+        nameInput.setCustomValidity("");
       });
     }
   })();

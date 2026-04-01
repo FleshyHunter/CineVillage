@@ -13,10 +13,20 @@ let collectionScreening = null;
 let collectionBooking = null;
 let collectionSeatReservation = null;
 let collectionUser = null;
+let collectionCustomer = null;
 let collectionAuditLog = null;
 
 function normalizeEmail(email) {
     return (email || "").toString().trim().toLowerCase();
+}
+
+function normalizeContact(contact) {
+    const raw = (contact || "").toString().trim();
+    if (!raw) return "";
+    const hasPlusPrefix = raw.startsWith("+");
+    const digitsOnly = raw.replace(/\D/g, "");
+    if (!digitsOnly) return "";
+    return hasPlusPrefix ? `+${digitsOnly}` : digitsOnly;
 }
 
 async function ensureUserIndexes() {
@@ -29,6 +39,29 @@ async function ensureUserIndexes() {
         }
     );
     await collectionUser.createIndex({ role: 1 }, { name: "idx_user_role" });
+}
+
+async function ensureCustomerIndexes() {
+    await collectionCustomer.createIndex(
+        { emailNormalized: 1 },
+        {
+            unique: true,
+            name: "uniq_customer_email_normalized",
+            sparse: true
+        }
+    );
+    await collectionCustomer.createIndex(
+        { contactNormalized: 1 },
+        {
+            unique: true,
+            name: "uniq_customer_contact_normalized",
+            sparse: true
+        }
+    );
+    await collectionCustomer.createIndex(
+        { createdAt: -1 },
+        { name: "idx_customer_createdAt_desc" }
+    );
 }
 
 function getBookingValidator() {
@@ -56,6 +89,9 @@ function getBookingValidator() {
                     minLength: 1
                 },
                 userId: {
+                    bsonType: ["objectId", "null"]
+                },
+                customerId: {
                     bsonType: ["objectId", "null"]
                 },
                 screeningId: {
@@ -176,6 +212,11 @@ async function ensureBookingIndexes() {
     );
 
     await collectionBooking.createIndex(
+        { customerId: 1, confirmedAt: -1, bookedAt: -1 },
+        { name: "idx_booking_customer_confirmed_booked" }
+    );
+
+    await collectionBooking.createIndex(
         { bookedAt: -1 },
         { name: "idx_booking_bookedAt_desc" }
     );
@@ -289,6 +330,38 @@ async function backfillUserNormalizedEmails() {
     }
 }
 
+async function backfillCustomerNormalizedEmails() {
+    const customers = await collectionCustomer.find({
+        $or: [
+            { emailNormalized: { $exists: false } },
+            { emailNormalized: "" },
+            { contactNormalized: { $exists: false } },
+            { contactNormalized: "" }
+        ]
+    }).toArray();
+
+    for (const customer of customers) {
+        const nextSet = {};
+        const normalizedEmail = normalizeEmail(customer.email);
+        const normalizedContact = normalizeContact(customer.contact);
+
+        if (normalizedEmail) {
+            nextSet.emailNormalized = normalizedEmail;
+        }
+
+        if (normalizedContact) {
+            nextSet.contactNormalized = normalizedContact;
+        }
+
+        if (!Object.keys(nextSet).length) continue;
+
+        await collectionCustomer.updateOne(
+            { _id: customer._id },
+            { $set: nextSet }
+        );
+    }
+}
+
 async function createDefaultAdminIfMissing() {
     const defaultAdminProfile = {
         name: "admin",
@@ -327,10 +400,13 @@ async function initDBIfNecessary() {
         collectionBooking = db.collection("booking");
         collectionSeatReservation = db.collection("seat_reservation");
         collectionUser = db.collection("user");
+        collectionCustomer = db.collection("customer");
         collectionAuditLog = db.collection("audit_logs");
 
         await backfillUserNormalizedEmails();
+        await backfillCustomerNormalizedEmails();
         await ensureUserIndexes();
+        await ensureCustomerIndexes();
         await ensureBookingIndexes();
         await ensureSeatReservationIndexes();
         await createDefaultAdminIfMissing();
@@ -374,6 +450,11 @@ function getCollectionUser() {
     return collectionUser;
 }
 
+function getCollectionCustomer() {
+    if (!collectionCustomer) throw new Error("DB not initialized");
+    return collectionCustomer;
+}
+
 function getCollectionBooking() {
     if (!collectionBooking) throw new Error("DB not initialized");
     return collectionBooking;
@@ -405,6 +486,7 @@ module.exports = {
     getCollectionBooking,
     getCollectionSeatReservation,
     getCollectionUser,
+    getCollectionCustomer,
     getCollectionAuditLog,
     getMongoClient,
 };

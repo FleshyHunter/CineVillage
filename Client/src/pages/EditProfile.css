@@ -1,0 +1,71 @@
+.edit-profile-page {
+  width: 100%;
+}
+
+.edit-profile-card {
+  max-width: 640px;
+  margin: 0 auto;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.86);
+  padding: 24px;
+  display: grid;
+  gap: 14px;
+}
+
+.edit-profile-card h2 {
+  margin: 0 0 6px;
+}
+
+.edit-profile-field {
+  display: grid;
+  gap: 6px;
+}
+
+.edit-profile-field span {
+  color: #93c5fd;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.edit-profile-field input {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #f8fafc;
+}
+
+.edit-profile-field input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.edit-profile-field small {
+  color: #fca5a5;
+}
+
+.edit-profile-message {
+  margin: 0;
+  color: #93c5fd;
+}
+
+.edit-profile-password-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.edit-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 820px) {
+  .edit-profile-password-row {
+    grid-template-columns: 1fr;
+  }
+}

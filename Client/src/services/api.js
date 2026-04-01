@@ -3,6 +3,7 @@ const SCREENING_API_PATH = "/api/screenings";
 const BOOKING_API_PATH = "/api/bookings";
 const PROMOTION_API_PATH = "/api/promotions";
 const ADD_ON_API_PATH = "/api/addons";
+const CUSTOMER_API_PATH = "/api/customers";
 const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL || "http://localhost:3000";
 const TMDB_API_KEY = (import.meta.env.VITE_TMDB_API_KEY || "").toString().trim();
 const TMDB_API_BASE_URL = "https://api.themoviedb.org/3";
@@ -88,6 +89,7 @@ export async function fetchAddOns(params = {}) {
 export async function createBooking(payload) {
   const response = await fetch(BOOKING_API_PATH, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json"
     },
@@ -100,6 +102,7 @@ export async function createBooking(payload) {
 export async function releaseBookingHold(bookingId) {
   const response = await fetch(`${BOOKING_API_PATH}/${bookingId}/release`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json"
     }
@@ -141,6 +144,7 @@ export function releaseBookingHoldBestEffort(bookingId) {
 export async function extendBookingHold(bookingId) {
   const response = await fetch(`${BOOKING_API_PATH}/${bookingId}/extend`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json"
     }
@@ -152,6 +156,7 @@ export async function extendBookingHold(bookingId) {
 export async function sendBookingInvoice(bookingId, payload = {}) {
   const response = await fetch(`${BOOKING_API_PATH}/${bookingId}/send-invoice`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json"
     },
@@ -159,6 +164,106 @@ export async function sendBookingInvoice(bookingId, payload = {}) {
   });
 
   return parseJsonResponse(response, "Failed to send invoice email");
+}
+
+export async function fetchTicketBookings(params = {}) {
+  const response = await fetch(`${BOOKING_API_PATH}/tickets${toQueryString(params)}`, {
+    credentials: "include"
+  });
+  const payload = await parseJsonResponse(response, "Failed to fetch ticket bookings");
+  return payload.items || [];
+}
+
+export async function fetchTicketBookingDetails(bookingId) {
+  const response = await fetch(`${BOOKING_API_PATH}/tickets/${bookingId}`, {
+    credentials: "include"
+  });
+  const payload = await parseJsonResponse(response, "Failed to fetch booking details");
+  return payload.item || null;
+}
+
+export async function cancelTicketBooking(bookingId) {
+  const response = await fetch(`${BOOKING_API_PATH}/${bookingId}/cancel`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+
+  const payload = await parseJsonResponse(response, "Failed to cancel booking");
+  return payload.item || null;
+}
+
+export async function registerCustomerAccount(payload = {}) {
+  const response = await fetch(`${CUSTOMER_API_PATH}/register`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const body = await parseJsonResponse(response, "Failed to create account");
+  return body.item || null;
+}
+
+export async function loginCustomerAccount(payload = {}) {
+  const response = await fetch(`${CUSTOMER_API_PATH}/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const body = await parseJsonResponse(response, "Failed to login");
+  return body.item || null;
+}
+
+export async function fetchCurrentCustomerAccount() {
+  const response = await fetch(`${CUSTOMER_API_PATH}/me`, {
+    credentials: "include"
+  });
+  const body = await parseJsonResponse(response, "Failed to fetch current customer");
+  return body.item || null;
+}
+
+export async function logoutCustomerAccount() {
+  const response = await fetch(`${CUSTOMER_API_PATH}/logout`, {
+    method: "POST",
+    credentials: "include"
+  });
+  return parseJsonResponse(response, "Failed to logout");
+}
+
+export async function updateCurrentCustomerAccount(payload = {}) {
+  const response = await fetch(`${CUSTOMER_API_PATH}/me`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const body = await parseJsonResponse(response, "Failed to update profile");
+  return body.item || null;
+}
+
+export async function uploadCurrentCustomerPhoto(file) {
+  const formData = new FormData();
+  formData.append("picture", file);
+
+  const response = await fetch(`${CUSTOMER_API_PATH}/me/photo`, {
+    method: "POST",
+    credentials: "include",
+    body: formData
+  });
+
+  const body = await parseJsonResponse(response, "Failed to upload profile photo");
+  return body.item || null;
 }
 
 export async function fetchTmdbShowcaseImageUrlByTitle({

@@ -9,6 +9,7 @@ const {
     getCollectionBooking
 } = require("./config/database");
 const { attachCurrentAccount, requireAuth, requireRoles } = require("./config/session");
+const { attachCustomerAuth } = require("./config/customerJwt");
 
 const expressLayouts = require('express-ejs-layouts');
 
@@ -22,6 +23,7 @@ const screeningApiRoutes = require("./routes/apiRoutes/screeningApiRoutes");
 const bookingApiRoutes = require("./routes/apiRoutes/bookingApiRoutes");
 const promotionApiRoutes = require("./routes/apiRoutes/promotionApiRoutes");
 const addOnApiRoutes = require("./routes/apiRoutes/addOnApiRoutes");
+const customerApiRoutes = require("./routes/apiRoutes/customerApiRoutes");
 const hallRoutes = require("./routes/hallRoutes");
 const screeningRoutes = require("./routes/screeningRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
@@ -45,6 +47,7 @@ app.use("/uploads", express.static("uploads"));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(expressLayouts);
+app.use(attachCustomerAuth);
 app.use(attachCurrentAccount);
 
 //ejs template setting
@@ -58,6 +61,7 @@ app.use("/api/screenings", screeningApiRoutes);
 app.use("/api/bookings", bookingApiRoutes);
 app.use("/api/promotions", promotionApiRoutes);
 app.use("/api/addons", addOnApiRoutes);
+app.use("/api/customers", customerApiRoutes);
 app.use("/movies", requireAuth, movieRoutes);
 app.use("/halls", requireAuth, hallRoutes);
 app.use("/screenings", requireAuth, screeningRoutes);

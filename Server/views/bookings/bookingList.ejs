@@ -50,6 +50,7 @@
               <th>Movie Name</th>
               <th>Ticket Qty</th>
               <th>Revenue</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -81,6 +82,22 @@
                 <td><%= booking.qty || 0 %></td>
                 <td>
                   <%= Number(booking.revenue || 0).toLocaleString('en-SG', { style: 'currency', currency: 'SGD' }) %>
+                </td>
+                <td>
+                  <% const statusText = (booking.status || 'completed').toString().toLowerCase(); %>
+                  <span
+                    class="badge"
+                    style="
+                      background-color: <%= statusText === 'cancelled' ? '#ef4444' : '#475569' %>;
+                      color: #fff;
+                      padding: 5px 12px;
+                      border-radius: 999px;
+                      text-transform: capitalize;
+                      font-weight: 600;
+                    "
+                  >
+                    <%= statusText %>
+                  </span>
                 </td>
                 <td>
                   <a href="/bookings/view/<%= booking._id %>?returnTo=<%= encodeURIComponent('/bookings') %>" class="btn btn-sm btn-secondary">

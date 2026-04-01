@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import MovieCard from "../components/MovieCard";
+import ElementCard from "../components/ElementCard";
 import { fetchMovies, resolveMoviePictureUrl } from "../services/api";
 import "./Movies.css";
 
-const FILTERS = [
-  { key: "all", label: "All", icon: "bi-grid-3x3-gap" },
+const STATUS_FILTERS = [
   { key: "Now Showing", label: "Now Showing", icon: "bi-play-circle" },
+  { key: "Coming Soon", label: "Coming Soon", icon: "bi-clock-history" },
   { key: "Advance Sales", label: "Advance Sales", icon: "bi-ticket-perforated" },
-  { key: "Coming Soon", label: "Coming Soon", icon: "bi-clock-history" }
+  { key: "Promotions", label: "Promotions", icon: "bi-megaphone" }
 ];
+const HALL_TYPE_SLUGS = new Set(["standard", "imax", "vip"]);
 
 function toMovieTimestamp(movie) {
   const releaseTimestamp = Date.parse(movie.releaseDate || "");
@@ -50,21 +51,69 @@ function mapMovieToCard(movie) {
   };
 }
 
-function getFilteredMovies(movies, activeFilter) {
-  const sorted = [...movies].sort(compareNewestFirst);
-
-  if (activeFilter === "all") {
-    return sorted;
-  }
-
-  return sorted.filter((movie) => movie.status === activeFilter);
+function normalizeHallTypeLabel(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  if (normalized === "imax") return "IMAX";
+  if (normalized === "vip") return "VIP";
+  return "Standard";
 }
 
-export default function Movies() {
+function resolveHallTypeContext(selectedHallType = "") {
+  const normalizedSlug = (selectedHallType || "").toString().trim().toLowerCase();
+  if (!HALL_TYPE_SLUGS.has(normalizedSlug)) {
+    return { slug: "standard", label: "Standard" };
+  }
+  if (normalizedSlug === "imax") return { slug: "imax", label: "IMAX" };
+  if (normalizedSlug === "vip") return { slug: "vip", label: "VIP" };
+  return { slug: "standard", label: "Standard" };
+}
+
+function getMovieHallTypeCandidates(movie = {}) {
+  const candidates = [];
+  const pushIfPresent = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => pushIfPresent(item));
+      return;
+    }
+    const text = value.toString().trim();
+    if (!text) return;
+    candidates.push(normalizeHallTypeLabel(text));
+  };
+
+  pushIfPresent(movie.hallType);
+  pushIfPresent(movie.hallTypes);
+  pushIfPresent(movie.type);
+  pushIfPresent(movie.format);
+  pushIfPresent(movie.hall?.type);
+
+  return [...new Set(candidates)];
+}
+
+function movieMatchesHallType(movie, targetHallTypeLabel) {
+  const candidates = getMovieHallTypeCandidates(movie);
+  if (!candidates.length) {
+    return targetHallTypeLabel === "Standard";
+  }
+  return candidates.includes(targetHallTypeLabel);
+}
+
+function getFilteredMovies(movies, activeFilter, hallTypeLabel) {
+  const sorted = [...movies].sort(compareNewestFirst);
+  if (activeFilter === "Promotions") return [];
+
+  return sorted.filter((movie) => {
+    const movieStatus = (movie.status || "").toString().trim().toLowerCase();
+    const targetStatus = activeFilter.toLowerCase();
+    return movieStatus === targetStatus && movieMatchesHallType(movie, hallTypeLabel);
+  });
+}
+
+export default function Movies({ selectedHallType = "" }) {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState("Now Showing");
 
   useEffect(() => {
     let isActive = true;
@@ -91,26 +140,34 @@ export default function Movies() {
     };
   }, []);
 
+  const hallTypeContext = useMemo(
+    () => resolveHallTypeContext(selectedHallType),
+    [selectedHallType]
+  );
+
   const filteredMovies = useMemo(
-    () => getFilteredMovies(movies, activeFilter),
-    [movies, activeFilter]
+    () => getFilteredMovies(movies, activeFilter, hallTypeContext.label),
+    [movies, activeFilter, hallTypeContext.label]
   );
   const visibleMovies = useMemo(() => filteredMovies.slice(0, 20), [filteredMovies]);
+  const isPromotionsFilter = activeFilter === "Promotions";
 
   return (
     <div className="movies-page">
       <nav className="movies-breadcrumbs" aria-label="Breadcrumb">
         <a href="#">Home</a>
         <span aria-hidden="true">›</span>
-        <strong>Movies</strong>
+        <a href="#movies">Movies</a>
+        <span aria-hidden="true">›</span>
+        <strong>{`View ${hallTypeContext.label}`}</strong>
       </nav>
 
       <header className="movies-page-header">
-        <h1>Movies</h1>
+        <h1>{`View ${hallTypeContext.label}`}</h1>
       </header>
 
       <div className="movies-filter-bar" role="tablist" aria-label="Movie status filters">
-        {FILTERS.map((filter) => (
+        {STATUS_FILTERS.map((filter) => (
           <button
             key={filter.key}
             type="button"
@@ -137,7 +194,13 @@ export default function Movies() {
         </section>
       ) : null}
 
-      {!loading && !error ? (
+      {!loading && !error && isPromotionsFilter ? (
+        <section className="movies-status-panel">
+          <p>Promotions cards are on hold for now.</p>
+        </section>
+      ) : null}
+
+      {!loading && !error && !isPromotionsFilter ? (
         <section className="movies-list" aria-live="polite">
           {visibleMovies.length > 0 ? (
             visibleMovies.map((movie) => {
@@ -145,7 +208,7 @@ export default function Movies() {
 
               return (
                 <div key={movie._id || movie.name} className="movies-grid-card">
-                  <MovieCard movie={cardMovie} />
+                  <ElementCard movie={cardMovie} />
                 </div>
               );
             })

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import CardRail from "../components/CardRail";
-import MovieCard from "../components/MovieCard";
+import ElementCard from "../components/ElementCard";
 import ShowcaseCard from "../components/ShowcaseCard";
 import ViewportSection from "../components/ViewportSection";
 import {
@@ -226,7 +226,7 @@ export default function Home() {
           {section.movies.length > 0 ? (
             <CardRail label={section.title}>
               {section.movies.map((movie) => (
-                <MovieCard key={`${section.title}-${movie._id || movie.title}`} movie={movie} />
+                <ElementCard key={`${section.title}-${movie._id || movie.title}`} movie={movie} />
               ))}
             </CardRail>
           ) : (
