@@ -4,7 +4,8 @@
   --sidebar-dark: var(--bg-main);
   --sidebar-dark-deep: #020617;
   width: 300px;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
   padding: 20px;
   position: sticky;
   top: 0;
@@ -65,11 +66,15 @@
 }
 
 .sidebar-zone {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border-radius: 16px;
   padding: 10px;
 }
 
 .sidebar-zone-primary {
+  flex: 1 1 auto;
   border: 1px solid rgba(148, 163, 184, 0.14);
   background:
     linear-gradient(180deg, rgba(30, 58, 138, 0.28) 0%, rgba(30, 41, 59, 0.12) 100%);
@@ -77,11 +82,20 @@
 }
 
 .sidebar-zone-secondary {
-  margin-top: auto;
+  flex: 0 0 30%;
+  min-height: 200px;
   padding-top: 14px;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
   background:
     linear-gradient(180deg, rgba(15, 23, 42, 0.32) 0%, rgba(2, 6, 23, 0.55) 100%);
+}
+
+.sidebar-sections-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .sidebar-brand {
@@ -127,17 +141,39 @@
 }
 
 .sidebar-nav-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
   margin-bottom: 16px;
   position: relative;
   z-index: 1;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.18);
+  padding: 8px 8px 6px;
 }
 
 .sidebar-zone-secondary .sidebar-nav-group {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+  flex: 1 1 auto;
+}
+
+.sidebar-nav-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
 }
 
 .sidebar-nav-label {
-  margin: 0 6px 8px;
+  margin: 0 6px 6px;
   color: #bfdbfe;
   font-size: 0.68rem;
   font-weight: 800;
@@ -151,7 +187,7 @@
 
 .sidebar-link {
   width: 100%;
-  margin: 6px 0;
+  margin: 2px 0;
   padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: 10px;
@@ -201,6 +237,20 @@
   border-color: #475569;
 }
 
+.sidebar-nav-items::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav-items::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.sidebar-nav-items::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
 @media (max-width: 900px) {
   .client-sidebar {
     position: fixed;
@@ -210,6 +260,11 @@
     z-index: 40;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
+  }
+
+  .sidebar-zone-secondary {
+    flex-basis: 34%;
+    min-height: 180px;
   }
 
   .client-sidebar.open {

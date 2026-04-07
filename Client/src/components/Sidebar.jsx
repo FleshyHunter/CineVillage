@@ -33,6 +33,12 @@ const serviceNav = [
   { label: "Help Centre", icon: "bi-shield-lock", href: "#" }
 ];
 
+const navSections = [
+  { key: "main", title: "Main", items: primaryNav },
+  { key: "account", title: "Account", items: accountNav },
+  { key: "hall-type", title: "Hall Type", items: hallTypeNav }
+];
+
 function NavLink({ item, activeHash }) {
   const prefixes = Array.isArray(item.matchPrefixes) ? item.matchPrefixes : [];
 
@@ -51,6 +57,19 @@ function NavLink({ item, activeHash }) {
   );
 }
 
+function SidebarSection({ title, items, activeHash }) {
+  return (
+    <div className="sidebar-nav-group">
+      <div className="sidebar-nav-label sidebar-nav-label-management">{title}</div>
+      <div className="sidebar-nav-items" role="list">
+        {items.map((item) => (
+          <NavLink key={item.label} item={item} activeHash={activeHash} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Sidebar({ menuOpen }) {
   const { isAuthenticated, logoutCustomer } = useAccount();
   const activeHash = (window.location.hash || "")
@@ -66,39 +85,24 @@ export default function Sidebar({ menuOpen }) {
           <img src="/CVLogo2.png" alt="CineVillage logo" className="sidebar-brand-logo flex-shrink-0" />
           <div className="sidebar-brand-copy d-flex flex-column justify-content-center">
             <strong className="sidebar-title fw-bold">CineVillage</strong>
-            
+            <p className="sidebar-subtitle">Customer Console</p>
           </div>
         </button>
 
-        <div className="sidebar-nav-group">
-          <div className="sidebar-nav-label sidebar-nav-label-management">Main</div>
-          {primaryNav.map((item) => (
-            <NavLink key={item.label} item={item} activeHash={activeHash} />
-          ))}
-        </div>
-
-        <div className="sidebar-nav-group">
-          <div className="sidebar-nav-label sidebar-nav-label-management">Account</div>
-          {accountNav.map((item) => (
-            <NavLink key={item.label} item={item} activeHash={activeHash} />
-          ))}
-        </div>
-
-        <div className="sidebar-nav-group">
-          <div className="sidebar-nav-label sidebar-nav-label-management">Hall Type</div>
-          {hallTypeNav.map((item) => (
-            <NavLink key={item.label} item={item} activeHash={activeHash} />
+        <div className="sidebar-sections-stack">
+          {navSections.map((section) => (
+            <SidebarSection
+              key={section.key}
+              title={section.title}
+              items={section.items}
+              activeHash={activeHash}
+            />
           ))}
         </div>
       </div>
 
       <div className="sidebar-zone sidebar-zone-secondary">
-        <div className="sidebar-nav-group">
-          <div className="sidebar-nav-label sidebar-nav-label-management">Services</div>
-          {serviceNav.map((item) => (
-            <NavLink key={item.label} item={item} activeHash={activeHash} />
-          ))}
-        </div>
+        <SidebarSection title="Services" items={serviceNav} activeHash={activeHash} />
 
         <a
           className="sidebar-logout-btn"
