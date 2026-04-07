@@ -1,0 +1,270 @@
+<%- include('../layouts/header') %>
+
+<style>
+  .booking-preview-shell {
+    display: grid;
+    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .booking-preview-panel {
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 18px;
+    background: var(--surface-elevated);
+  }
+
+  .booking-preview-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .booking-preview-chip {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: var(--surface-base);
+  }
+
+  .booking-preview-chip-label {
+    display: block;
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+
+  .booking-preview-chip-value {
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+
+  .booking-preview-screen {
+    width: min(92%, 640px);
+    margin: 0 auto 18px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    padding: 6px 12px;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  }
+
+  .booking-preview-grid {
+    display: grid;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  .booking-preview-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .booking-preview-row-label {
+    width: 22px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .booking-preview-seat,
+  .booking-preview-gap,
+  .booking-preview-lane {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+  }
+
+  .booking-preview-seat {
+    border: 1px solid var(--border-subtle);
+    background: #9aa3af;
+  }
+
+  .booking-preview-seat.status-available {
+    background: #2ea44f;
+    border-color: #23863f;
+  }
+
+  .booking-preview-seat.status-onHold {
+    background: #d9a441;
+    border-color: #c08c2f;
+  }
+
+  .booking-preview-seat.status-unavailable {
+    background: #3f444b;
+    border-color: #34383e;
+  }
+
+  .booking-preview-seat.type-wheelchair.status-available {
+    background: #2f86ff;
+    border-color: #1f6bd4;
+  }
+
+  .booking-preview-gap {
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+  }
+
+  .booking-preview-lane {
+    background: transparent;
+  }
+
+  .booking-preview-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .booking-preview-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .booking-preview-legend-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .booking-preview-legend-dot.available {
+    background: #2ea44f;
+    border-color: #23863f;
+  }
+
+  .booking-preview-legend-dot.on-hold {
+    background: #d9a441;
+    border-color: #c08c2f;
+  }
+
+  .booking-preview-legend-dot.unavailable {
+    background: #3f444b;
+    border-color: #34383e;
+  }
+
+  .booking-preview-legend-dot.wheelchair {
+    background: #2f86ff;
+    border-color: #1f6bd4;
+  }
+
+  @media (max-width: 900px) {
+    .booking-preview-shell {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="container">
+  <h2 style="margin-bottom: 30px;">Booking Preview</h2>
+
+  <div class="movie-detail-container booking-preview-shell">
+    <div class="movie-detail-poster">
+      <img
+        src="<%= screening && screening.movieId && screening.movieId.pictureUrl ? screening.movieId.pictureUrl : '/images/placeholder.jpg' %>"
+        alt="Movie poster"
+        style="width: 100%; border-radius: 8px; object-fit: cover; min-height: 400px;">
+      <div style="text-align: center; margin-top: 15px;">
+        <h4 style="color: var(--text-main); margin-bottom: 6px;">
+          <%= screening && screening.movieId && screening.movieId.name ? screening.movieId.name : 'N/A' %>
+        </h4>
+        <p style="color: var(--text-muted); font-size: 13px; margin: 0;">
+          <%= screening && screening.movieId && screening.movieId.duration ? screening.movieId.duration : '-' %> mins
+        </p>
+      </div>
+    </div>
+
+    <div class="movie-detail-info booking-preview-panel">
+      <div class="booking-preview-meta">
+        <div class="booking-preview-chip">
+          <span class="booking-preview-chip-label">Hall</span>
+          <span class="booking-preview-chip-value"><%= screening && screening.hallId && screening.hallId.name ? screening.hallId.name : 'N/A' %></span>
+        </div>
+        <div class="booking-preview-chip">
+          <span class="booking-preview-chip-label">Date</span>
+          <span class="booking-preview-chip-value"><%= screening && screening.dateLabel ? screening.dateLabel : 'N/A' %></span>
+        </div>
+        <div class="booking-preview-chip">
+          <span class="booking-preview-chip-label">Time</span>
+          <span class="booking-preview-chip-value" style="text-transform: none;"><%= screening && screening.timeLabel ? screening.timeLabel : 'N/A' %></span>
+        </div>
+        <div class="booking-preview-chip">
+          <span class="booking-preview-chip-label">Price</span>
+          <span class="booking-preview-chip-value" style="text-transform: none;">$<%= screening && screening.price ? Number(screening.price).toFixed(2) : '0.00' %></span>
+        </div>
+        <div class="booking-preview-chip">
+          <span class="booking-preview-chip-label">Status</span>
+          <span class="booking-preview-chip-value"><%= screening && screening.status ? screening.status : 'N/A' %></span>
+        </div>
+      </div>
+
+      <div class="booking-preview-screen">SCREEN</div>
+
+      <div class="booking-preview-grid">
+        <% if (seatRows && seatRows.length) { %>
+          <% seatRows.forEach((row) => { %>
+            <div class="booking-preview-row">
+              <span class="booking-preview-row-label"><%= row.label %></span>
+              <% row.cells.forEach((cell) => { %>
+                <% if (cell.kind === 'lane') { %>
+                  <span class="booking-preview-lane" aria-hidden="true"></span>
+                <% } else if (cell.kind === 'gap') { %>
+                  <span class="booking-preview-gap" aria-hidden="true"></span>
+                <% } else { %>
+                  <span
+                    class="booking-preview-seat status-<%= cell.status %> <%= cell.isWheelchair ? 'type-wheelchair' : '' %>"
+                    title="<%= cell.seatLabel %>"
+                    aria-label="Seat <%= cell.seatLabel %>, <%= cell.status %>"
+                  ></span>
+                <% } %>
+              <% }); %>
+            </div>
+          <% }); %>
+        <% } else { %>
+          <div style="color: var(--text-muted); text-align: center;">No seat layout found for this screening.</div>
+        <% } %>
+      </div>
+
+      <div class="booking-preview-legend">
+        <div class="booking-preview-legend-item">
+          <span class="booking-preview-legend-dot available"></span>
+          <span>Available</span>
+        </div>
+        <div class="booking-preview-legend-item">
+          <span class="booking-preview-legend-dot on-hold"></span>
+          <span>On Hold</span>
+        </div>
+        <div class="booking-preview-legend-item">
+          <span class="booking-preview-legend-dot unavailable"></span>
+          <span>Booked</span>
+        </div>
+        <div class="booking-preview-legend-item">
+          <span class="booking-preview-legend-dot wheelchair"></span>
+          <span>Wheelchair</span>
+        </div>
+      </div>
+
+      <div class="movie-detail-actions" style="margin-top: 20px;">
+        <a href="<%= (typeof returnTo !== 'undefined' && returnTo) ? returnTo : ('/screenings/view/' + screening._id) %>" class="btn btn-secondary">
+          ← Back to Screening
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../layouts/footer') %>

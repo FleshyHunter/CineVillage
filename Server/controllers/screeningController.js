@@ -1,4 +1,11 @@
-const { getCollectionScreening, getCollectionMovie, getCollectionHall, initDBIfNecessary } = require("../config/database");
+const {
+  getCollectionScreening,
+  getCollectionMovie,
+  getCollectionHall,
+  getCollectionBooking,
+  getCollectionSeatReservation,
+  initDBIfNecessary
+} = require("../config/database");
 const { ObjectId } = require("mongodb");
 const { isHallAvailableNow, doesScreeningOverlapMaintenance, getMaintenanceWindow } = require("../public/js/hallStatus");
 
@@ -78,6 +85,112 @@ function toObjectIdSafe(value) {
     return toObjectIdSafe(value._id);
   }
   return null;
+}
+
+function normalizeSeatLabel(value) {
+  return (value || '').toString().trim().toUpperCase();
+}
+
+function sanitizeReturnTo(returnTo, fallback = '/screenings') {
+  if (typeof returnTo !== 'string' || !returnTo.startsWith('/')) {
+    return fallback;
+  }
+  if (returnTo.startsWith('//')) {
+    return fallback;
+  }
+  return returnTo;
+}
+
+function resolveSeatStatusFromReservation(reservation, booking) {
+  const reservationStatus = (reservation?.status || '').toString().trim().toLowerCase();
+  if (reservationStatus === 'cancelled') {
+    return 'available';
+  }
+
+  const bookingStatus = (booking?.status || '').toString().trim().toLowerCase();
+  const paymentStatus = (booking?.paymentStatus || '').toString().trim().toLowerCase();
+
+  if (bookingStatus === 'cancelled') {
+    return 'available';
+  }
+
+  if (bookingStatus === 'completed' || paymentStatus === 'paid') {
+    return 'unavailable';
+  }
+
+  if (bookingStatus === 'pending' || paymentStatus === 'unpaid') {
+    return 'onHold';
+  }
+
+  return booking ? 'available' : 'onHold';
+}
+
+function buildSeatRowsForPreview(screening, hallPresentation, reservations, bookingsById) {
+  const snapshot = screening?.hallSnapshot || null;
+  const rows = Number.parseInt(snapshot?.rows, 10) || Number.parseInt(hallPresentation?.rows, 10) || 0;
+  const columns = Number.parseInt(snapshot?.columns, 10) || Number.parseInt(hallPresentation?.columns, 10) || 0;
+  const seatConfig = snapshot?.seatConfig || hallPresentation?.seatConfig || {};
+  const aisleSet = new Set(
+    (snapshot?.aisleColumns || hallPresentation?.aisleColumns || [])
+      .map((column) => Number.parseInt(column, 10))
+      .filter((column) => Number.isInteger(column) && column >= 0)
+  );
+
+  if (!rows || !columns) {
+    return [];
+  }
+
+  const precedence = {
+    available: 0,
+    onHold: 1,
+    unavailable: 2
+  };
+  const statusBySeat = new Map();
+
+  for (const reservation of reservations) {
+    const seatLabel = normalizeSeatLabel(reservation?.seat);
+    if (!seatLabel) continue;
+
+    const booking = reservation?.bookingId ? bookingsById.get(reservation.bookingId.toString()) : null;
+    const nextStatus = resolveSeatStatusFromReservation(reservation, booking);
+    const currentStatus = statusBySeat.get(seatLabel) || 'available';
+
+    if ((precedence[nextStatus] || 0) >= (precedence[currentStatus] || 0)) {
+      statusBySeat.set(seatLabel, nextStatus);
+    }
+  }
+
+  return Array.from({ length: rows }, (_, rowIndex) => {
+    const rowLabel = String.fromCharCode(65 + rowIndex);
+    const cells = [];
+
+    for (let columnIndex = 0; columnIndex < columns; columnIndex += 1) {
+      if (aisleSet.has(columnIndex)) {
+        cells.push({ kind: 'lane' });
+        continue;
+      }
+
+      const seatKey = `${rowIndex}-${columnIndex}`;
+      const seatState = (seatConfig[seatKey] || 'normal').toString().trim().toLowerCase();
+      if (seatState === 'removed') {
+        cells.push({ kind: 'gap' });
+        continue;
+      }
+
+      const seatLabel = `${rowLabel}${columnIndex + 1}`;
+      cells.push({
+        kind: 'seat',
+        seatLabel,
+        status: statusBySeat.get(seatLabel) || 'available',
+        isWheelchair: seatState === 'wheelchair'
+      });
+    }
+
+    return {
+      label: rowLabel,
+      cells
+    };
+  });
 }
 
 function cloneSeatConfig(seatConfig = {}) {
@@ -652,6 +765,10 @@ async function updateScreening(id, screeningData) {
     throw new Error("Screening not found");
   }
 
+  if (!isDraftStatus(existingScreening.status)) {
+    throw new Error("Only draft screenings can be edited.");
+  }
+
   assertPublishedStructureNotChanged(existingScreening, screeningData);
 
   // Convert IDs to ObjectId
@@ -1045,6 +1162,83 @@ async function getMovieScreenings(req, res) {
   }
 }
 
+async function getScreeningBookingPreviewPage(req, res) {
+  try {
+    await initDBIfNecessary();
+    await updateScreeningStatuses();
+
+    if (!ObjectId.isValid(req.params.id)) {
+      return res.status(400).send('Invalid screening ID');
+    }
+
+    const screeningId = new ObjectId(req.params.id);
+    const returnTo = sanitizeReturnTo(
+      req.query.returnTo,
+      `/screenings/view/${req.params.id}`
+    );
+
+    const collectionScreening = getCollectionScreening();
+    const collectionMovie = getCollectionMovie();
+    const collectionHall = getCollectionHall();
+    const collectionBooking = getCollectionBooking();
+    const collectionSeatReservation = getCollectionSeatReservation();
+
+    const screening = await collectionScreening.findOne({ _id: screeningId });
+    if (!screening) {
+      return res.status(404).send('Screening not found');
+    }
+
+    const movieId = toObjectIdSafe(screening.movieId);
+    const hallId = toObjectIdSafe(screening.hallId);
+    const [movie, liveHall] = await Promise.all([
+      movieId ? collectionMovie.findOne({ _id: movieId }) : null,
+      hallId ? collectionHall.findOne({ _id: hallId }) : null
+    ]);
+
+    const hallPresentation = getScreeningHallPresentation(screening, liveHall);
+    const reservations = await collectionSeatReservation.find({ screeningId }).toArray();
+    const bookingIds = [
+      ...new Set(
+        reservations
+          .map((reservation) => toObjectIdSafe(reservation.bookingId))
+          .filter(Boolean)
+          .map((id) => id.toString())
+      )
+    ].map((id) => new ObjectId(id));
+
+    const bookings = bookingIds.length
+      ? await collectionBooking.find({ _id: { $in: bookingIds } }).toArray()
+      : [];
+
+    const bookingsById = new Map(bookings.map((booking) => [booking._id.toString(), booking]));
+    const seatRows = buildSeatRowsForPreview(screening, hallPresentation, reservations, bookingsById);
+
+    const startDate = screening.startDateTime ? new Date(screening.startDateTime) : null;
+    const endDate = screening.endDateTime ? new Date(screening.endDateTime) : null;
+    const displayScreening = {
+      ...screening,
+      movieId: movie,
+      hallId: hallPresentation,
+      dateLabel: startDate
+        ? startDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        : 'N/A',
+      timeLabel: startDate && endDate
+        ? `${startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} - ${endDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+        : 'N/A'
+    };
+
+    return res.render('screenings/bookingPreview', {
+      title: 'Booking Preview',
+      screening: displayScreening,
+      seatRows,
+      returnTo
+    });
+  } catch (error) {
+    console.error('Error loading booking preview:', error);
+    return res.status(500).send('Error loading booking preview');
+  }
+}
+
 module.exports = {
   createScreening,
   getAllScreenings,
@@ -1057,4 +1251,5 @@ module.exports = {
   getHallSchedulePage,
   getMovieScreenings,
   updateScreeningStatuses,
+  getScreeningBookingPreviewPage,
 }

@@ -10,9 +10,10 @@ const {
   getHallSchedule,
   getHallSchedulePage,
   getMovieScreenings,
-  updateScreeningStatuses
+  updateScreeningStatuses,
+  getScreeningBookingPreviewPage
 } = require("../controllers/screeningController");
-const { initDBIfNecessary, getCollectionScreening, getCollectionMovie, getCollectionHall } = require("../config/database");
+const { initDBIfNecessary, getCollectionScreening, getCollectionMovie, getCollectionHall, getCollectionBooking, getCollectionSeatReservation } = require("../config/database");
 const { ObjectId } = require("mongodb");
 const { requireRoles } = require("../config/session");
 const { logAction } = require("../config/audit");
@@ -190,6 +191,10 @@ router.post("/create", requireRoles(["Admin", "Manager", "Staff"]), async (req, 
 router.get("/edit/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   await initDBIfNecessary();
   const returnTo = sanitizeReturnTo(req.query.returnTo);
+
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).send("Invalid screening ID");
+  }
   
   // Auto-update statuses before fetching
   await updateScreeningStatuses();
@@ -200,6 +205,9 @@ router.get("/edit/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req,
   });
 
   if (!screening) return res.send("Screening not found");
+  if (screening.status !== "draft") {
+    return res.status(400).send("Only draft screenings can be edited.");
+  }
 
   // Fetch movies and halls for dropdowns
   const collectionMovie = getCollectionMovie();
@@ -278,11 +286,26 @@ router.get("/view/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req,
   });
 });
 
+router.get("/:id/booking-preview", requireRoles(["Admin", "Manager", "Staff"]), getScreeningBookingPreviewPage);
+
 // POST update
 router.post("/edit/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req, res) => {
   const returnTo = sanitizeReturnTo(req.query.returnTo);
   try {
     await initDBIfNecessary();
+    if (!ObjectId.isValid(req.params.id)) {
+      return res.status(400).send("Invalid screening ID");
+    }
+
+    const collectionScreening = getCollectionScreening();
+    const existingScreening = await collectionScreening.findOne({ _id: new ObjectId(req.params.id) });
+    if (!existingScreening) {
+      return res.status(404).send("Screening not found");
+    }
+    if (existingScreening.status !== "draft") {
+      return res.status(400).send("Only draft screenings can be edited.");
+    }
+
     const screeningData = req.body;
     const collectionMovie = getCollectionMovie();
     const movieDoc = (screeningData.movieId && ObjectId.isValid(screeningData.movieId))

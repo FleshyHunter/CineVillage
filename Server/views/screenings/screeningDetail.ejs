@@ -73,6 +73,9 @@
         <a href="<%= (typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/screenings' %>" class="btn btn-secondary">
           ← Back to Screenings
         </a>
+        <a href="/screenings/<%= screening._id %>/booking-preview?returnTo=<%= encodeURIComponent('/screenings/view/' + screening._id + '?returnTo=' + encodeURIComponent((typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/screenings')) %>" class="btn btn-primary">
+          Booking Preview
+        </a>
         <% if (screening && screening.status === 'draft') { %>
           <form method="POST" action="/screenings/launch/<%= screening._id %>?returnTo=<%= encodeURIComponent((typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/screenings') %>" style="display: inline;">
             <button type="submit" class="btn btn-primary">
@@ -80,9 +83,11 @@
             </button>
           </form>
         <% } %>
-        <a href="/screenings/edit/<%= screening._id %>?returnTo=<%= encodeURIComponent('/screenings/view/' + screening._id + '?returnTo=' + encodeURIComponent((typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/screenings')) %>" class="btn btn-primary">
-          Edit Screening
-        </a>
+        <% if (screening && screening.status === 'draft') { %>
+          <a href="/screenings/edit/<%= screening._id %>?returnTo=<%= encodeURIComponent('/screenings/view/' + screening._id + '?returnTo=' + encodeURIComponent((typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/screenings')) %>" class="btn btn-primary">
+            Edit Screening
+          </a>
+        <% } %>
       </div>
     </div>
   </div>
