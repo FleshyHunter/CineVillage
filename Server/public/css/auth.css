@@ -107,6 +107,11 @@
   padding: 11px 12px;
 }
 
+.auth-login-input::placeholder {
+  color: #cbd5e1;
+  opacity: 1;
+}
+
 .auth-login-input:focus {
   outline: none;
   border-color: #3b82f6;

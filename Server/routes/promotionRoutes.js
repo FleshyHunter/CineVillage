@@ -4,6 +4,10 @@ const path = require("path");
 const { requireRoles } = require("../config/session");
 const { logAction } = require("../config/audit");
 const {
+  initDBIfNecessary,
+  getCollectionAddOn
+} = require("../config/database");
+const {
   normalizePromotionData,
   validatePromotionDateRange,
   validatePromotionStructure,
@@ -34,24 +38,67 @@ function sanitizeReturnTo(returnTo) {
   return returnTo;
 }
 
+async function getBundleItemCatalog() {
+  await initDBIfNecessary();
+  const collectionAddOn = getCollectionAddOn();
+  const addOns = await collectionAddOn
+    .find({})
+    .sort({ name: 1, _id: 1 })
+    .toArray();
+
+  const ticketItems = [
+    { value: "ticket:standard", label: "Ticket · Standard" },
+    { value: "ticket:imax", label: "Ticket · IMAX" },
+    { value: "ticket:vip", label: "Ticket · VIP" }
+  ];
+
+  const addOnItems = addOns.map((item) => ({
+    value: `addon:${String(item._id)}`,
+    label: `Add-on · ${(item.name || "Unnamed Add-on").toString().trim()}`
+  }));
+
+  return [...ticketItems, ...addOnItems];
+}
+
+async function renderPromotionForm(res, {
+  promotion,
+  isEdit,
+  error,
+  returnTo
+}) {
+  const bundleItemCatalog = await getBundleItemCatalog();
+
+  return res.render("promotions/promotionForm", {
+    title: "Promotions",
+    promotion,
+    isEdit,
+    error,
+    returnTo,
+    bundleItemCatalog
+  });
+}
+
 router.get("/", requireRoles(["Admin", "Manager", "Staff"]), getAllPromotions);
 
-router.get("/create", requireRoles(["Admin", "Manager"]), (req, res) => {
-  res.render("promotions/promotionForm", {
-    title: "Promotions",
-    promotion: null,
-    isEdit: false,
-    error: null,
-    returnTo: "/promotions"
-  });
+router.get("/create", requireRoles(["Admin", "Manager"]), async (req, res) => {
+  try {
+    return await renderPromotionForm(res, {
+      promotion: null,
+      isEdit: false,
+      error: null,
+      returnTo: "/promotions"
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send("Error loading promotion form");
+  }
 });
 
 router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("picture"), async (req, res) => {
   try {
     const promotionData = normalizePromotionData(req.body);
     if (!promotionData.name) {
-      return res.render("promotions/promotionForm", {
-        title: "Promotions",
+      return await renderPromotionForm(res, {
         promotion: promotionData,
         isEdit: false,
         error: "Promotion name is required.",
@@ -61,8 +108,7 @@ router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("pictur
 
     const dateRangeError = validatePromotionDateRange(promotionData);
     if (dateRangeError) {
-      return res.render("promotions/promotionForm", {
-        title: "Promotions",
+      return await renderPromotionForm(res, {
         promotion: promotionData,
         isEdit: false,
         error: dateRangeError,
@@ -72,8 +118,7 @@ router.post("/create", requireRoles(["Admin", "Manager"]), upload.single("pictur
 
     const structureError = validatePromotionStructure(promotionData);
     if (structureError) {
-      return res.render("promotions/promotionForm", {
-        title: "Promotions",
+      return await renderPromotionForm(res, {
         promotion: promotionData,
         isEdit: false,
         error: structureError,
@@ -102,8 +147,7 @@ router.get("/edit/:id", requireRoles(["Admin", "Manager"]), async (req, res) => 
   const promotion = await getPromotionById(req.params.id);
   if (!promotion) return res.status(404).send("Promotion not found");
 
-  return res.render("promotions/promotionForm", {
-    title: "Promotions",
+  return await renderPromotionForm(res, {
     promotion,
     isEdit: true,
     error: null,
@@ -118,8 +162,7 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("pict
 
     const promotionData = normalizePromotionData(req.body);
     if (!promotionData.name) {
-      return res.render("promotions/promotionForm", {
-        title: "Promotions",
+      return await renderPromotionForm(res, {
         promotion: { ...existing, ...promotionData, _id: req.params.id },
         isEdit: true,
         error: "Promotion name is required.",
@@ -129,8 +172,7 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("pict
 
     const dateRangeError = validatePromotionDateRange(promotionData);
     if (dateRangeError) {
-      return res.render("promotions/promotionForm", {
-        title: "Promotions",
+      return await renderPromotionForm(res, {
         promotion: { ...existing, ...promotionData, _id: req.params.id },
         isEdit: true,
         error: dateRangeError,
@@ -140,8 +182,7 @@ router.post("/edit/:id", requireRoles(["Admin", "Manager"]), upload.single("pict
 
     const structureError = validatePromotionStructure(promotionData);
     if (structureError) {
-      return res.render("promotions/promotionForm", {
-        title: "Promotions",
+      return await renderPromotionForm(res, {
         promotion: { ...existing, ...promotionData, _id: req.params.id },
         isEdit: true,
         error: structureError,

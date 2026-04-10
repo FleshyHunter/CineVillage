@@ -9,13 +9,17 @@ const {
   getCollectionScreening,
   getCollectionSeatReservation
 } = require("../../config/database");
+const {
+  evaluateScreeningBookability,
+  buildScreeningUnavailablePayload
+} = require("../screeningBookability");
 
-const BOOKABLE_SCREENING_STATUSES = new Set(["published", "scheduled"]);
 const NON_BOOKABLE_SEAT_STATES = new Set(["removed"]);
 const HOLD_DURATION_MS = 15 * 60 * 1000;
 const HOLD_EXTEND_MS = 5 * 60 * 1000;
 const HOLD_DURATION_MAX_SECONDS = Math.floor(HOLD_DURATION_MS / 1000);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DEFAULT_HALL_PICTURE_URL = "/images/hallPlaceHolder.jpg";
 
 let cachedInvoiceMailer = null;
 
@@ -218,12 +222,64 @@ function resolveRequestedHoldDurationMs(payload = {}) {
   return clampedSeconds * 1000;
 }
 
-function buildBookingDocument(screening, seatLabels, payload = {}, now = new Date()) {
+function normalizePictureCandidate(value) {
+  const text = (value || "").toString().trim();
+  if (!text) return "";
+
+  if (/^https?:\/\//i.test(text) || text.startsWith("/")) {
+    return text;
+  }
+
+  if (text.startsWith("uploads/")) {
+    return `/${text}`;
+  }
+
+  // Backward compatibility for records that stored only filename.
+  if (/^[a-z0-9._-]+\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(text)) {
+    return `/uploads/${text}`;
+  }
+
+  return text;
+}
+
+function resolveHallInfo(screening = {}, hall = null, booking = null) {
+  const hallName = (
+    screening?.hallSnapshot?.hallName
+    || hall?.name
+    || booking?.hallName
+    || "N/A"
+  ).toString();
+
+  const hallType = (
+    screening?.hallSnapshot?.hallType
+    || hall?.type
+    || booking?.hallType
+    || "Standard"
+  ).toString();
+
+  const hallPictureUrl = normalizePictureCandidate(
+    hall?.pictureUrl
+    || hall?.image
+    || screening?.hallSnapshot?.pictureUrl
+    || screening?.hallSnapshot?.image
+    || booking?.hallPictureUrl
+    || DEFAULT_HALL_PICTURE_URL
+  );
+
+  return {
+    hallName,
+    hallType,
+    hallPictureUrl
+  };
+}
+
+function buildBookingDocument(screening, hall, seatLabels, payload = {}, now = new Date()) {
   const seatCount = seatLabels.length;
   const pricePerSeat = Number(screening?.price);
   const normalizedPricePerSeat = Number.isFinite(pricePerSeat) ? pricePerSeat : 0;
   const totalAmount = normalizedPricePerSeat * seatCount;
   const expiresAt = new Date(now.getTime() + resolveRequestedHoldDurationMs(payload));
+  const hallInfo = resolveHallInfo(screening, hall);
 
   const hallId =
     toObjectIdSafe(screening?.hallSnapshot?.originalHallId) ||
@@ -235,6 +291,9 @@ function buildBookingDocument(screening, seatLabels, payload = {}, now = new Dat
     screeningId: toObjectIdSafe(screening?._id),
     movieId: toObjectIdSafe(screening?.movieId),
     hallId,
+    hallName: hallInfo.hallName,
+    hallType: hallInfo.hallType,
+    hallPictureUrl: hallInfo.hallPictureUrl,
     seats: seatLabels,
     seatCount,
     pricePerSeat: normalizedPricePerSeat,
@@ -267,6 +326,98 @@ function buildSeatReservationDocuments(screeningId, seatLabels, bookingId, expir
   }));
 }
 
+function buildScreeningUnavailableResponseBody(unavailablePayload = {}) {
+  return {
+    message: unavailablePayload.message || "This screening is no longer available for booking.",
+    code: unavailablePayload.code || "SCREENING_UNAVAILABLE",
+    screeningUnavailable: unavailablePayload,
+    movieDetailsHash: unavailablePayload.movieDetailsHash || ""
+  };
+}
+
+async function findScreeningAndHallByScreeningId(collectionScreening, collectionHall, screeningId) {
+  const safeScreeningId = toObjectIdSafe(screeningId);
+  if (!safeScreeningId) {
+    return { screening: null, hall: null };
+  }
+
+  const screening = await collectionScreening.findOne(
+    { _id: safeScreeningId },
+    {
+      projection: {
+        _id: 1,
+        movieId: 1,
+        hallId: 1,
+        startDateTime: 1,
+        endDateTime: 1,
+        status: 1,
+        price: 1,
+        hallSnapshot: 1
+      }
+    }
+  );
+
+  if (!screening) {
+    return { screening: null, hall: null };
+  }
+
+  const hallLookupId =
+    toObjectIdSafe(screening?.hallSnapshot?.originalHallId)
+    || toObjectIdSafe(screening?.hallId);
+
+  const hall = hallLookupId
+    ? await collectionHall.findOne(
+        { _id: hallLookupId },
+        {
+          projection: {
+            _id: 1,
+            name: 1,
+            type: 1,
+            pictureUrl: 1,
+            status: 1,
+            maintenanceStartDate: 1,
+            maintenanceEndDate: 1
+          }
+        }
+      )
+    : null;
+
+  return { screening, hall };
+}
+
+function evaluateBookingScreeningBookability({ screening = null, hall = null }) {
+  const evaluation = evaluateScreeningBookability({
+    screening,
+    hall,
+    now: new Date()
+  });
+
+  const unavailablePayload = buildScreeningUnavailablePayload({
+    screening,
+    hall,
+    evaluation
+  });
+
+  return {
+    evaluation,
+    unavailablePayload
+  };
+}
+
+async function invalidatePendingBookingSession(
+  collectionBooking,
+  collectionSeatReservation,
+  bookingId
+) {
+  const safeBookingId = toObjectIdSafe(bookingId);
+  if (!safeBookingId) return;
+
+  await Promise.all([
+    collectionSeatReservation.deleteMany({ bookingId: safeBookingId }),
+    collectionBooking.deleteOne({ _id: safeBookingId, status: "pending" })
+  ]);
+}
+
 function isDuplicateKeyError(error) {
   return Boolean(error) && Number(error.code) === 11000;
 }
@@ -280,8 +431,11 @@ function isTransactionUnsupportedError(error) {
   );
 }
 
-function serializeBooking(booking) {
+function serializeBooking(booking, context = {}) {
   if (!booking) return null;
+  const screening = context.screening || null;
+  const hall = context.hall || null;
+  const hallInfo = resolveHallInfo(screening, hall, booking);
 
   return {
     ...booking,
@@ -289,6 +443,9 @@ function serializeBooking(booking) {
     screeningId: booking.screeningId?.toString(),
     movieId: booking.movieId?.toString(),
     hallId: booking.hallId?.toString(),
+    hallName: hallInfo.hallName,
+    hallType: hallInfo.hallType,
+    hallPictureUrl: hallInfo.hallPictureUrl,
     expiresAt: booking.expiresAt instanceof Date ? booking.expiresAt.toISOString() : booking.expiresAt
   };
 }
@@ -296,10 +453,16 @@ function serializeBooking(booking) {
 function normalizeTicketStatus(booking = {}, screening = {}, now = new Date()) {
   const bookingStatus = (booking.status || "").toString().trim().toLowerCase();
   if (bookingStatus === "cancelled") return "cancelled";
+  if (bookingStatus === "paused") return "paused";
 
   const paymentStatus = (booking.paymentStatus || "").toString().trim().toLowerCase();
   if (bookingStatus === "pending" || bookingStatus === "expired" || paymentStatus === "unpaid") {
     return "incomplete";
+  }
+
+  const screeningStatus = (screening?.status || "").toString().trim().toLowerCase();
+  if (screeningStatus === "paused") {
+    return "paused";
   }
 
   const screeningStart = screening?.startDateTime ? new Date(screening.startDateTime) : null;
@@ -326,11 +489,7 @@ function serializeTicketBooking(booking, context = {}) {
   const totalAmount = Number(booking.totalPrice ?? booking.totalAmount ?? 0);
   const safeTotal = Number.isFinite(totalAmount) && totalAmount >= 0 ? totalAmount : 0;
 
-  const hallType = (
-    screening?.hallSnapshot?.hallType
-    || hall?.type
-    || "Standard"
-  ).toString();
+  const hallInfo = resolveHallInfo(screening, hall, booking);
 
   const screeningStartRaw = screening?.startDateTime || null;
   const screeningStart = screeningStartRaw ? new Date(screeningStartRaw) : null;
@@ -347,11 +506,10 @@ function serializeTicketBooking(booking, context = {}) {
     hallId: booking.hallId?.toString(),
     movieName: (movie?.name || booking.movieName || "N/A").toString(),
     hallName: (
-      screening?.hallSnapshot?.hallName
-      || hall?.name
-      || "N/A"
+      hallInfo.hallName
     ).toString(),
-    hallType,
+    hallType: hallInfo.hallType,
+    hallPictureUrl: hallInfo.hallPictureUrl,
     date: safeScreeningStart
       ? safeScreeningStart.toISOString().slice(0, 10)
       : "",
@@ -469,6 +627,7 @@ async function createBookingWithTransaction({
   collectionBooking,
   collectionSeatReservation,
   screening,
+  hall,
   seatLabels,
   payload
 }) {
@@ -479,7 +638,7 @@ async function createBookingWithTransaction({
   try {
     await session.withTransaction(async () => {
       const now = new Date();
-      const bookingDocument = buildBookingDocument(screening, seatLabels, payload, now);
+      const bookingDocument = buildBookingDocument(screening, hall, seatLabels, payload, now);
       const reservationDocuments = buildSeatReservationDocuments(
         screening._id,
         seatLabels,
@@ -503,11 +662,12 @@ async function createBookingWithoutTransaction({
   collectionBooking,
   collectionSeatReservation,
   screening,
+  hall,
   seatLabels,
   payload
 }) {
   const now = new Date();
-  const bookingDocument = buildBookingDocument(screening, seatLabels, payload, now);
+  const bookingDocument = buildBookingDocument(screening, hall, seatLabels, payload, now);
   const reservationDocuments = buildSeatReservationDocuments(
     screening._id,
     seatLabels,
@@ -546,6 +706,7 @@ async function createBooking(req, res) {
     await initDBIfNecessary();
 
     const collectionScreening = getCollectionScreening();
+    const collectionHall = getCollectionHall();
     const collectionBooking = getCollectionBooking();
     const collectionSeatReservation = getCollectionSeatReservation();
     await cleanupExpiredBookingHolds(collectionBooking, collectionSeatReservation);
@@ -571,6 +732,8 @@ async function createBooking(req, res) {
           _id: 1,
           movieId: 1,
           hallId: 1,
+          startDateTime: 1,
+          endDateTime: 1,
           status: 1,
           price: 1,
           hallSnapshot: 1
@@ -582,8 +745,32 @@ async function createBooking(req, res) {
       return res.status(404).json({ message: "Screening not found." });
     }
 
-    if (!BOOKABLE_SCREENING_STATUSES.has((screening.status || "").toString().toLowerCase())) {
-      return res.status(400).json({ message: "Only published screenings can be booked." });
+    const hallLookupId =
+      toObjectIdSafe(screening?.hallSnapshot?.originalHallId) ||
+      toObjectIdSafe(screening?.hallId);
+    const hall = hallLookupId
+      ? await collectionHall.findOne(
+          { _id: hallLookupId },
+          {
+            projection: {
+              _id: 1,
+              name: 1,
+              type: 1,
+              pictureUrl: 1,
+              status: 1,
+              maintenanceStartDate: 1,
+              maintenanceEndDate: 1
+            }
+          }
+        )
+      : null;
+
+    const { evaluation, unavailablePayload } = evaluateBookingScreeningBookability({
+      screening,
+      hall
+    });
+    if (!evaluation.bookable) {
+      return res.status(409).json(buildScreeningUnavailableResponseBody(unavailablePayload));
     }
 
     if (!screening.hallSnapshot || typeof screening.hallSnapshot !== "object") {
@@ -617,19 +804,21 @@ async function createBooking(req, res) {
     let booking = null;
 
     try {
-      booking = await createBookingWithTransaction({
-        collectionBooking,
-        collectionSeatReservation,
-        screening,
-        seatLabels,
-        payload: payloadWithCustomer
-      });
+        booking = await createBookingWithTransaction({
+          collectionBooking,
+          collectionSeatReservation,
+          screening,
+          hall,
+          seatLabels,
+          payload: payloadWithCustomer
+        });
     } catch (error) {
       if (isTransactionUnsupportedError(error)) {
         booking = await createBookingWithoutTransaction({
           collectionBooking,
           collectionSeatReservation,
           screening,
+          hall,
           seatLabels,
           payload: payloadWithCustomer
         });
@@ -640,7 +829,7 @@ async function createBooking(req, res) {
 
     return res.status(201).json({
       message: "Booking successful",
-      booking: serializeBooking(booking)
+      booking: serializeBooking(booking, { screening, hall })
     });
   } catch (error) {
     if (isDuplicateKeyError(error)) {
@@ -740,6 +929,26 @@ async function extendBookingHold(req, res) {
       return res.status(409).json({ message: "Only pending booking holds can be extended." });
     }
 
+    const collectionScreening = getCollectionScreening();
+    const collectionHall = getCollectionHall();
+    const { screening, hall } = await findScreeningAndHallByScreeningId(
+      collectionScreening,
+      collectionHall,
+      booking.screeningId
+    );
+    const { evaluation, unavailablePayload } = evaluateBookingScreeningBookability({
+      screening,
+      hall
+    });
+
+    if (!evaluation.bookable) {
+      await invalidatePendingBookingSession(collectionBooking, collectionSeatReservation, bookingId);
+      return res.status(409).json({
+        ...buildScreeningUnavailableResponseBody(unavailablePayload),
+        bookingInvalidated: true
+      });
+    }
+
     const now = new Date();
     const bookingExpiresAt = booking.expiresAt instanceof Date ? booking.expiresAt : new Date(booking.expiresAt);
     const baseTime = Number.isNaN(bookingExpiresAt.getTime()) || bookingExpiresAt < now ? now : bookingExpiresAt;
@@ -774,6 +983,58 @@ async function extendBookingHold(req, res) {
   } catch (error) {
     console.error("Error extending booking hold:", error);
     return res.status(500).json({ message: "Failed to extend booking hold" });
+  }
+}
+
+async function validateBookingTransition(req, res) {
+  try {
+    await initDBIfNecessary();
+    const collectionBooking = getCollectionBooking();
+    const collectionSeatReservation = getCollectionSeatReservation();
+    const collectionScreening = getCollectionScreening();
+    const collectionHall = getCollectionHall();
+    await cleanupExpiredBookingHolds(collectionBooking, collectionSeatReservation);
+
+    const bookingIdRaw = (req.params.id || "").toString().trim();
+    if (!ObjectId.isValid(bookingIdRaw)) {
+      return res.status(400).json({ message: "Invalid booking ID." });
+    }
+
+    const bookingId = new ObjectId(bookingIdRaw);
+    const booking = await collectionBooking.findOne({ _id: bookingId });
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found." });
+    }
+
+    if ((booking.status || "").toString().trim().toLowerCase() !== "pending") {
+      return res.status(409).json({ message: "Only pending booking sessions can be validated." });
+    }
+
+    const { screening, hall } = await findScreeningAndHallByScreeningId(
+      collectionScreening,
+      collectionHall,
+      booking.screeningId
+    );
+    const { evaluation, unavailablePayload } = evaluateBookingScreeningBookability({
+      screening,
+      hall
+    });
+
+    if (!evaluation.bookable) {
+      await invalidatePendingBookingSession(collectionBooking, collectionSeatReservation, bookingId);
+      return res.status(409).json({
+        ...buildScreeningUnavailableResponseBody(unavailablePayload),
+        bookingInvalidated: true
+      });
+    }
+
+    return res.status(200).json({
+      message: "Booking session is still active.",
+      booking: serializeBooking(booking, { screening, hall })
+    });
+  } catch (error) {
+    console.error("Error validating booking transition:", error);
+    return res.status(500).json({ message: "Failed to validate booking transition." });
   }
 }
 
@@ -1045,6 +1306,9 @@ async function sendBookingInvoice(req, res) {
 
     const bookingId = new ObjectId(bookingIdRaw);
     const collectionBooking = getCollectionBooking();
+    const collectionScreening = getCollectionScreening();
+    const collectionHall = getCollectionHall();
+    const collectionSeatReservation = getCollectionSeatReservation();
     const booking = await collectionBooking.findOne({ _id: bookingId });
     if (!booking) {
       return res.status(404).json({ message: "Booking not found." });
@@ -1070,6 +1334,26 @@ async function sendBookingInvoice(req, res) {
     const currentStatus = (booking.status || "").toString().trim().toLowerCase();
     if (currentStatus !== "pending" && currentStatus !== "completed") {
       return res.status(409).json({ message: "Only pending bookings can be completed." });
+    }
+
+    if (currentStatus === "pending") {
+      const { screening, hall } = await findScreeningAndHallByScreeningId(
+        collectionScreening,
+        collectionHall,
+        booking.screeningId
+      );
+      const { evaluation, unavailablePayload } = evaluateBookingScreeningBookability({
+        screening,
+        hall
+      });
+
+      if (!evaluation.bookable) {
+        await invalidatePendingBookingSession(collectionBooking, collectionSeatReservation, bookingId);
+        return res.status(409).json({
+          ...buildScreeningUnavailableResponseBody(unavailablePayload),
+          bookingInvalidated: true
+        });
+      }
     }
 
     const customerName =
@@ -1165,7 +1449,6 @@ async function sendBookingInvoice(req, res) {
     });
 
     const now = new Date();
-    const collectionSeatReservation = getCollectionSeatReservation();
     await Promise.all([
       collectionBooking.updateOne(
         { _id: bookingId },
@@ -1484,6 +1767,7 @@ module.exports = {
   createBooking,
   releaseBookingHold,
   extendBookingHold,
+  validateBookingTransition,
   sendBookingInvoice,
   listTicketBookings,
   getTicketBookingDetails,

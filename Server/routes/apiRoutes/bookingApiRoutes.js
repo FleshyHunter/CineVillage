@@ -4,6 +4,7 @@ const {
   createBooking,
   releaseBookingHold,
   extendBookingHold,
+  validateBookingTransition,
   sendBookingInvoice,
   listTicketBookings,
   getTicketBookingDetails,
@@ -18,6 +19,7 @@ router.get("/tickets/:id", requireCustomerAuth, getTicketBookingDetails);
 router.post("/:id/cancel", requireCustomerAuth, cancelTicketBooking);
 router.post("/:id/release", releaseBookingHold);
 router.post("/:id/extend", extendBookingHold);
+router.post("/:id/validate-transition", validateBookingTransition);
 router.post("/:id/send-invoice", sendBookingInvoice);
 
 module.exports = router;

@@ -9,6 +9,10 @@ const {
 } = require("../../config/database");
 const { updateScreeningStatuses } = require("../screeningController");
 const { cleanupExpiredBookingHolds } = require("./bookingApiController");
+const {
+  evaluateScreeningBookability,
+  buildScreeningUnavailablePayload
+} = require("../screeningBookability");
 
 function toObjectIdSafe(value) {
   if (!value) return null;
@@ -97,6 +101,16 @@ function applyReservedSeatsToHallSnapshot(hallPayload, reservedSeats = []) {
   };
 }
 
+function buildScreeningUnavailableResponseBody(unavailablePayload = {}) {
+  return {
+    error: unavailablePayload.message || "This screening is no longer available for booking.",
+    message: unavailablePayload.message || "This screening is no longer available for booking.",
+    code: unavailablePayload.code || "SCREENING_UNAVAILABLE",
+    screeningUnavailable: unavailablePayload,
+    movieDetailsHash: unavailablePayload.movieDetailsHash || ""
+  };
+}
+
 async function getScreeningSeatPreview(req, res) {
   try {
     const { id } = req.params;
@@ -132,6 +146,20 @@ async function getScreeningSeatPreview(req, res) {
 
     if (!screening.hallSnapshot && !hall) {
       return res.status(404).json({ error: "Hall not found for screening" });
+    }
+
+    const evaluation = evaluateScreeningBookability({
+      screening,
+      hall,
+      now: new Date()
+    });
+    if (!evaluation.bookable) {
+      const unavailablePayload = buildScreeningUnavailablePayload({
+        screening,
+        hall,
+        evaluation
+      });
+      return res.status(409).json(buildScreeningUnavailableResponseBody(unavailablePayload));
     }
 
     const activeReservations = await collectionSeatReservation

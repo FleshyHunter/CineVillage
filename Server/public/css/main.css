@@ -80,8 +80,12 @@
 
 .sidebar-title {
   color: var(--text-main) !important;
-  margin-bottom: 4px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 20px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0;
+  margin-bottom: 4px;
   display: block;
   position: relative;
   z-index: 1;
@@ -316,6 +320,11 @@ a:hover {
   background-color: var(--bg-main) !important;
   color: var(--text-main) !important;
   border-color: #334155 !important;
+}
+
+.form-control::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
 }
 
 .form-control:focus {

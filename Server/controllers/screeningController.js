@@ -114,15 +114,27 @@ function resolveSeatStatusFromReservation(reservation, booking) {
     return 'available';
   }
 
-  if (bookingStatus === 'completed' || paymentStatus === 'paid') {
+  if (
+    bookingStatus === 'completed'
+    || bookingStatus === 'confirmed'
+    || bookingStatus === 'paused'
+    || paymentStatus === 'paid'
+    || paymentStatus === 'completed'
+  ) {
     return 'unavailable';
   }
 
-  if (bookingStatus === 'pending' || paymentStatus === 'unpaid') {
+  if (
+    bookingStatus === 'pending'
+    || bookingStatus === 'expired'
+    || bookingStatus === 'incomplete'
+    || paymentStatus === 'unpaid'
+    || paymentStatus === 'pending'
+  ) {
     return 'onHold';
   }
 
-  return booking ? 'available' : 'onHold';
+  return booking ? 'onHold' : 'available';
 }
 
 function buildSeatRowsForPreview(screening, hallPresentation, reservations, bookingsById) {
@@ -248,8 +260,207 @@ function isDraftStatus(status) {
   return (status || '').toString() === 'draft';
 }
 
+function normalizeDraftOrScheduledStatus(status, fallback = 'draft') {
+  const normalized = (status || '').toString().trim().toLowerCase();
+  if (normalized === 'draft' || normalized === 'scheduled') {
+    return normalized;
+  }
+  return fallback;
+}
+
 function isStructureLockedStatus(status) {
   return !isDraftStatus(status);
+}
+
+function normalizeBookingStatus(value) {
+  return (value || '').toString().trim().toLowerCase();
+}
+
+function normalizePaymentStatus(value) {
+  return (value || '').toString().trim().toLowerCase();
+}
+
+async function pausePaidBookingsForScreening(collectionBooking, screeningId, now = new Date()) {
+  const candidates = await collectionBooking
+    .find({
+      screeningId: toObjectIdSafe(screeningId),
+      status: { $nin: ['cancelled', 'paused', 'pending', 'expired'] },
+      paymentStatus: { $in: ['completed', 'paid'] }
+    })
+    .project({ _id: 1, status: 1 })
+    .toArray();
+
+  if (!candidates.length) return;
+
+  await collectionBooking.bulkWrite(
+    candidates.map((booking) => ({
+      updateOne: {
+        filter: { _id: booking._id },
+        update: {
+          $set: {
+            status: 'paused',
+            statusBeforePaused: normalizeBookingStatus(booking.status) || 'completed',
+            pausedAt: booking.pausedAt || now,
+            updated: now
+          }
+        }
+      }
+    })),
+    { ordered: false }
+  );
+}
+
+async function restorePausedBookingsForScreening(collectionBooking, screeningId, now = new Date()) {
+  const pausedBookings = await collectionBooking
+    .find({
+      screeningId: toObjectIdSafe(screeningId),
+      status: 'paused'
+    })
+    .project({ _id: 1, statusBeforePaused: 1, paymentStatus: 1 })
+    .toArray();
+
+  if (!pausedBookings.length) return;
+
+  const updates = pausedBookings
+    .filter((booking) => normalizePaymentStatus(booking.paymentStatus) !== 'unpaid')
+    .map((booking) => {
+      const fallbackStatus = normalizePaymentStatus(booking.paymentStatus) === 'paid'
+        || normalizePaymentStatus(booking.paymentStatus) === 'completed'
+        ? 'completed'
+        : 'confirmed';
+      const nextStatus = normalizeBookingStatus(booking.statusBeforePaused) || fallbackStatus;
+
+      return {
+        updateOne: {
+          filter: { _id: booking._id, status: 'paused' },
+          update: {
+            $set: {
+              status: nextStatus,
+              resumedAt: now,
+              updated: now
+            },
+            $unset: {
+              statusBeforePaused: '',
+              pausedAt: ''
+            }
+          }
+        }
+      };
+    });
+
+  if (!updates.length) return;
+  await collectionBooking.bulkWrite(updates, { ordered: false });
+}
+
+async function cancelPausedBookingsForScreening(collectionBooking, screeningId, now = new Date()) {
+  await collectionBooking.updateMany(
+    {
+      screeningId: toObjectIdSafe(screeningId),
+      status: 'paused'
+    },
+    {
+      $set: {
+        status: 'cancelled',
+        cancelledAt: now,
+        updated: now
+      },
+      $unset: {
+        statusBeforePaused: '',
+        pausedAt: ''
+      }
+    }
+  );
+}
+
+async function cancelPaidBookingsForScreening(collectionBooking, screeningId, now = new Date()) {
+  await collectionBooking.updateMany(
+    {
+      screeningId: toObjectIdSafe(screeningId),
+      status: { $nin: ['cancelled', 'pending', 'expired'] },
+      paymentStatus: { $in: ['completed', 'paid'] }
+    },
+    {
+      $set: {
+        status: 'cancelled',
+        cancelledAt: now,
+        updated: now
+      },
+      $unset: {
+        statusBeforePaused: '',
+        pausedAt: ''
+      }
+    }
+  );
+}
+
+async function invalidatePendingBookingsForScreening(
+  collectionBooking,
+  collectionSeatReservation,
+  screeningId
+) {
+  const pendingBookings = await collectionBooking
+    .find(
+      {
+        screeningId: toObjectIdSafe(screeningId),
+        status: { $in: ['pending', 'expired'] }
+      },
+      { projection: { _id: 1 } }
+    )
+    .toArray();
+
+  if (!pendingBookings.length) return;
+
+  const pendingBookingIds = pendingBookings.map((booking) => booking._id);
+  await Promise.all([
+    collectionSeatReservation.deleteMany({
+      bookingId: { $in: pendingBookingIds }
+    }),
+    collectionBooking.deleteMany({
+      _id: { $in: pendingBookingIds }
+    })
+  ]);
+}
+
+async function syncBookingsForScreeningAvailability({
+  collectionBooking,
+  collectionSeatReservation,
+  screeningId,
+  previousStatus,
+  nextStatus,
+  hall,
+  startTime,
+  endTime,
+  now
+}) {
+  const normalizedPrevious = normalizeBookingStatus(previousStatus);
+  const normalizedNext = normalizeBookingStatus(nextStatus);
+  const overlapsMaintenance = hall && doesScreeningOverlapMaintenance(hall, startTime, endTime);
+
+  if (normalizedNext === 'cancelled') {
+    await Promise.all([
+      cancelPaidBookingsForScreening(collectionBooking, screeningId, now),
+      cancelPausedBookingsForScreening(collectionBooking, screeningId, now)
+    ]);
+    await invalidatePendingBookingsForScreening(collectionBooking, collectionSeatReservation, screeningId);
+    return;
+  }
+
+  if (normalizedNext === 'paused' && overlapsMaintenance) {
+    await Promise.all([
+      pausePaidBookingsForScreening(collectionBooking, screeningId, now),
+      invalidatePendingBookingsForScreening(collectionBooking, collectionSeatReservation, screeningId)
+    ]);
+    return;
+  }
+
+  if (normalizedPrevious === 'paused' && ['scheduled', 'ongoing'].includes(normalizedNext) && !overlapsMaintenance) {
+    await restorePausedBookingsForScreening(collectionBooking, screeningId, now);
+    return;
+  }
+
+  if (!['scheduled', 'ongoing'].includes(normalizedNext)) {
+    await invalidatePendingBookingsForScreening(collectionBooking, collectionSeatReservation, screeningId);
+  }
 }
 
 function getScreeningHallPresentation(screening, liveHall = null) {
@@ -402,6 +613,11 @@ async function createScreening(screeningData) {
   await initDBIfNecessary();
   screeningData.created = new Date();
   const collectionHall = getCollectionHall();
+  const requestedStatus = (screeningData.status || '').toString().trim().toLowerCase();
+
+  if (requestedStatus && !['draft', 'scheduled'].includes(requestedStatus)) {
+    throw new Error("Only draft or scheduled status is allowed when creating a screening.");
+  }
 
   // Convert IDs to ObjectId
   if (screeningData.movieId) {
@@ -469,7 +685,9 @@ async function createScreening(screeningData) {
 
   // Initialize empty bookedSeats object
   screeningData.bookedSeats = {};
-  screeningData.status = 'draft';
+  screeningData.status = normalizeDraftOrScheduledStatus(screeningData.status, 'draft');
+  screeningData.isPublished = screeningData.status === 'scheduled';
+  screeningData.publishedAt = screeningData.status === 'scheduled' ? new Date() : null;
   
   // Remove temporary fields used for form input
   delete screeningData.date;
@@ -495,6 +713,8 @@ async function updateScreeningStatuses() {
   await initDBIfNecessary();
   const collectionScreening = getCollectionScreening();
   const collectionHall = getCollectionHall();
+  const collectionBooking = getCollectionBooking();
+  const collectionSeatReservation = getCollectionSeatReservation();
   
   const now = new Date();
   console.log('=== AUTO-UPDATING SCREENING STATUSES ===');
@@ -505,21 +725,38 @@ async function updateScreeningStatuses() {
   const hallMap = new Map(allHalls.map(h => [h._id.toString(), h]));
   
   for (let screening of allScreenings) {
-    let newStatus = screening.status;
+    const previousStatus = normalizeBookingStatus(screening.status);
+    let newStatus = previousStatus;
 
-    if (isDraftStatus(screening.status)) {
+    if (isDraftStatus(previousStatus)) {
       continue;
     }
-    
+
+    // Keep manually cancelled screenings cancelled.
+    if (previousStatus === 'cancelled') {
+      await syncBookingsForScreeningAvailability({
+        collectionBooking,
+        collectionSeatReservation,
+        screeningId: screening._id,
+        previousStatus,
+        nextStatus: 'cancelled',
+        hall: null,
+        startTime: screening.startDateTime ? new Date(screening.startDateTime) : null,
+        endTime: screening.endDateTime ? new Date(screening.endDateTime) : null,
+        now
+      });
+      continue;
+    }
+
     const startTime = new Date(screening.startDateTime);
     const endTime = new Date(screening.endDateTime);
     const hall = screening.hallId ? hallMap.get(screening.hallId.toString()) : null;
     
-    // Pause takes precedence if screening is inside hall maintenance window.
-    // Addition: once a paused screening's end time has passed, mark it as incomplete.
+    // If maintenance is still active by showtime, cancel the screening.
+    // Otherwise, keep it paused while waiting for maintenance to be lifted.
     if (hall && doesScreeningOverlapMaintenance(hall, startTime, endTime)) {
-      if (now >= endTime) {
-        newStatus = 'incomplete';
+      if (now >= startTime) {
+        newStatus = 'cancelled';
       } else {
         newStatus = 'paused';
       }
@@ -535,14 +772,26 @@ async function updateScreeningStatuses() {
     }
     
     // Update if status has changed
-    if (newStatus !== screening.status) {
-      console.log(`Updating screening ${screening._id}: ${screening.status} → ${newStatus}`);
+    if (newStatus !== previousStatus) {
+      console.log(`Updating screening ${screening._id}: ${previousStatus} → ${newStatus}`);
       console.log(`  Start: ${startTime.toISOString()}, End: ${endTime.toISOString()}`);
       await collectionScreening.updateOne(
         { _id: screening._id },
         { $set: { status: newStatus } }
       );
     }
+
+    await syncBookingsForScreeningAvailability({
+      collectionBooking,
+      collectionSeatReservation,
+      screeningId: screening._id,
+      previousStatus,
+      nextStatus: newStatus,
+      hall,
+      startTime,
+      endTime,
+      now
+    });
   }
   
   console.log('=== STATUS UPDATE COMPLETE ===');
@@ -771,6 +1020,13 @@ async function updateScreening(id, screeningData) {
 
   assertPublishedStructureNotChanged(existingScreening, screeningData);
 
+  const previousStatus = (existingScreening.status || '').toString().trim().toLowerCase();
+  const requestedStatus = (screeningData.status || '').toString().trim().toLowerCase();
+  if (requestedStatus && !['draft', 'scheduled'].includes(requestedStatus)) {
+    throw new Error("Only draft or scheduled status is allowed when editing a draft screening.");
+  }
+  const nextStatus = requestedStatus || previousStatus || 'draft';
+
   // Convert IDs to ObjectId
   if (screeningData.movieId) {
     screeningData.movieId = new ObjectId(screeningData.movieId);
@@ -818,22 +1074,7 @@ async function updateScreening(id, screeningData) {
   // Calculate end time with duration + buffer, rounded to 15-min
   screeningData.endDateTime = calculateEndTime(screeningData.startDateTime, movie.duration);
 
-  if (isDraftStatus(existingScreening.status)) {
-    screeningData.status = 'draft';
-  } else {
-    const now = new Date();
-    if (now < screeningData.startDateTime) {
-      screeningData.status = 'scheduled';
-    } else if (now >= screeningData.startDateTime && now < screeningData.endDateTime) {
-      screeningData.status = 'ongoing';
-    } else {
-      screeningData.status = 'completed';
-    }
-
-    if (doesScreeningOverlapMaintenance(hall, screeningData.startDateTime, screeningData.endDateTime)) {
-      screeningData.status = 'paused';
-    }
-  }
+  screeningData.status = nextStatus;
 
   // Hard-stop if hall maintenance overlaps the requested slot.
   const maintenanceWindow = getMaintenanceWindow(hall);
@@ -867,6 +1108,16 @@ async function updateScreening(id, screeningData) {
   // Remove temporary fields used for form input
   delete screeningData.date;
   delete screeningData.startTime;
+
+  const shouldPublish =
+    previousStatus === 'draft'
+    && nextStatus === 'scheduled'
+    && !existingScreening.isPublished;
+
+  if (shouldPublish) {
+    screeningData.isPublished = true;
+    screeningData.publishedAt = new Date();
+  }
 
   await collectionScreening.updateOne(
     { _id: new ObjectId(id) },
@@ -917,7 +1168,9 @@ async function launchScreening(id) {
     {
       $set: {
         status: 'scheduled',
-        launchedAt: new Date()
+        launchedAt: new Date(),
+        isPublished: true,
+        publishedAt: screening.publishedAt || new Date()
       }
     }
   );

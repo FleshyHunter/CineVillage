@@ -30,14 +30,26 @@ function normalizeContact(value) {
   return hasPlusPrefix ? `+${digitsOnly}` : digitsOnly;
 }
 
+function normalizeAge(value) {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed)) return null;
+  return parsed;
+}
+
 function serializeCustomer(customer) {
   if (!customer) return null;
+
+  const normalizedAge = normalizeAge(customer.age);
 
   return {
     id: customer._id?.toString(),
     name: normalizeText(customer.name),
     email: normalizeText(customer.email),
     contact: normalizeText(customer.contact),
+    age: Number.isInteger(normalizedAge) ? normalizedAge : null,
     profilePic: normalizeText(customer.profilePic) || "/images/cameraplaceholder.jpg",
     status: normalizeText(customer.status || "active")
   };
@@ -51,6 +63,7 @@ async function registerCustomer(req, res) {
     const email = normalizeEmail(req.body?.email);
     const contact = normalizeText(req.body?.contact);
     const contactNormalized = normalizeContact(contact);
+    const age = normalizeAge(req.body?.age);
     const password = normalizeText(req.body?.password);
 
     if (!name || !email || !contact || !password) {
@@ -69,6 +82,14 @@ async function registerCustomer(req, res) {
       return res.status(400).json({
         message: "Please enter a valid contact number."
       });
+    }
+
+    if (req.body?.age !== undefined && req.body?.age !== null && String(req.body?.age).trim() !== "") {
+      if (!Number.isInteger(age) || age < 0 || age > 120) {
+        return res.status(400).json({
+          message: "Please enter a valid age."
+        });
+      }
     }
 
     const collectionCustomer = getCollectionCustomer();
@@ -102,6 +123,7 @@ async function registerCustomer(req, res) {
       emailNormalized: email,
       contact,
       contactNormalized,
+      age: Number.isInteger(age) ? age : null,
       password: await bcrypt.hash(password, CUSTOMER_BCRYPT_ROUNDS),
       profilePic: "/images/cameraplaceholder.jpg",
       status: "active",
@@ -250,6 +272,7 @@ async function updateCurrentCustomer(req, res) {
     const email = normalizeEmail(req.body?.email);
     const contact = normalizeText(req.body?.contact);
     const contactNormalized = normalizeContact(contact);
+    const age = normalizeAge(req.body?.age);
     const changePassword = normalizeText(req.body?.changePassword);
     const confirmPassword = normalizeText(req.body?.confirmPassword);
 
@@ -269,6 +292,14 @@ async function updateCurrentCustomer(req, res) {
       return res.status(400).json({
         message: "Please enter a valid contact number."
       });
+    }
+
+    if (req.body?.age !== undefined && req.body?.age !== null && String(req.body?.age).trim() !== "") {
+      if (!Number.isInteger(age) || age < 0 || age > 120) {
+        return res.status(400).json({
+          message: "Please enter a valid age."
+        });
+      }
     }
 
     if (changePassword || confirmPassword) {
@@ -321,6 +352,7 @@ async function updateCurrentCustomer(req, res) {
       emailNormalized: email,
       contact,
       contactNormalized,
+      age: Number.isInteger(age) ? age : null,
       updatedAt: new Date()
     };
 

@@ -83,6 +83,11 @@ tr:hover {
   font-size: 14px;
 }
 
+.form-control::placeholder {
+  color: #cbd5e1;
+  opacity: 1;
+}
+
 .form-control:focus {
   outline: none;
   border-color: var(--accent);
@@ -211,7 +216,8 @@ textarea.form-control {
 }
 
 .search-input::placeholder {
-  color: var(--text-muted);
+  color: #cbd5e1;
+  opacity: 1;
 }
 
 .filter-dropdown {
@@ -778,6 +784,34 @@ select.filter-select option {
 
 .detail-info-actions-bottom .movie-detail-actions {
   margin-top: auto;
+}
+
+.movie-detail-actions.movie-detail-actions-grid-2x2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.movie-detail-actions.movie-detail-actions-grid-2x2 > .btn,
+.movie-detail-actions.movie-detail-actions-grid-2x2 > form {
+  width: 100%;
+  min-height: 52px;
+}
+
+.movie-detail-actions.movie-detail-actions-grid-2x2 > form {
+  display: flex;
+}
+
+.movie-detail-actions.movie-detail-actions-grid-2x2 .btn {
+  flex: unset;
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 768px) {
+  .movie-detail-actions.movie-detail-actions-grid-2x2 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .detail-cover-img {

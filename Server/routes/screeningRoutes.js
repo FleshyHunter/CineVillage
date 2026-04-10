@@ -43,6 +43,34 @@ function sanitizeReturnTo(returnTo) {
   return returnTo;
 }
 
+function normalizeLower(value) {
+  return (value || "").toString().trim().toLowerCase();
+}
+
+function resolveSeatCountFromBooking(booking) {
+  const seatCount = Number.parseInt(booking?.seatCount, 10);
+  if (Number.isInteger(seatCount) && seatCount > 0) return seatCount;
+  if (Array.isArray(booking?.seats)) return booking.seats.length;
+  return 0;
+}
+
+function isCountedCapacityBooking(booking) {
+  const status = normalizeLower(booking?.status);
+  const paymentStatus = normalizeLower(booking?.paymentStatus);
+
+  if (["cancelled", "pending", "expired", "incomplete"].includes(status)) {
+    return false;
+  }
+
+  return (
+    status === "completed"
+    || status === "confirmed"
+    || status === "paused"
+    || paymentStatus === "paid"
+    || paymentStatus === "completed"
+  );
+}
+
 // View by Hall schedule (individual hall)
 router.get("/hall/:hallId", requireRoles(["Admin", "Manager"]), getHallSchedulePage);
 
@@ -263,6 +291,7 @@ router.get("/view/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req,
   // Populate movie and hall details
   const collectionMovie = getCollectionMovie();
   const collectionHall = getCollectionHall();
+  const collectionBooking = getCollectionBooking();
 
   if (screening.movieId) {
     screening.movieId = await collectionMovie.findOne({ _id: new ObjectId(screening.movieId) });
@@ -271,6 +300,38 @@ router.get("/view/:id", requireRoles(["Admin", "Manager", "Staff"]), async (req,
     const liveHall = await collectionHall.findOne({ _id: new ObjectId(screening.hallId) });
     screening.hallId = buildRouteHallPresentation(screening, liveHall);
   }
+
+  const bookingRows = await collectionBooking.find(
+    { screeningId: screening._id },
+    {
+      projection: {
+        seatCount: 1,
+        seats: 1,
+        status: 1,
+        paymentStatus: 1
+      }
+    }
+  ).toArray();
+
+  const bookedSeats = bookingRows.reduce((sum, booking) => {
+    if (!isCountedCapacityBooking(booking)) return sum;
+    return sum + resolveSeatCountFromBooking(booking);
+  }, 0);
+
+  const totalCapacity = Number.parseInt(
+    screening?.hallSnapshot?.capacity
+    ?? screening?.hallId?.capacity,
+    10
+  ) || 0;
+  const bookedSeatsClamped = totalCapacity > 0
+    ? Math.min(Math.max(bookedSeats, 0), totalCapacity)
+    : Math.max(bookedSeats, 0);
+
+  screening.capacityBooked = bookedSeatsClamped;
+  screening.capacityTotal = totalCapacity;
+  screening.capacityLabel = totalCapacity > 0
+    ? `${bookedSeatsClamped} / ${totalCapacity}`
+    : `${bookedSeatsClamped} / -`;
 
   // Extract date and time from startDateTime using local timezone
   if (screening.startDateTime) {

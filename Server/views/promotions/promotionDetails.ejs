@@ -46,11 +46,6 @@
         </div>
 
         <div class="detail-item">
-          <span class="detail-label">PRIORITY / STACKABLE</span>
-          <span class="detail-value"><%= `${Number.parseInt(promotion.priority, 10) || 0} / ${promotion.stackable ? 'YES' : 'NO'}` %></span>
-        </div>
-
-        <div class="detail-item">
           <span class="detail-label">USAGE LIMIT</span>
           <span class="detail-value"><%= promotion.usageLimit || promotion?.validity?.usageLimit || 'N/A' %></span>
         </div>

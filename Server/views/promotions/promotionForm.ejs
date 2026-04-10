@@ -2,6 +2,7 @@
 
 <%
   const currentPromotion = promotion || {};
+  const safeBundleItemCatalog = Array.isArray(bundleItemCatalog) ? bundleItemCatalog : [];
 
   function toDateInput(value) {
     if (!value) return '';
@@ -34,6 +35,15 @@
         }
       : null);
 
+  const initialBundleConfig = currentPromotion.bundleConfig && typeof currentPromotion.bundleConfig === 'object'
+    ? currentPromotion.bundleConfig
+    : (initialBenefit
+      && String(initialBenefit.type || '').toUpperCase() === 'BUNDLE_PRICE'
+      && initialBenefit.bundleConfig
+      && typeof initialBenefit.bundleConfig === 'object'
+      ? initialBenefit.bundleConfig
+      : { groups: [] });
+
   const initialValidity = currentPromotion.validity && typeof currentPromotion.validity === 'object'
     ? currentPromotion.validity
     : {
@@ -41,10 +51,6 @@
         endDate: toDateInput(currentPromotion.promotionEndDate),
         usageLimit: currentPromotion.usageLimit || ''
       };
-
-  const initialPriority = Number.parseInt(currentPromotion.priority, 10);
-  const safePriority = Number.isInteger(initialPriority) ? initialPriority : 0;
-  const isStackable = Boolean(currentPromotion.stackable);
 %>
 
 <div class="container">
@@ -61,6 +67,7 @@
       <input type="hidden" name="returnTo" value="<%= returnTo || '/promotions' %>">
       <input type="hidden" id="conditionsJson" name="conditionsJson" value="">
       <input type="hidden" id="benefitJson" name="benefitJson" value="">
+      <input type="hidden" id="bundleConfigJson" name="bundleConfigJson" value="">
 
       <div class="movie-detail-poster">
         <label for="picture" style="cursor: pointer; display: block;">
@@ -164,6 +171,19 @@
           <p class="form-help-text">Benefit is stored as: <code>{ type, target, value }</code></p>
         </div>
 
+        <div class="form-group" id="bundleConfigSection" style="margin-top: 18px; display: none;">
+          <div class="label-row">
+            <label class="form-label">Bundle Configuration (for Bundle Price)</label>
+          </div>
+          <div id="bundleGroupRows" style="display: flex; flex-direction: column; gap: 10px;"></div>
+          <button type="button" id="addBundleGroupBtn" class="btn btn-secondary" style="margin-top: 10px;">
+            <i class="bi bi-plus-circle"></i> Add Bundle Group
+          </button>
+          <p class="form-help-text" style="margin-top: 8px;">
+            Each group: name, type (<code>fixed</code> or <code>selectable</code>), append items from dropdown, quantity.
+          </p>
+        </div>
+
         <div class="form-group" style="margin-top: 18px;">
           <label class="form-label">Validity</label>
           <div class="form-row">
@@ -175,6 +195,7 @@
                 name="promotionStartDate"
                 class="form-control"
                 value="<%= toDateInput(initialValidity.startDate) %>"
+                required
               >
             </div>
             <div class="form-group">
@@ -185,6 +206,7 @@
                 name="promotionEndDate"
                 class="form-control"
                 value="<%= toDateInput(initialValidity.endDate) %>"
+                required
               >
             </div>
             <div class="form-group">
@@ -199,29 +221,6 @@
                 value="<%= initialValidity.usageLimit || '' %>"
                 placeholder="No limit"
               >
-            </div>
-          </div>
-        </div>
-
-        <div class="form-group" style="margin-top: 18px;">
-          <label class="form-label">Priority & Stackability</label>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="priority" class="form-label">Priority</label>
-              <input
-                type="number"
-                id="priority"
-                name="priority"
-                class="form-control"
-                step="1"
-                value="<%= safePriority %>"
-              >
-            </div>
-            <div class="form-group" style="display: flex; align-items: flex-end;">
-              <label style="display: inline-flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <input type="checkbox" id="stackable" name="stackable" <%= isStackable ? 'checked' : '' %>>
-                <span>Stackable with other promotions</span>
-              </label>
             </div>
           </div>
         </div>
@@ -308,7 +307,6 @@
         { value: "senior", label: "senior" }
       ],
       HALL_TYPE: [
-        { value: "all", label: "all" },
         { value: "standard", label: "standard" },
         { value: "imax", label: "imax" },
         { value: "vip", label: "vip" }
@@ -355,6 +353,8 @@
 
     const initialConditions = <%- JSON.stringify(initialConditions || []).replace(/</g, "\\u003c") %>;
     const initialBenefit = <%- JSON.stringify(initialBenefit || null).replace(/</g, "\\u003c") %>;
+    const initialBundleConfig = <%- JSON.stringify(initialBundleConfig || { groups: [] }).replace(/</g, "\\u003c") %>;
+    const bundleItemCatalog = <%- JSON.stringify(safeBundleItemCatalog || []).replace(/</g, "\\u003c") %>;
 
     const pictureInput = document.getElementById("picture");
     const pictureUrlInput = document.getElementById("pictureUrl");
@@ -365,6 +365,7 @@
     const endDateInput = document.getElementById("promotionEndDate");
     const conditionsJsonInput = document.getElementById("conditionsJson");
     const benefitJsonInput = document.getElementById("benefitJson");
+    const bundleConfigJsonInput = document.getElementById("bundleConfigJson");
     const conditionRows = document.getElementById("conditionRows");
     const addConditionBtn = document.getElementById("addConditionBtn");
     const benefitTypeInput = document.getElementById("benefitType");
@@ -372,9 +373,20 @@
     const benefitTargetGroup = document.getElementById("benefitTargetGroup");
     const benefitValueInput = document.getElementById("benefitValue");
     const benefitValueGroup = document.getElementById("benefitValueGroup");
+    const bundleConfigSection = document.getElementById("bundleConfigSection");
+    const bundleGroupRows = document.getElementById("bundleGroupRows");
+    const addBundleGroupBtn = document.getElementById("addBundleGroupBtn");
     const runPreviewBtn = document.getElementById("runPreviewBtn");
     const previewResult = document.getElementById("previewResult");
     const fallbackPoster = "/images/cameraplaceholder.jpg";
+    const safeBundleCatalog = Array.isArray(bundleItemCatalog) ? bundleItemCatalog : [];
+    const bundleItemOptions = safeBundleCatalog
+      .map((item) => ({
+        value: (item?.value || "").toString().trim(),
+        label: (item?.label || "").toString().trim()
+      }))
+      .filter((item) => item.value && item.label);
+    const bundleItemLabelByValue = new Map(bundleItemOptions.map((item) => [item.value, item.label]));
 
     function setPreview(src) {
       if (!placeholderImg) return;
@@ -442,7 +454,7 @@
 
       const typeSelect = document.createElement("select");
       typeSelect.className = "form-control condition-type";
-      createSelectOptions(typeSelect, CONDITION_OPTIONS, (initial.type || "HALL_TYPE").toString().toUpperCase());
+      createSelectOptions(typeSelect, CONDITION_OPTIONS, (initial.type || "USER_ROLE").toString().toUpperCase());
       typeGroup.appendChild(typeSelect);
 
       const valueGroup = document.createElement("div");
@@ -498,6 +510,237 @@
       return conditions;
     }
 
+    function addBundleGroupRow(initial = {}) {
+      if (!bundleGroupRows) return;
+
+      const row = document.createElement("div");
+      row.className = "form-row bundle-group-row";
+      row.style.alignItems = "center";
+
+      const nameGroup = document.createElement("div");
+      nameGroup.className = "form-group";
+      const nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.className = "form-control bundle-group-name";
+      nameInput.placeholder = "Group name (e.g. Drinks)";
+      nameInput.value = String(initial.name || "");
+      nameGroup.appendChild(nameInput);
+
+      const typeGroup = document.createElement("div");
+      typeGroup.className = "form-group";
+      const typeSelect = document.createElement("select");
+      typeSelect.className = "form-control bundle-group-type";
+      createSelectOptions(typeSelect, [
+        { value: "fixed", label: "fixed" },
+        { value: "selectable", label: "selectable" }
+      ], String(initial.type || "fixed").toLowerCase());
+      typeGroup.appendChild(typeSelect);
+
+      const itemsGroup = document.createElement("div");
+      itemsGroup.className = "form-group";
+      itemsGroup.style.display = "grid";
+      itemsGroup.style.gap = "8px";
+
+      const itemPickerRow = document.createElement("div");
+      itemPickerRow.style.display = "flex";
+      itemPickerRow.style.gap = "8px";
+
+      const itemSelect = document.createElement("select");
+      itemSelect.className = "form-control bundle-group-item-select";
+      itemSelect.style.flex = "1";
+      createSelectOptions(
+        itemSelect,
+        [{ value: "", label: "Select item" }, ...bundleItemOptions],
+        ""
+      );
+
+      const appendItemBtn = document.createElement("button");
+      appendItemBtn.type = "button";
+      appendItemBtn.className = "btn btn-secondary";
+      appendItemBtn.textContent = "Append";
+      appendItemBtn.style.whiteSpace = "nowrap";
+
+      itemPickerRow.appendChild(itemSelect);
+      itemPickerRow.appendChild(appendItemBtn);
+      itemsGroup.appendChild(itemPickerRow);
+
+      const selectedItemsWrap = document.createElement("div");
+      selectedItemsWrap.className = "bundle-group-items-selected";
+      selectedItemsWrap.style.display = "flex";
+      selectedItemsWrap.style.flexWrap = "wrap";
+      selectedItemsWrap.style.gap = "6px";
+      itemsGroup.appendChild(selectedItemsWrap);
+
+      const itemsJsonInput = document.createElement("input");
+      itemsJsonInput.type = "hidden";
+      itemsJsonInput.className = "bundle-group-items-json";
+      itemsGroup.appendChild(itemsJsonInput);
+
+      const quantityGroup = document.createElement("div");
+      quantityGroup.className = "form-group";
+      const quantityInput = document.createElement("input");
+      quantityInput.type = "number";
+      quantityInput.min = "1";
+      quantityInput.step = "1";
+      quantityInput.className = "form-control bundle-group-quantity";
+      quantityInput.value = Number.isInteger(Number(initial.quantity)) && Number(initial.quantity) >= 1
+        ? String(Number(initial.quantity))
+        : "1";
+      quantityGroup.appendChild(quantityInput);
+
+      const actionGroup = document.createElement("div");
+      actionGroup.className = "form-group";
+      actionGroup.style.display = "flex";
+      actionGroup.style.justifyContent = "flex-end";
+      actionGroup.style.alignItems = "flex-end";
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "btn btn-danger";
+      removeBtn.textContent = "Remove";
+      removeBtn.addEventListener("click", () => row.remove());
+      actionGroup.appendChild(removeBtn);
+
+      row.appendChild(nameGroup);
+      row.appendChild(typeGroup);
+      row.appendChild(itemsGroup);
+      row.appendChild(quantityGroup);
+      row.appendChild(actionGroup);
+      bundleGroupRows.appendChild(row);
+
+      function normalizeItemsList(value) {
+        if (!Array.isArray(value)) return [];
+        return value
+          .map((item) => String(item || "").trim())
+          .filter(Boolean);
+      }
+
+      function readRowItems() {
+        const raw = (itemsJsonInput.value || "").trim();
+        if (!raw) return [];
+        try {
+          const parsed = JSON.parse(raw);
+          return normalizeItemsList(parsed);
+        } catch (_error) {
+          return [];
+        }
+      }
+
+      function renderRowItems() {
+        const items = readRowItems();
+        selectedItemsWrap.innerHTML = "";
+
+        if (items.length === 0) {
+          const emptyTag = document.createElement("span");
+          emptyTag.style.opacity = "0.75";
+          emptyTag.style.fontSize = "0.85rem";
+          emptyTag.textContent = "No items selected";
+          selectedItemsWrap.appendChild(emptyTag);
+          return;
+        }
+
+        items.forEach((value) => {
+          const chip = document.createElement("span");
+          chip.style.display = "inline-flex";
+          chip.style.alignItems = "center";
+          chip.style.gap = "6px";
+          chip.style.padding = "4px 8px";
+          chip.style.borderRadius = "999px";
+          chip.style.border = "1px solid rgba(148, 163, 184, 0.45)";
+          chip.style.background = "rgba(15, 23, 42, 0.45)";
+          chip.style.fontSize = "0.8rem";
+          chip.textContent = bundleItemLabelByValue.get(value) || value;
+
+          const removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.className = "btn btn-danger";
+          removeBtn.textContent = "x";
+          removeBtn.style.padding = "0 6px";
+          removeBtn.style.lineHeight = "1.1";
+          removeBtn.addEventListener("click", () => {
+            const next = readRowItems().filter((item) => item !== value);
+            itemsJsonInput.value = JSON.stringify(next);
+            renderRowItems();
+          });
+
+          chip.appendChild(removeBtn);
+          selectedItemsWrap.appendChild(chip);
+        });
+      }
+
+      appendItemBtn.addEventListener("click", () => {
+        const selectedValue = (itemSelect.value || "").trim();
+        if (!selectedValue) return;
+
+        const current = readRowItems();
+        if (!current.includes(selectedValue)) {
+          current.push(selectedValue);
+          itemsJsonInput.value = JSON.stringify(current);
+          renderRowItems();
+        }
+      });
+
+      const initialItems = Array.isArray(initial.items) ? initial.items : [];
+      itemsJsonInput.value = JSON.stringify(normalizeItemsList(initialItems));
+      renderRowItems();
+    }
+
+    function getBundleConfigPayload() {
+      if (!bundleGroupRows) return { groups: [] };
+
+      const rows = Array.from(bundleGroupRows.querySelectorAll(".bundle-group-row"));
+      const groups = [];
+
+      rows.forEach((row) => {
+        const name = (row.querySelector(".bundle-group-name")?.value || "").trim();
+        const type = (row.querySelector(".bundle-group-type")?.value || "fixed").toLowerCase();
+        const quantityRaw = Number(row.querySelector(".bundle-group-quantity")?.value || 1);
+        const quantity = Number.isInteger(quantityRaw) && quantityRaw >= 1 ? quantityRaw : 1;
+        const itemsRawJson = (row.querySelector(".bundle-group-items-json")?.value || "").trim();
+        let items = [];
+
+        if (itemsRawJson) {
+          try {
+            const parsed = JSON.parse(itemsRawJson);
+            items = Array.isArray(parsed)
+              ? parsed.map((item) => String(item || "").trim()).filter(Boolean)
+              : [];
+          } catch (_error) {
+            items = [];
+          }
+        }
+
+        if (!name && items.length === 0) return;
+
+        groups.push({
+          name,
+          type: type === "selectable" ? "selectable" : "fixed",
+          items,
+          quantity
+        });
+      });
+
+      return { groups };
+    }
+
+    function renderBundleConfigFields() {
+      const type = (benefitTypeInput?.value || "").toString().trim().toUpperCase();
+      const isBundlePrice = type === "BUNDLE_PRICE";
+
+      if (bundleConfigSection) {
+        bundleConfigSection.style.display = isBundlePrice ? "" : "none";
+      }
+
+      if (!isBundlePrice || !bundleGroupRows) return;
+      if (bundleGroupRows.children.length > 0) return;
+
+      const initialGroups = Array.isArray(initialBundleConfig?.groups) ? initialBundleConfig.groups : [];
+      if (initialGroups.length > 0) {
+        initialGroups.forEach((group) => addBundleGroupRow(group));
+      } else {
+        addBundleGroupRow({ name: "", type: "fixed", items: [], quantity: 1 });
+      }
+    }
+
     function renderBenefitFields() {
       const type = (benefitTypeInput?.value || "").toString().trim().toUpperCase();
       const targets = BENEFIT_TARGETS[type] || [];
@@ -517,6 +760,7 @@
       const selectedTarget = targets.some((item) => item.value === currentTarget) ? currentTarget : fallbackTarget;
       createSelectOptions(benefitTargetInput, targets, selectedTarget);
       benefitTargetInput.dataset.currentValue = selectedTarget;
+      renderBundleConfigFields();
     }
 
     function getBenefitPayload() {
@@ -538,8 +782,7 @@
         return scenario.userRole === String(value || "").toLowerCase();
       }
       if (type === "HALL_TYPE") {
-        return String(value || "").toLowerCase() === "all"
-          || scenario.hallType === String(value || "").toLowerCase();
+        return scenario.hallType === String(value || "").toLowerCase();
       }
       if (type === "MINIMUM_SPEND") {
         return scenario.total >= Number(value || 0);
@@ -614,12 +857,18 @@
     if (Array.isArray(initialConditions) && initialConditions.length > 0) {
       initialConditions.forEach((condition) => addConditionRow(condition));
     } else {
-      addConditionRow({ type: "HALL_TYPE", value: "all" });
+      addConditionRow({ type: "USER_ROLE", value: "member" });
     }
 
     if (addConditionBtn) {
       addConditionBtn.addEventListener("click", () => {
-        addConditionRow({ type: "HALL_TYPE", value: "all" });
+        addConditionRow({ type: "USER_ROLE", value: "member" });
+      });
+    }
+
+    if (addBundleGroupBtn) {
+      addBundleGroupBtn.addEventListener("click", () => {
+        addBundleGroupRow({ name: "", type: "fixed", items: [], quantity: 1 });
       });
     }
 
@@ -681,12 +930,44 @@
           return;
         }
 
+        const isBundlePrice = (benefit.type || "") === "BUNDLE_PRICE";
+        const bundleConfig = isBundlePrice ? getBundleConfigPayload() : { groups: [] };
+        if (isBundlePrice) {
+          const groups = Array.isArray(bundleConfig.groups) ? bundleConfig.groups : [];
+          if (groups.length === 0) {
+            event.preventDefault();
+            alert("Bundle Price requires at least one bundle group.");
+            return;
+          }
+
+          const invalidGroup = groups.find((group) => {
+            if (!group || typeof group !== "object") return true;
+            if (!(group.name || "").trim()) return true;
+            if (!Array.isArray(group.items) || group.items.length === 0) return true;
+            if (!Number.isInteger(group.quantity) || group.quantity < 1) return true;
+            return !(group.type === "fixed" || group.type === "selectable");
+          });
+          if (invalidGroup) {
+            event.preventDefault();
+            alert("Each bundle group must have name, type, at least one item, and quantity >= 1.");
+            return;
+          }
+        }
+
         const conditions = getConditionsPayload();
+        if (!conditions.length) {
+          event.preventDefault();
+          alert("Please add at least one valid condition.");
+          return;
+        }
         if (conditionsJsonInput) {
           conditionsJsonInput.value = JSON.stringify(conditions);
         }
         if (benefitJsonInput) {
           benefitJsonInput.value = JSON.stringify(benefit);
+        }
+        if (bundleConfigJsonInput) {
+          bundleConfigJsonInput.value = JSON.stringify(bundleConfig);
         }
 
         startDateInput?.setCustomValidity("");

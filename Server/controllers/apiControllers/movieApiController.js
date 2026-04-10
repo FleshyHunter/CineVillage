@@ -7,6 +7,7 @@ const {
   getCollectionScreening
 } = require("../../config/database");
 const { updateScreeningStatuses } = require("../screeningController");
+const { evaluateScreeningBookability } = require("../screeningBookability");
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
@@ -252,33 +253,52 @@ async function buildMovieShowtimes(movieId) {
     status: { $in: ["scheduled", "ongoing", "paused"] }
   }).sort({ startDateTime: 1 }).toArray();
 
-  if (!screenings.length) return [];
-
   const hallIds = [...new Set(screenings.map((screening) => screening.hallId.toString()))];
   const halls = await collectionHall.find({
     _id: { $in: hallIds.map((id) => new ObjectId(id)) }
+  }).project({
+    name: 1,
+    type: 1,
+    status: 1,
+    maintenanceStartDate: 1,
+    maintenanceEndDate: 1
   }).toArray();
 
   const hallMap = new Map(
     halls.map((hall) => [
       hall._id.toString(),
-      {
-        name: hall.name || "Unknown Hall",
-        type: hall.type || "Standard"
-      }
+      hall
     ])
   );
 
+  const visibleScreenings = screenings.filter((screening) => {
+    const hall = hallMap.get((screening.hallId || "").toString()) || null;
+    const evaluation = evaluateScreeningBookability({
+      screening,
+      hall,
+      now
+    });
+    return evaluation.bookable;
+  });
+  if (!visibleScreenings.length) return [];
+
   const groupedByDate = new Map();
 
-  screenings.forEach((screening) => {
+  visibleScreenings.forEach((screening) => {
     const dateParts = formatApiDateParts(screening.startDateTime, now);
     const hallInfo = screening.hallSnapshot
       ? {
           name: screening.hallSnapshot.hallName || "Unknown Hall",
           type: screening.hallSnapshot.hallType || "Standard"
         }
-      : (hallMap.get(screening.hallId.toString()) || {
+      : ((() => {
+          const hall = hallMap.get(screening.hallId.toString());
+          if (!hall) return null;
+          return {
+            name: hall.name || "Unknown Hall",
+            type: hall.type || "Standard"
+          };
+        })() || {
           name: "Unknown Hall",
           type: "Standard"
         });

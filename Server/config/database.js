@@ -129,7 +129,7 @@ function getBookingValidator() {
                     minimum: 0
                 },
                 status: {
-                    enum: ["pending", "confirmed", "completed", "cancelled", "expired"]
+                    enum: ["pending", "confirmed", "completed", "paused", "cancelled", "expired"]
                 },
                 paymentStatus: {
                     enum: ["unpaid", "paid", "completed", "refunded"]

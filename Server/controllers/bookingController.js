@@ -36,7 +36,7 @@ async function getAllBookingsPage(req, res) {
 
   const bookings = await collectionBooking
     .find({
-      status: { $in: ["completed", "cancelled"] },
+      status: { $in: ["completed", "cancelled", "paused"] },
       paymentStatus: { $in: ["completed", "paid"] }
     })
     .sort({ bookedAt: -1, createdAt: -1, created: -1 })
