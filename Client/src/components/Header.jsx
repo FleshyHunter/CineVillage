@@ -10,9 +10,19 @@ function getInitials(name) {
 }
 
 export default function Header({ menuOpen, setMenuOpen }) {
-  const { user, isAuthenticated } = useAccount();
+  const { user, isAuthenticated, logoutCustomer } = useAccount();
   const displayName = (user?.name || "Guest").toString().trim() || "Guest";
   const initials = getInitials(displayName);
+
+  function handleAuthAction() {
+    if (!isAuthenticated) {
+      window.location.hash = "#login";
+      return;
+    }
+
+    void logoutCustomer();
+    window.location.hash = "#login";
+  }
 
   return (
     <header className="page-header">
@@ -39,6 +49,14 @@ export default function Header({ menuOpen, setMenuOpen }) {
           <span className="header-account-text">
             <strong>{displayName}</strong>
           </span>
+        </button>
+
+        <button
+          className="header-auth-btn"
+          type="button"
+          onClick={handleAuthAction}
+        >
+          {isAuthenticated ? "Logout" : "Login"}
         </button>
       </div>
     </header>

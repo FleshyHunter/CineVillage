@@ -7,6 +7,18 @@ import "./Profile.css";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function parseAge(value) {
+  const parsed = Number.parseInt((value || "").toString().trim(), 10);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+function resolveCategoryLabel(ageValue) {
+  const age = parseAge(ageValue);
+  if (age !== null && age <= 25) return "Student";
+  if (age !== null && age >= 55) return "Senior";
+  return "Adult";
+}
+
 export default function Profile() {
   const { user, updateCustomerProfile, updateCustomerPhoto } = useAccount();
   const [mode, setMode] = useState("view");
@@ -14,6 +26,7 @@ export default function Profile() {
     name: (user?.name || "").toString(),
     email: (user?.email || "").toString(),
     contact: (user?.contact || "").toString(),
+    age: user?.age === null || user?.age === undefined ? "" : String(user.age),
     changePassword: "",
     confirmPassword: ""
   });
@@ -30,17 +43,21 @@ export default function Profile() {
       ...previous,
       name: (user?.name || "").toString(),
       email: (user?.email || "").toString(),
-      contact: (user?.contact || "").toString()
+      contact: (user?.contact || "").toString(),
+      age: user?.age === null || user?.age === undefined ? "" : String(user.age)
     }));
-  }, [user?.contact, user?.email, user?.name]);
+  }, [user?.contact, user?.email, user?.name, user?.age]);
 
   const isFormChanged = useMemo(() => {
     return form.name !== (user?.name || "")
       || form.email !== (user?.email || "")
       || form.contact !== (user?.contact || "")
+      || form.age !== (user?.age === null || user?.age === undefined ? "" : String(user.age))
       || form.changePassword.length > 0
       || form.confirmPassword.length > 0;
-  }, [form, user?.contact, user?.email, user?.name]);
+  }, [form, user?.contact, user?.email, user?.name, user?.age]);
+
+  const categoryLabel = useMemo(() => resolveCategoryLabel(form.age), [form.age]);
 
   function handleChange(field, value) {
     setForm((previous) => ({
@@ -59,12 +76,19 @@ export default function Profile() {
     const name = form.name.trim();
     const email = form.email.trim();
     const contact = form.contact.trim();
+    const ageText = form.age.trim();
+    const age = parseAge(ageText);
     const changePassword = form.changePassword.trim();
     const confirmPassword = form.confirmPassword.trim();
 
     if (!name) nextErrors.name = "Name is required.";
     if (!email || !EMAIL_PATTERN.test(email)) nextErrors.email = "Valid email is required.";
     if (!contact) nextErrors.contact = "Contact number is required.";
+    if (ageText) {
+      if (age === null || age < 0 || age > 120) {
+        nextErrors.age = "Enter a valid age.";
+      }
+    }
     if (changePassword || confirmPassword) {
       if (!changePassword || !confirmPassword) {
         nextErrors.confirmPassword = "Please fill both password fields.";
@@ -87,6 +111,7 @@ export default function Profile() {
       name: (user?.name || "").toString(),
       email: (user?.email || "").toString(),
       contact: (user?.contact || "").toString(),
+      age: user?.age === null || user?.age === undefined ? "" : String(user.age),
       changePassword: "",
       confirmPassword: ""
     });
@@ -100,6 +125,7 @@ export default function Profile() {
       name: (user?.name || "").toString(),
       email: (user?.email || "").toString(),
       contact: (user?.contact || "").toString(),
+      age: user?.age === null || user?.age === undefined ? "" : String(user.age),
       changePassword: "",
       confirmPassword: ""
     });
@@ -117,6 +143,7 @@ export default function Profile() {
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         contact: form.contact.trim(),
+        age: form.age.trim(),
         changePassword: form.changePassword.trim(),
         confirmPassword: form.confirmPassword.trim()
       });
@@ -218,6 +245,29 @@ export default function Profile() {
             readOnly={!isEditMode}
           />
           {errors.contact ? <small>{errors.contact}</small> : null}
+        </label>
+
+        <label className="edit-profile-field">
+          <span>Age</span>
+          <input
+            type="number"
+            min="0"
+            max="120"
+            value={form.age}
+            onChange={(event) => handleChange("age", event.target.value)}
+            placeholder="Enter age"
+            readOnly={!isEditMode}
+          />
+          {errors.age ? <small>{errors.age}</small> : null}
+        </label>
+
+        <label className="edit-profile-field">
+          <span>Category</span>
+          <input
+            type="text"
+            value={categoryLabel}
+            readOnly
+          />
         </label>
 
         {isEditMode ? (

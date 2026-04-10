@@ -15,15 +15,58 @@
   margin: 0;
 }
 
+.my-tickets-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
 .my-tickets-filters {
+  flex: 1 1 auto;
+  min-width: 0;
   gap: 15px;
+}
+
+.my-tickets-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.my-tickets-right-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.my-tickets-sort-row label {
+  color: #dbeafe;
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.my-tickets-sort-row select {
+  min-width: 240px;
+  height: 38px;
+  border: 1px solid rgba(96, 165, 250, 0.36);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #e2e8f0;
+  padding: 0 10px;
 }
 
 .my-tickets-table-wrap {
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 16px;
   background: rgba(15, 23, 42, 0.82);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .my-tickets-table {
@@ -66,6 +109,11 @@
   color: #fcd34d;
 }
 
+.my-ticket-status-paused {
+  background: rgba(147, 51, 234, 0.22);
+  color: #d8b4fe;
+}
+
 .my-ticket-status-cancelled {
   background: rgba(239, 68, 68, 0.2);
   color: #fca5a5;
@@ -81,12 +129,73 @@
   color: #fecaca;
 }
 
+.my-tickets-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.my-tickets-pagination-label {
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
+.my-tickets-pagination-btn {
+  min-width: 72px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(96, 165, 250, 0.36);
+  background: rgba(15, 23, 42, 0.82);
+  color: #dbeafe;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+.my-tickets-pagination-btn:hover:not(:disabled) {
+  border-color: rgba(59, 130, 246, 0.75);
+  color: #ffffff;
+}
+
+.my-tickets-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
-  .my-tickets-table-wrap {
-    overflow-x: auto;
+  .my-tickets-controls {
+    align-items: stretch;
+  }
+
+  .my-tickets-filters {
+    flex: 1 1 100%;
+  }
+
+  .my-tickets-sort-row {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .my-tickets-right-controls {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .my-tickets-sort-row select {
+    width: 100%;
+    min-width: 0;
   }
 
   .my-tickets-table {
     min-width: 760px;
+  }
+
+  .my-tickets-pagination {
+    justify-content: space-between;
+    flex-wrap: wrap;
   }
 }

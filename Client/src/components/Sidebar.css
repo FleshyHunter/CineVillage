@@ -107,8 +107,7 @@
   margin-bottom: 14px;
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 12px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  background: rgba(2, 6, 23, 0.18);
   color: var(--text-main);
   text-align: left;
 }
@@ -126,10 +125,16 @@
 }
 
 .sidebar-title {
-  font-family: "Rajdhani", sans-serif;
-  font-size: 1.65rem;
-  line-height: 1;
-  letter-spacing: 0.04em;
+  color: var(--text-main) !important;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0;
+  margin-bottom: 4px;
+  display: block;
+  position: relative;
+  z-index: 1;
 }
 
 .sidebar-subtitle {

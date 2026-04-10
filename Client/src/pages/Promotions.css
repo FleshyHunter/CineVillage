@@ -258,7 +258,7 @@
 
 .promotions-code-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -283,6 +283,20 @@
   font-size: 0.86rem;
 }
 
+.promotions-applied-row {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.promotions-applied-row p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #dbeafe;
+}
+
 .promotions-list {
   min-height: 160px;
   display: grid;
@@ -295,6 +309,25 @@
   width: 108px;
   display: grid;
   gap: 6px;
+}
+
+.promotions-card-clickable {
+  cursor: pointer;
+}
+
+.promotions-card-clickable img {
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.promotions-card-clickable:hover img,
+.promotions-card-clickable:focus-visible img {
+  border-color: rgba(96, 165, 250, 0.78);
+  transform: translateY(-1px);
+}
+
+.promotions-card-selected img {
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.36);
 }
 
 .promotions-card img {
@@ -311,16 +344,100 @@
   line-height: 1.25;
 }
 
-.promotions-card a {
-  color: #93c5fd;
-  font-size: 0.8rem;
+.promotions-card-selected-label {
+  margin: 0;
+  font-size: 0.74rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #93c5fd;
+}
+
+.promotions-card-hint {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 0.75rem;
+  line-height: 1.2;
 }
 
 .promotions-empty {
   margin: 0;
   color: #94a3b8;
   font-size: 0.92rem;
+}
+
+.promotions-empty-error {
+  color: #fca5a5;
+}
+
+.promotions-detail-block {
+  display: grid;
+  gap: 14px;
+}
+
+.promotions-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.promotions-detail-head h2 {
+  margin: 0;
+}
+
+.promotions-detail-card {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
+  gap: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.promotions-detail-media img {
+  width: 100%;
+  height: 100%;
+  min-height: 210px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  object-fit: cover;
+}
+
+.promotions-detail-content {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.promotions-detail-content h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.promotions-detail-actions {
+  margin-top: 4px;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.promotions-detail-description {
+  margin: 0;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+.promotions-detail-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.promotions-detail-meta p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #e2e8f0;
 }
 
 .promotions-summary-header {
@@ -864,6 +981,14 @@
 }
 
 @media (max-width: 900px) {
+  .promotions-detail-card {
+    grid-template-columns: 1fr;
+  }
+
+  .promotions-detail-media img {
+    min-height: 180px;
+  }
+
   .promotions-payment-details-panel .promotions-payment-form-grid {
     grid-template-columns: 1fr;
   }
@@ -878,6 +1003,16 @@
 }
 
 @media (max-width: 760px) {
+  .promotions-applied-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .promotions-detail-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .promotions-actions {
     grid-template-columns: 1fr;
   }

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelTicketBooking,
   fetchCurrentCustomerAccount,
@@ -18,6 +18,7 @@ const defaultUser = {
   name: "Guest",
   email: "",
   contact: "",
+  age: null,
   profilePic: "/images/cameraplaceholder.jpg"
 };
 
@@ -30,6 +31,7 @@ function normalizeText(value) {
 function normalizeStatus(value) {
   const normalized = normalizeText(value).toLowerCase();
   if (normalized === "cancelled") return "cancelled";
+  if (normalized === "paused") return "paused";
   if (normalized === "completed") return "completed";
   if (normalized === "incomplete") return "incomplete";
   if (normalized === "scheduled") return "scheduled";
@@ -45,12 +47,14 @@ function normalizeHallType(value) {
 
 function normalizeUser(raw) {
   if (!raw || typeof raw !== "object") return defaultUser;
+  const normalizedAge = Number.parseInt(raw.age, 10);
 
   return {
     id: normalizeText(raw.id || raw._id),
     name: normalizeText(raw.name) || "Guest",
     email: normalizeText(raw.email).toLowerCase(),
     contact: normalizeText(raw.contact),
+    age: Number.isInteger(normalizedAge) ? normalizedAge : null,
     profilePic: normalizeText(raw.profilePic) || "/images/cameraplaceholder.jpg"
   };
 }
@@ -90,6 +94,11 @@ function normalizeBooking(raw) {
   };
 }
 
+function buildBookingsFingerprint(items = []) {
+  if (!Array.isArray(items) || items.length === 0) return "[]";
+  return JSON.stringify(items);
+}
+
 function readStoredUser() {
   try {
     const raw = window.localStorage.getItem(ACCOUNT_USER_STORAGE_KEY);
@@ -125,38 +134,58 @@ export function AccountProvider({ children }) {
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState("");
   const [isAuthHydrating, setIsAuthHydrating] = useState(true);
+  const bookingsFingerprintRef = useRef("[]");
   const isAuthenticated = Boolean(normalizeText(user?.id) && normalizeText(user?.email));
 
+  const applyBookingsIfChanged = useCallback((nextBookings = []) => {
+    const normalizedList = Array.isArray(nextBookings) ? nextBookings : [];
+    const nextFingerprint = buildBookingsFingerprint(normalizedList);
+    if (nextFingerprint === bookingsFingerprintRef.current) {
+      return false;
+    }
+
+    bookingsFingerprintRef.current = nextFingerprint;
+    setBookings(normalizedList);
+    return true;
+  }, []);
+
   const refreshBookings = useCallback(async (options = {}) => {
-    setIsLoadingBookings(true);
-    setBookingsError("");
+    const silent = Boolean(options?.silent);
+    if (!silent) {
+      setIsLoadingBookings(true);
+      setBookingsError("");
+    }
 
     try {
       const requestedEmail = normalizeText(options?.email || "").toLowerCase();
       const activeEmail = requestedEmail || (isAuthenticated ? normalizeText(user?.email).toLowerCase() : "");
       if (!activeEmail) {
-        setBookings([]);
+        bookingsFingerprintRef.current = "[]";
+        setBookings((previous) => (previous.length ? [] : previous));
         return [];
       }
 
       const items = await fetchTicketBookings();
       const normalized = items.map(normalizeBooking).filter(Boolean);
-      setBookings(normalized);
+      applyBookingsIfChanged(normalized);
       return normalized;
     } catch (error) {
       if (Number(error?.status) === 401) {
         setUser(defaultUser);
         clearStoredUser();
-        setBookings([]);
+        bookingsFingerprintRef.current = "[]";
+        setBookings((previous) => (previous.length ? [] : previous));
         setBookingsError("");
         return [];
       }
       setBookingsError(error?.message || "Failed to load bookings.");
       return [];
     } finally {
-      setIsLoadingBookings(false);
+      if (!silent) {
+        setIsLoadingBookings(false);
+      }
     }
-  }, [isAuthenticated, user?.email]);
+  }, [applyBookingsIfChanged, isAuthenticated, user?.email]);
 
   useEffect(() => {
     let isActive = true;
@@ -174,13 +203,14 @@ export function AccountProvider({ children }) {
         const items = await fetchTicketBookings();
         if (!isActive) return;
         const normalizedBookings = items.map(normalizeBooking).filter(Boolean);
-        setBookings(normalizedBookings);
+        applyBookingsIfChanged(normalizedBookings);
         setBookingsError("");
       } catch (_error) {
         if (!isActive) return;
         setUser(defaultUser);
         clearStoredUser();
-        setBookings([]);
+        bookingsFingerprintRef.current = "[]";
+        setBookings((previous) => (previous.length ? [] : previous));
         setBookingsError("");
       } finally {
         if (isActive) setIsAuthHydrating(false);
@@ -196,7 +226,8 @@ export function AccountProvider({ children }) {
   useEffect(() => {
     if (isAuthHydrating) return;
     if (!isAuthenticated) {
-      setBookings([]);
+      bookingsFingerprintRef.current = "[]";
+      setBookings((previous) => (previous.length ? [] : previous));
       setBookingsError("");
       return;
     }
@@ -211,6 +242,7 @@ export function AccountProvider({ children }) {
         name: normalizeText(patch.name ?? previous.name) || previous.name,
         email: normalizeText(patch.email ?? previous.email) || previous.email,
         contact: normalizeText(patch.contact ?? previous.contact) || previous.contact,
+        age: patch.age ?? previous.age,
         profilePic: normalizeText(patch.profilePic ?? previous.profilePic) || previous.profilePic
       });
       saveStoredUser(next);
@@ -256,7 +288,8 @@ export function AccountProvider({ children }) {
     }
     setUser(defaultUser);
     clearStoredUser();
-    setBookings([]);
+    bookingsFingerprintRef.current = "[]";
+    setBookings((previous) => (previous.length ? [] : previous));
     setBookingsError("");
   }, []);
 
@@ -279,10 +312,12 @@ export function AccountProvider({ children }) {
 
     setBookings((previous) => {
       const exists = previous.some((booking) => booking.id === normalized.id);
-      if (exists) {
-        return previous.map((booking) => booking.id === normalized.id ? normalized : booking);
-      }
-      return [normalized, ...previous];
+      const nextBookings = exists
+        ? previous.map((booking) => booking.id === normalized.id ? normalized : booking)
+        : [normalized, ...previous];
+
+      bookingsFingerprintRef.current = buildBookingsFingerprint(nextBookings);
+      return nextBookings;
     });
 
     return normalized;
@@ -292,24 +327,28 @@ export function AccountProvider({ children }) {
     const id = normalizeText(bookingId);
     if (!id) return null;
 
-    setBookings((previous) =>
-      previous.map((booking) =>
+    setBookings((previous) => {
+      const nextBookings = previous.map((booking) =>
         booking.id === id
           ? { ...booking, status: "cancelled" }
           : booking
-      )
-    );
+      );
+      bookingsFingerprintRef.current = buildBookingsFingerprint(nextBookings);
+      return nextBookings;
+    });
 
     try {
       const updated = await cancelTicketBooking(id);
       const normalized = normalizeBooking(updated);
       if (!normalized) return null;
 
-      setBookings((previous) =>
-        previous.map((booking) =>
+      setBookings((previous) => {
+        const nextBookings = previous.map((booking) =>
           booking.id === id ? normalized : booking
-        )
-      );
+        );
+        bookingsFingerprintRef.current = buildBookingsFingerprint(nextBookings);
+        return nextBookings;
+      });
 
       return normalized;
     } catch (error) {

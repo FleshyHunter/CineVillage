@@ -23,6 +23,14 @@ import {
 import SeatSelectionButton from "../components/SeatSelectionButton";
 import "./SeatSelection.css";
 
+const SCREENING_UNAVAILABLE_CODES = new Set([
+  "SCREENING_UNAVAILABLE",
+  "SCREENING_NOT_FOUND",
+  "SCREENING_STATUS_UNAVAILABLE",
+  "HALL_UNDER_MAINTENANCE",
+  "SCREENING_PURCHASE_WINDOW_CLOSED"
+]);
+
 function formatScreeningDate(dateValue) {
   if (!dateValue) return "N/A";
 
@@ -166,6 +174,45 @@ function getSeatTooltipAnchor(target) {
   };
 }
 
+function resolveUnavailablePayload(error) {
+  if (!error || typeof error !== "object") return null;
+
+  const payload = error?.payload || error?.details || null;
+  if (!payload || typeof payload !== "object") return null;
+
+  const screeningUnavailable = payload?.screeningUnavailable;
+  if (screeningUnavailable && typeof screeningUnavailable === "object") {
+    return screeningUnavailable;
+  }
+
+  return payload;
+}
+
+function isScreeningUnavailableError(error) {
+  if (!error || typeof error !== "object") return false;
+  const payload = resolveUnavailablePayload(error);
+  const code = (
+    payload?.code
+    || error?.code
+    || ""
+  ).toString().trim().toUpperCase();
+
+  if (SCREENING_UNAVAILABLE_CODES.has(code)) return true;
+  if (error?.status === 409 && payload?.screeningId) return true;
+  if (error?.status === 409 && payload?.movieId) return true;
+
+  return false;
+}
+
+function resolveUnavailableMovieId(error, fallbackMovieId = "") {
+  const payload = resolveUnavailablePayload(error);
+  return (
+    payload?.movieId
+    || fallbackMovieId
+    || ""
+  ).toString().trim();
+}
+
 const checkoutSteps = [
   { label: "Seats", icon: "seat", active: true },
   { label: "Promos", icon: "bi bi-ticket-detailed" },
@@ -192,12 +239,80 @@ export default function SeatSelection({ screeningId = "" }) {
   const [warningVisible, setWarningVisible] = useState(false);
   const [expiredVisible, setExpiredVisible] = useState(false);
   const [isExtending, setIsExtending] = useState(false);
+  const [bookingUnavailableVisible, setBookingUnavailableVisible] = useState(false);
+  const [bookingUnavailableMovieId, setBookingUnavailableMovieId] = useState("");
   const [seatTooltip, setSeatTooltip] = useState({
     visible: false,
     label: "",
     left: 0,
     top: 0
   });
+
+  function handleBookingUnavailable(error, fallbackMovieId = "") {
+    const movieId = resolveUnavailableMovieId(
+      error,
+      fallbackMovieId || activeSession?.movieId || movie?._id || preview?.movie?._id || ""
+    );
+
+    if (activeSession?.bookingId) {
+      releaseBookingHold(activeSession.bookingId).catch(() => null);
+    }
+
+    clearBookingPipelineSession();
+    setBookingSession(null);
+    setWarningVisible(false);
+    setExpiredVisible(false);
+    setSelectionNotice("");
+    setBookingError("");
+    setBookingMessage("");
+    setPendingWheelchairSeat(null);
+    setBookingUnavailableMovieId(movieId);
+    setBookingUnavailableVisible(true);
+  }
+
+  function handleUnavailableConfirmBack() {
+    const movieId = (
+      bookingUnavailableMovieId
+      || activeSession?.movieId
+      || movie?._id
+      || preview?.movie?._id
+      || ""
+    ).toString().trim();
+
+    setBookingUnavailableVisible(false);
+    clearBookingPipelineSession();
+    setBookingSession(null);
+
+    if (movieId) {
+      window.location.hash = `#movie-details/${movieId}`;
+      return;
+    }
+
+    window.location.hash = "#movies";
+  }
+
+  function renderBookingUnavailableModal() {
+    if (!bookingUnavailableVisible) return null;
+
+    return (
+      <div className="seat-selection-modal-backdrop" role="presentation">
+        <div className="seat-selection-modal" role="dialog" aria-modal="true" aria-labelledby="bookingUnavailableTitle">
+          <h3 id="bookingUnavailableTitle">Booking Unavailable</h3>
+          <p>Booking is currently no longer available.</p>
+          <div className="seat-selection-modal-actions">
+            <SeatSelectionButton
+              variant="primary"
+              size="sm"
+              className="seat-selection-modal-btn"
+              onClick={handleUnavailableConfirmBack}
+            >
+              Back
+            </SeatSelectionButton>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (!screeningId) {
@@ -227,6 +342,13 @@ export default function SeatSelection({ screeningId = "" }) {
         }
       } catch (loadError) {
         if (!isActive) return;
+        if (isScreeningUnavailableError(loadError)) {
+          handleBookingUnavailable(loadError);
+          setError("");
+          setPreview(null);
+          setMovie(null);
+          return;
+        }
         setError(loadError.message || "Failed to load seat selection");
         setPreview(null);
         setMovie(null);
@@ -333,9 +455,12 @@ export default function SeatSelection({ screeningId = "" }) {
 
   if (error || !preview) {
     return (
-      <section className="seat-selection-status seat-selection-status-error">
-        <p>{error || "Seat selection is unavailable."}</p>
-      </section>
+      <>
+        <section className="seat-selection-status seat-selection-status-error">
+          <p>{error || "Seat selection is unavailable."}</p>
+        </section>
+        {renderBookingUnavailableModal()}
+      </>
     );
   }
 
@@ -446,6 +571,8 @@ export default function SeatSelection({ screeningId = "" }) {
         bookingId: booking._id,
         screeningId: nextScreeningId,
         movieId: bookingMovieId,
+        hallName: (booking?.hallName || preview?.hall?.name || "").toString(),
+        hallPictureUrl: (booking?.hallPictureUrl || preview?.hall?.pictureUrl || "").toString(),
         stage: "promotions",
         lowTimePrompted: Boolean(activeSession.lowTimePrompted),
         expiresAt: bookingExpiresAt,
@@ -462,6 +589,11 @@ export default function SeatSelection({ screeningId = "" }) {
       window.location.hash = `#promotions/${nextScreeningId}`;
       return;
     } catch (confirmError) {
+      if (isScreeningUnavailableError(confirmError)) {
+        handleBookingUnavailable(confirmError, movie?._id || preview.movie?._id || "");
+        return;
+      }
+
       const conflictedSeats = Array.isArray(confirmError?.conflictedSeats)
         ? confirmError.conflictedSeats
         : [];
@@ -551,6 +683,10 @@ export default function SeatSelection({ screeningId = "" }) {
 
       setWarningVisible(false);
     } catch (_error) {
+      if (isScreeningUnavailableError(_error)) {
+        handleBookingUnavailable(_error);
+        return;
+      }
       setBookingError("Unable to extend reservation at the moment.");
     } finally {
       setIsExtending(false);
@@ -936,6 +1072,8 @@ export default function SeatSelection({ screeningId = "" }) {
           </div>
         </div>
       ) : null}
+
+      {renderBookingUnavailableModal()}
     </section>
   );
 }

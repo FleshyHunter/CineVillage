@@ -50,6 +50,53 @@ function normalizeAddOnType(value) {
   return ADD_ON_TYPE_ALA_CARTE;
 }
 
+function normalizePromoConditions(conditions = []) {
+  if (!Array.isArray(conditions)) return [];
+
+  return conditions
+    .map((condition) => {
+      if (!condition || typeof condition !== "object") return null;
+
+      const type = normalizeText(condition.type).toUpperCase();
+      if (!type) return null;
+
+      const rawValue = condition.value;
+      if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+        return { type, value: rawValue };
+      }
+
+      const textValue = normalizeText(rawValue).toLowerCase();
+      if (!textValue) return null;
+      return { type, value: textValue };
+    })
+    .filter(Boolean);
+}
+
+function normalizePromoBenefit(benefit) {
+  if (!benefit || typeof benefit !== "object") return null;
+
+  const type = normalizeText(benefit.type).toUpperCase();
+  const target = normalizeText(benefit.target).toLowerCase();
+  const value = normalizeNonNegativeNumber(benefit.value, NaN);
+
+  if (!type) return null;
+
+  return {
+    type,
+    target: target || "cart",
+    value: Number.isFinite(value) ? value : 0
+  };
+}
+
+function normalizePromoValidity(validity, fallback = {}) {
+  const source = (validity && typeof validity === "object") ? validity : {};
+  return {
+    startDate: normalizeText(source.startDate || fallback.promotionStartDate),
+    endDate: normalizeText(source.endDate || fallback.promotionEndDate),
+    usageLimit: normalizeNonNegativeNumber(source.usageLimit ?? fallback.usageLimit, 0)
+  };
+}
+
 function normalizePromo(promo) {
   if (!promo || typeof promo !== "object") return null;
 
@@ -59,8 +106,15 @@ function normalizePromo(promo) {
   const discountType = normalizeText(promo.discountType || promo.type).toLowerCase() || "";
   const discountValue = normalizeNonNegativeNumber(promo.discountValue, 0);
   const discountAmount = normalizeNonNegativeNumber(promo.discountAmount, 0);
+  const conditions = normalizePromoConditions(promo.conditions);
+  const benefit = normalizePromoBenefit(promo.benefit);
+  const validity = normalizePromoValidity(promo.validity, promo);
+  const promotionType = normalizeText(promo.type).toLowerCase();
+  const bundleConfig = promo.bundleConfig && typeof promo.bundleConfig === "object"
+    ? promo.bundleConfig
+    : null;
 
-  if (!id && !name && !code && discountValue <= 0 && discountAmount <= 0) {
+  if (!id && !name && !code && !benefit && discountValue <= 0 && discountAmount <= 0) {
     return null;
   }
 
@@ -68,6 +122,12 @@ function normalizePromo(promo) {
     id: id || "",
     name: name || "",
     code: code || "",
+    type: promotionType || "",
+    conditions,
+    benefit,
+    bundleConfig,
+    validity,
+    isActive: Boolean(promo.isActive),
     discountType,
     discountValue,
     discountAmount
@@ -177,6 +237,8 @@ function normalizeBookingPipelineSession(input = {}) {
     bookingId: normalizeText(input.bookingId),
     screeningId,
     movieId: normalizeText(input.movieId),
+    hallName: normalizeText(input.hallName),
+    hallPictureUrl: normalizeText(input.hallPictureUrl),
     stage: normalizeText(input.stage) || "seat-selection",
     lowTimePrompted: Boolean(input.lowTimePrompted),
     expiresAt,
@@ -221,6 +283,8 @@ export function createStageOneBookingSession({ screeningId, movieId = "" }) {
     bookingId: "",
     screeningId: (screeningId || "").toString().trim(),
     movieId: (movieId || "").toString().trim(),
+    hallName: "",
+    hallPictureUrl: "",
     stage: "seat-selection",
     lowTimePrompted: false,
     expiresAt: new Date(now + BOOKING_TIMER_INITIAL_MS).toISOString(),

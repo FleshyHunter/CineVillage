@@ -72,11 +72,12 @@ function readClientViewFromHash() {
   }
 
   if (hash.startsWith("promotions")) {
-    const [, screeningId = ""] = hash.split("/");
+    const [, screeningId = "", detailsSegment = "", promotionId = ""] = hash.split("/");
     return {
       page: "promotions",
       movieId: "",
-      screeningId
+      screeningId,
+      promotionId: detailsSegment === "details" ? promotionId : ""
     };
   }
 
@@ -215,6 +216,9 @@ export default function App() {
     if (!view || !view.page) return "#";
     if (view.page === "movie-details") return `#movie-details/${view.movieId || ""}`;
     if (view.page === "seat-selection") return `#seat-selection/${view.screeningId || ""}`;
+    if (view.page === "promotions" && view.promotionId) {
+      return `#promotions/${view.screeningId || ""}/details/${view.promotionId}`;
+    }
     if (view.page === "promotions") return `#promotions/${view.screeningId || ""}`;
     if (view.page === "addons") return `#addons/${view.screeningId || ""}`;
     if (view.page === "payment") return `#payment/${view.screeningId || ""}`;
@@ -405,7 +409,7 @@ export default function App() {
           {clientView.page === "seat-selection" ? (
             <SeatSelection screeningId={clientView.screeningId} />
           ) : clientView.page === "promotions" ? (
-            <Promotions screeningId={clientView.screeningId} />
+            <Promotions screeningId={clientView.screeningId} promotionId={clientView.promotionId || ""} />
           ) : clientView.page === "addons" ? (
             <AddOns screeningId={clientView.screeningId} />
           ) : clientView.page === "payment" ? (

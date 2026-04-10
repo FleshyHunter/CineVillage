@@ -1,6 +1,6 @@
 import BookingFlowStage from "./BookingFlowStage";
 import "./Promotions.css";
 
-export default function Promotions({ screeningId = "" }) {
-  return <BookingFlowStage screeningId={screeningId} flowStage="promotions" />;
+export default function Promotions({ screeningId = "", promotionId = "" }) {
+  return <BookingFlowStage screeningId={screeningId} flowStage="promotions" promotionId={promotionId} />;
 }

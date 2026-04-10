@@ -2,13 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import AddOnCard from "../components/AddOnCard";
 import CardRail from "../components/CardRail";
 import SeatSelectionButton from "../components/SeatSelectionButton";
+import { useAccount } from "../context/AccountContext";
 import {
   extendBookingHold,
   fetchAddOns,
   fetchMovieById,
+  fetchPromotionById,
   fetchPromotions,
   fetchScreeningSeatPreview,
   releaseBookingHold,
+  validateBookingTransition,
   sendBookingInvoice,
   resolveMoviePictureUrl
 } from "../services/api";
@@ -50,8 +53,66 @@ const PROMOTION_TYPE_IMAX = "imax";
 const PROMOTION_TYPE_STANDARD = "standard";
 const PAYMENT_METHOD_VISA_MASTERCARD = "visa_mastercard";
 const PAYMENT_METHOD_AMEX = "amex";
+const CONTACT_COUNTRY_CODES = ["+65", "+60", "+62", "+44", "+1"];
+const PROMOTION_CONDITION_USER_ROLE = "USER_ROLE";
+const PROMOTION_CONDITION_HALL_TYPE = "HALL_TYPE";
+const PROMOTION_CONDITION_MINIMUM_SPEND = "MINIMUM_SPEND";
+const PROMOTION_CONDITION_DAY_OF_WEEK = "DAY_OF_WEEK";
+const PROMOTION_CONDITION_PAYMENT_METHOD = "PAYMENT_METHOD";
+const PROMOTION_BENEFIT_DISCOUNT = "DISCOUNT";
+const PROMOTION_BENEFIT_CREDIT = "CREDIT";
+const PROMOTION_BENEFIT_FIXED_PRICE = "FIXED_PRICE";
+const PROMOTION_BENEFIT_BUNDLE_PRICE = "BUNDLE_PRICE";
+const PROMOTION_BENEFIT_CART_CAP = "CART_CAP";
+const PROMOTION_BENEFIT_SET_FINAL_PRICE = "SET_FINAL_PRICE";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SCREENING_UNAVAILABLE_CODES = new Set([
+  "SCREENING_UNAVAILABLE",
+  "SCREENING_NOT_FOUND",
+  "SCREENING_STATUS_UNAVAILABLE",
+  "HALL_UNDER_MAINTENANCE",
+  "SCREENING_PURCHASE_WINDOW_CLOSED"
+]);
+
+function resolveUnavailablePayload(error) {
+  if (!error || typeof error !== "object") return null;
+
+  const payload = error?.payload || error?.details || null;
+  if (!payload || typeof payload !== "object") return null;
+
+  const screeningUnavailable = payload?.screeningUnavailable;
+  if (screeningUnavailable && typeof screeningUnavailable === "object") {
+    return screeningUnavailable;
+  }
+
+  return payload;
+}
+
+function isScreeningUnavailableError(error) {
+  if (!error || typeof error !== "object") return false;
+  const payload = resolveUnavailablePayload(error);
+  const code = (
+    payload?.code
+    || error?.code
+    || ""
+  ).toString().trim().toUpperCase();
+
+  if (SCREENING_UNAVAILABLE_CODES.has(code)) return true;
+  if (error?.status === 409 && payload?.screeningId) return true;
+  if (error?.status === 409 && payload?.movieId) return true;
+
+  return false;
+}
+
+function resolveUnavailableMovieId(error, fallbackMovieId = "") {
+  const payload = resolveUnavailablePayload(error);
+  return (
+    payload?.movieId
+    || fallbackMovieId
+    || ""
+  ).toString().trim();
+}
 
 function formatScreeningDate(dateValue) {
   if (!dateValue) return "N/A";
@@ -63,6 +124,18 @@ function formatScreeningDate(dateValue) {
     weekday: "short",
     day: "2-digit",
     month: "short"
+  });
+}
+
+function formatDisplayDate(dateValue) {
+  if (!dateValue) return "N/A";
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return "N/A";
+
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
   });
 }
 
@@ -125,6 +198,21 @@ function normalizeHallTypeForPromotion(value) {
   if (normalized.includes("vip")) return PROMOTION_TYPE_VIP;
   if (normalized.includes("imax")) return PROMOTION_TYPE_IMAX;
   return PROMOTION_TYPE_STANDARD;
+}
+
+function normalizePromotionUserRole(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  if (!normalized) return "";
+  if (["student", "adult", "senior", "guest"].includes(normalized)) return normalized;
+  return normalized;
+}
+
+function derivePromotionUserRoleFromAge(ageValue) {
+  const age = Number.parseInt(ageValue, 10);
+  if (!Number.isInteger(age)) return "adult";
+  if (age <= 25) return "student";
+  if (age >= 55) return "senior";
+  return "adult";
 }
 
 function normalizePhoneDigits(value) {
@@ -275,24 +363,443 @@ function normalizeSessionAddOns(addons = []) {
     .filter(Boolean);
 }
 
-function resolvePromoDiscountAmount(promo, totalBeforeDiscount) {
-  if (!promo || typeof promo !== "object") return 0;
-  if (totalBeforeDiscount <= 0) return 0;
+function formatIsoDateOnly(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
 
-  const explicitAmount = Number(promo.discountAmount);
-  if (Number.isFinite(explicitAmount) && explicitAmount > 0) {
-    return Math.min(explicitAmount, totalBeforeDiscount);
+function normalizePromotionConditions(conditions = []) {
+  if (!Array.isArray(conditions)) return [];
+
+  return conditions
+    .map((condition) => {
+      if (!condition || typeof condition !== "object") return null;
+      const type = (condition.type || "").toString().trim().toUpperCase();
+      if (!type) return null;
+
+      const rawValue = condition.value;
+      const value = typeof rawValue === "number"
+        ? rawValue
+        : (rawValue || "").toString().trim().toLowerCase();
+
+      if (value === "" || (typeof value === "number" && !Number.isFinite(value))) return null;
+      return { type, value };
+    })
+    .filter(Boolean);
+}
+
+function normalizeBenefitType(value) {
+  const normalized = (value || "")
+    .toString()
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+
+  if (normalized === PROMOTION_BENEFIT_DISCOUNT) return PROMOTION_BENEFIT_DISCOUNT;
+  if (normalized === PROMOTION_BENEFIT_CREDIT) return PROMOTION_BENEFIT_CREDIT;
+  if (normalized === PROMOTION_BENEFIT_FIXED_PRICE) return PROMOTION_BENEFIT_FIXED_PRICE;
+  if (normalized === PROMOTION_BENEFIT_BUNDLE_PRICE) return PROMOTION_BENEFIT_BUNDLE_PRICE;
+  if (normalized === PROMOTION_BENEFIT_CART_CAP) return PROMOTION_BENEFIT_CART_CAP;
+  if (normalized === PROMOTION_BENEFIT_SET_FINAL_PRICE) return PROMOTION_BENEFIT_SET_FINAL_PRICE;
+  return "";
+}
+
+function normalizeBenefitTarget(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  if (!normalized) return "cart";
+  if (normalized === "ticket" || normalized === "tickets") return "tickets";
+  if (normalized === "addon" || normalized === "addons" || normalized === "add-ons" || normalized === "add ons") return "addons";
+  return "cart";
+}
+
+function normalizeNonNegativeNumberLoose(value) {
+  const direct = Number(value);
+  if (Number.isFinite(direct) && direct >= 0) return direct;
+
+  const raw = (value || "").toString().trim();
+  if (!raw) return 0;
+  const parsed = Number.parseFloat(raw.replace(/[^\d.]+/g, ""));
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return parsed;
+}
+
+function normalizePromotionBenefit(benefit, promoFallback = {}) {
+  const safeFallback = promoFallback && typeof promoFallback === "object"
+    ? promoFallback
+    : {};
+
+  if (benefit && typeof benefit === "object") {
+    const type = normalizeBenefitType(benefit.type);
+    if (type) {
+      return {
+        type,
+        target: normalizeBenefitTarget(benefit.target),
+        value: normalizeNonNegativeNumberLoose(benefit.value)
+      };
+    }
   }
 
-  const value = Number(promo.discountValue ?? promo.value ?? promo.amount);
+  const fallbackAmount = Number(safeFallback.discountAmount);
+  if (Number.isFinite(fallbackAmount) && fallbackAmount > 0) {
+    return {
+      type: PROMOTION_BENEFIT_DISCOUNT,
+      target: "cart",
+      value: fallbackAmount
+    };
+  }
+
+  const fallbackValue = Number(
+    safeFallback.discountValue
+    ?? safeFallback.value
+    ?? safeFallback.amount
+  );
+  if (Number.isFinite(fallbackValue) && fallbackValue > 0) {
+    return {
+      type: PROMOTION_BENEFIT_DISCOUNT,
+      target: "cart",
+      value: fallbackValue
+    };
+  }
+
+  return null;
+}
+
+function normalizePromotionForSession(promotion = {}) {
+  const id = (promotion._id || promotion.id || "").toString().trim();
+  const name = (promotion.name || "").toString().trim();
+  const code = (promotion.code || "").toString().trim();
+  if (!id && !name && !code) return null;
+
+  const benefit = normalizePromotionBenefit(promotion.benefit, promotion);
+
+  return {
+    id: id || name || code,
+    name: name || "Promotion",
+    code,
+    type: normalizePromotionType(promotion.type),
+    description: (promotion.description || "").toString().trim(),
+    pictureUrl: (promotion.pictureUrl || "").toString().trim(),
+    conditions: normalizePromotionConditions(promotion.conditions),
+    benefit,
+    bundleConfig: promotion.bundleConfig && typeof promotion.bundleConfig === "object"
+      ? promotion.bundleConfig
+      : null,
+    validity: {
+      startDate: (promotion?.validity?.startDate || promotion?.promotionStartDate || "").toString().trim(),
+      endDate: (promotion?.validity?.endDate || promotion?.promotionEndDate || "").toString().trim(),
+      usageLimit: Number(promotion?.validity?.usageLimit ?? promotion?.usageLimit) || 0
+    },
+    isActive: Boolean(promotion.isActive),
+    discountType: (promotion.discountType || "").toString().trim().toLowerCase(),
+    discountValue: Number(promotion.discountValue ?? promotion.value ?? promotion.amount) || 0,
+    discountAmount: Number(promotion.discountAmount) || 0
+  };
+}
+
+function getPromotionReferenceId(promotion = {}) {
+  return (
+    promotion?.id
+    || promotion?._id
+    || promotion?.code
+    || promotion?.name
+    || ""
+  ).toString().trim();
+}
+
+function resolvePromotionTargetSubtotal(target, amounts) {
+  if (target === "tickets") return Math.max(Number(amounts.seatsAmount) || 0, 0);
+  if (target === "addons") return Math.max(Number(amounts.addOnsAmount) || 0, 0);
+  return Math.max(Number(amounts.subtotalBeforeDiscount) || 0, 0);
+}
+
+function normalizeBundleItemToken(value) {
+  return (value || "").toString().trim().toLowerCase();
+}
+
+function normalizeBundleItemLabel(value) {
+  return normalizeBundleItemToken(value).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function resolveBundleCappedSubtotalForSingleSet(bundleConfig, context = {}) {
+  const groups = Array.isArray(bundleConfig?.groups) ? bundleConfig.groups : [];
+  if (!groups.length) return null;
+
+  const hallType = normalizeHallTypeForPromotion(context.hallType);
+  const ticketPrice = Math.max(Number(context.ticketPrice) || 0, 0);
+  const seatQty = Math.max(Number.parseInt(context.seatQty, 10) || 0, 0);
+  const addOnItems = Array.isArray(context.addOnItems) ? context.addOnItems : [];
+
+  const remainingTicket = { qty: seatQty };
+  const addOnStock = new Map();
+  addOnItems.forEach((item) => {
+    const id = (item?.id || "").toString().trim().toLowerCase();
+    const qty = Math.max(Number.parseInt(item?.qty, 10) || 0, 0);
+    const price = Math.max(Number(item?.price) || 0, 0);
+    const name = normalizeBundleItemLabel(item?.name || "");
+    const type = normalizeBundleItemToken(item?.type);
+    if (!id || qty <= 0 || price < 0) return;
+    const isCombo = type === ADD_ON_TYPE_COMBO || /\bcombo\b/i.test(String(item?.name || ""));
+    const isAlaCarte = !isCombo;
+    addOnStock.set(id, {
+      id,
+      qty,
+      price,
+      name,
+      type,
+      isCombo,
+      isAlaCarte
+    });
+  });
+
+  function tokenMatchesAddOn(token, entry) {
+    const normalizedToken = normalizeBundleItemLabel(token);
+    if (!normalizedToken || !entry) return false;
+    const tokenWithoutPrefix = normalizedToken
+      .replace(/^add\s*on\s+/i, "")
+      .replace(/^addon\s+/i, "")
+      .replace(/^addons\s+/i, "")
+      .replace(/^add\s*ons\s+/i, "")
+      .trim();
+
+    if (["addon", "add on", "addons", "add ons", "any addon", "any add on", "any addons"].includes(normalizedToken)) {
+      return true;
+    }
+
+    if (normalizedToken === "combo" || normalizedToken === "addon type combo") {
+      return Boolean(entry.isCombo);
+    }
+
+    if (
+      normalizedToken === "ala carte"
+      || normalizedToken === "alacarte"
+      || normalizedToken === "ala_carte"
+      || normalizedToken === "addon type ala carte"
+      || normalizedToken === "addon type ala_carte"
+    ) {
+      return Boolean(entry.isAlaCarte);
+    }
+
+    if (normalizedToken && entry.name && entry.name.includes(normalizedToken)) {
+      return true;
+    }
+    if (tokenWithoutPrefix && entry.name && entry.name.includes(tokenWithoutPrefix)) {
+      return true;
+    }
+    if (tokenWithoutPrefix && entry.name && tokenWithoutPrefix.includes(entry.name)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function tryConsumeOneUnit(itemTokens = []) {
+    const rawTokens = itemTokens.map(normalizeBundleItemToken).filter(Boolean);
+    const normalizedTokens = rawTokens.map((token) => normalizeBundleItemLabel(token));
+    const ticketAllowed = normalizedTokens.some((token) => (
+      token === "ticket"
+      || token === "any ticket"
+      || token === "ticket any"
+      || token === "any"
+      || token === hallType
+      || token === `ticket ${hallType}`
+      || token === `ticket:${hallType}`.replace(":", " ")
+      || token === "ticket standard"
+      || token === "ticket imax"
+      || token === "ticket vip"
+      || token === "standard ticket"
+      || token === "imax ticket"
+      || token === "vip ticket"
+    ));
+
+    let bestSource = null;
+    let bestPrice = -1;
+
+    if (ticketAllowed && remainingTicket.qty > 0 && ticketPrice >= bestPrice) {
+      bestSource = { type: "ticket" };
+      bestPrice = ticketPrice;
+    }
+
+    const addOnCandidates = [];
+    addOnStock.forEach((entry) => {
+      if (!entry || entry.qty <= 0) return;
+
+      const aliases = new Set([
+        `addon:${entry.id}`,
+        entry.id,
+        normalizeBundleItemLabel(entry.name),
+        `addon_name:${normalizeBundleItemLabel(entry.name)}`,
+        `name:${normalizeBundleItemLabel(entry.name)}`,
+        entry.type,
+        entry.type === ADD_ON_TYPE_ALA_CARTE ? "ala carte" : entry.type,
+        `addon_type:${entry.type}`
+      ].map(normalizeBundleItemLabel).filter(Boolean));
+
+      const matched = normalizedTokens.some((token) => aliases.has(token) || tokenMatchesAddOn(token, entry));
+      if (!matched) return;
+
+      addOnCandidates.push(entry);
+    });
+
+    addOnCandidates.forEach((entry) => {
+      if (entry.price > bestPrice) {
+        bestPrice = entry.price;
+        bestSource = {
+          type: "addon",
+          id: entry.id
+        };
+      }
+    });
+
+    if (!bestSource) return { consumed: false, amount: 0 };
+
+    if (bestSource.type === "ticket") {
+      remainingTicket.qty -= 1;
+      return { consumed: true, amount: ticketPrice };
+    }
+
+    const addOnEntry = addOnStock.get(bestSource.id);
+    if (!addOnEntry || addOnEntry.qty <= 0) return { consumed: false, amount: 0 };
+    addOnEntry.qty -= 1;
+    return { consumed: true, amount: addOnEntry.price };
+  }
+
+  let bundleSubtotal = 0;
+  for (const group of groups) {
+    const requiredQty = Math.max(Number.parseInt(group?.quantity, 10) || 0, 0);
+    const groupItems = Array.isArray(group?.items) ? group.items : [];
+    if (requiredQty <= 0 || groupItems.length === 0) return null;
+
+    let groupConsumed = 0;
+    let groupSubtotal = 0;
+
+    while (groupConsumed < requiredQty) {
+      const result = tryConsumeOneUnit(groupItems);
+      if (!result.consumed) return null;
+      groupConsumed += 1;
+      groupSubtotal += result.amount;
+    }
+
+    bundleSubtotal += groupSubtotal;
+  }
+
+  return bundleSubtotal;
+}
+
+function evaluatePromotionEligibility(promo, context = {}) {
+  if (!promo || typeof promo !== "object") {
+    return { eligible: false, reason: "Invalid promotion." };
+  }
+
+  const startDate = formatIsoDateOnly(promo?.validity?.startDate || promo?.promotionStartDate);
+  const endDate = formatIsoDateOnly(promo?.validity?.endDate || promo?.promotionEndDate);
+  const todayIso = formatIsoDateOnly(new Date());
+
+  if (promo.isActive === false) {
+    return { eligible: false, reason: "Promotion is inactive." };
+  }
+  if (startDate && todayIso && todayIso < startDate) {
+    return { eligible: false, reason: "Promotion has not started." };
+  }
+  if (endDate && todayIso && todayIso > endDate) {
+    return { eligible: false, reason: "Promotion has ended." };
+  }
+
+  const conditions = normalizePromotionConditions(promo.conditions);
+  for (const condition of conditions) {
+    if (condition.type === PROMOTION_CONDITION_USER_ROLE) {
+      if ((context.userRole || "").toString().trim().toLowerCase() !== String(condition.value)) {
+        return { eligible: false, reason: "User role does not match." };
+      }
+      continue;
+    }
+
+    if (condition.type === PROMOTION_CONDITION_HALL_TYPE) {
+      if ((context.hallType || "").toString().trim().toLowerCase() !== String(condition.value)) {
+        return { eligible: false, reason: "Hall type does not match." };
+      }
+      continue;
+    }
+
+    if (condition.type === PROMOTION_CONDITION_MINIMUM_SPEND) {
+      const minimumSpend = Number(condition.value);
+      const subtotalBeforeDiscount = Math.max(Number(context.subtotalBeforeDiscount) || 0, 0);
+      if (!Number.isFinite(minimumSpend) || subtotalBeforeDiscount < minimumSpend) {
+        return { eligible: false, reason: "Minimum spend not met." };
+      }
+      continue;
+    }
+
+    if (condition.type === PROMOTION_CONDITION_DAY_OF_WEEK) {
+      if ((context.dayOfWeek || "").toString().trim().toLowerCase() !== String(condition.value)) {
+        return { eligible: false, reason: "Day of week does not match." };
+      }
+      continue;
+    }
+
+    if (condition.type === PROMOTION_CONDITION_PAYMENT_METHOD) {
+      if ((context.paymentMethod || "").toString().trim().toLowerCase() !== String(condition.value)) {
+        return { eligible: false, reason: "Payment method does not match." };
+      }
+    }
+  }
+
+  return { eligible: true, reason: "" };
+}
+
+function calculateBenefitDiscountAmount(promo, amounts = {}) {
+  const subtotalBeforeDiscount = Math.max(Number(amounts.subtotalBeforeDiscount) || 0, 0);
+  if (subtotalBeforeDiscount <= 0) return 0;
+
+  const benefit = normalizePromotionBenefit(promo?.benefit, promo);
+  if (benefit) {
+    const value = Math.max(Number(benefit.value) || 0, 0);
+    let discountAmount = 0;
+
+    if (benefit.type === PROMOTION_BENEFIT_DISCOUNT || benefit.type === PROMOTION_BENEFIT_CREDIT) {
+      const targetSubtotal = resolvePromotionTargetSubtotal(benefit.target, amounts);
+      discountAmount = Math.min(value, targetSubtotal);
+    } else if (benefit.type === PROMOTION_BENEFIT_BUNDLE_PRICE) {
+      const bundleSubtotal = resolveBundleCappedSubtotalForSingleSet(promo?.bundleConfig, amounts);
+      if (Number.isFinite(bundleSubtotal) && bundleSubtotal > 0) {
+        discountAmount = Math.max(bundleSubtotal - value, 0);
+      }
+    } else if (
+      benefit.type === PROMOTION_BENEFIT_FIXED_PRICE
+      || benefit.type === PROMOTION_BENEFIT_SET_FINAL_PRICE
+      || benefit.type === PROMOTION_BENEFIT_CART_CAP
+    ) {
+      const targetSubtotal = resolvePromotionTargetSubtotal(benefit.target, amounts);
+      discountAmount = Math.max(targetSubtotal - value, 0);
+    }
+
+    return Math.min(discountAmount, subtotalBeforeDiscount);
+  }
+
+  const explicitAmount = Number(promo?.discountAmount);
+  if (Number.isFinite(explicitAmount) && explicitAmount > 0) {
+    return Math.min(explicitAmount, subtotalBeforeDiscount);
+  }
+
+  const value = Number(promo?.discountValue ?? promo?.value ?? promo?.amount);
   if (!Number.isFinite(value) || value <= 0) return 0;
 
-  const discountType = (promo.discountType || promo.type || "").toString().trim().toLowerCase();
+  const discountType = (promo?.discountType || promo?.type || "").toString().trim().toLowerCase();
   if (discountType.includes("percent") || discountType.includes("%")) {
-    return Math.min((totalBeforeDiscount * value) / 100, totalBeforeDiscount);
+    return Math.min((subtotalBeforeDiscount * value) / 100, subtotalBeforeDiscount);
   }
 
-  return Math.min(value, totalBeforeDiscount);
+  return Math.min(value, subtotalBeforeDiscount);
+}
+
+function resolvePromoDiscountAmount(promo, context = {}) {
+  if (!promo || typeof promo !== "object") return 0;
+
+  const eligibility = evaluatePromotionEligibility(promo, context);
+  if (!eligibility.eligible) return 0;
+
+  return calculateBenefitDiscountAmount(promo, context);
 }
 
 function normalizePaymentMethod(value) {
@@ -317,6 +824,55 @@ function normalizeContactForm(contactInfo) {
     email: (contactInfo.email || "").toString(),
     countryCode: (contactInfo.countryCode || "+65").toString(),
     mobile: (contactInfo.mobile || "").toString()
+  };
+}
+
+function hasContactFormDetails(contactInfo) {
+  if (!contactInfo || typeof contactInfo !== "object") return false;
+
+  return Boolean(
+    (contactInfo.name || "").toString().trim()
+    || (contactInfo.email || "").toString().trim()
+    || (contactInfo.mobile || "").toString().trim()
+  );
+}
+
+function parseContactToPaymentForm(contactValue) {
+  const raw = (contactValue || "").toString().trim();
+  if (!raw) {
+    return {
+      countryCode: "+65",
+      mobile: ""
+    };
+  }
+
+  const compact = raw.replace(/[^\d+]/g, "");
+  const digitsOnly = normalizePhoneDigits(compact);
+  if (!digitsOnly) {
+    return {
+      countryCode: "+65",
+      mobile: ""
+    };
+  }
+
+  if (compact.startsWith("+")) {
+    const matchedCountryCode = CONTACT_COUNTRY_CODES
+      .slice()
+      .sort((a, b) => b.length - a.length)
+      .find((code) => digitsOnly.startsWith(code.slice(1)));
+
+    if (matchedCountryCode) {
+      const mobileDigits = digitsOnly.slice(matchedCountryCode.slice(1).length);
+      return {
+        countryCode: matchedCountryCode,
+        mobile: formatMobileDisplay(mobileDigits)
+      };
+    }
+  }
+
+  return {
+    countryCode: "+65",
+    mobile: formatMobileDisplay(digitsOnly)
   };
 }
 
@@ -347,7 +903,8 @@ function getUnlockedStageIndex(sessionStage) {
   return Math.max(index, FLOW_STAGE_INDEX.promotions);
 }
 
-export default function BookingFlowStage({ screeningId = "", flowStage = "promotions" }) {
+export default function BookingFlowStage({ screeningId = "", flowStage = "promotions", promotionId = "" }) {
+  const { user, isAuthenticated } = useAccount();
   const LOW_TIME_THRESHOLD_MS = 60 * 1000;
   const isPromotionsStage = flowStage === "promotions";
   const isAddOnsStage = flowStage === "addons";
@@ -361,6 +918,9 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   const [error, setError] = useState("");
   const [promoCode, setPromoCode] = useState("");
   const [codeMessage, setCodeMessage] = useState("");
+  const [promotionDetails, setPromotionDetails] = useState(null);
+  const [promotionDetailsLoading, setPromotionDetailsLoading] = useState(false);
+  const [promotionDetailsError, setPromotionDetailsError] = useState("");
   const [now, setNow] = useState(() => new Date());
   const [bookingSession, setBookingSession] = useState(() => readBookingPipelineSession());
   const [warningVisible, setWarningVisible] = useState(false);
@@ -369,6 +929,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   const [modalAddOn, setModalAddOn] = useState(null);
   const [modalQuantity, setModalQuantity] = useState(1);
   const [contactForm, setContactForm] = useState(() => normalizeContactForm(null));
+  const [isContactPrefilledLocked, setIsContactPrefilledLocked] = useState(false);
   const [contactErrors, setContactErrors] = useState({});
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
   const [cardForm, setCardForm] = useState({
@@ -380,6 +941,67 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   const [payMessage, setPayMessage] = useState("");
   const [isPaying, setIsPaying] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [bookingUnavailableVisible, setBookingUnavailableVisible] = useState(false);
+  const [bookingUnavailableMovieId, setBookingUnavailableMovieId] = useState("");
+
+  function handleBookingUnavailable(error, fallbackMovieId = "") {
+    const movieId = resolveUnavailableMovieId(
+      error,
+      fallbackMovieId || activeSession?.movieId || movie?._id || preview?.movie?._id || ""
+    );
+
+    if (activeSession?.bookingId) {
+      releaseBookingHold(activeSession.bookingId).catch(() => null);
+    }
+
+    clearBookingPipelineSession();
+    setBookingSession(null);
+    setWarningVisible(false);
+    setExpiredVisible(false);
+    setCodeMessage("");
+    setPayMessage("");
+    setBookingUnavailableMovieId(movieId);
+    setBookingUnavailableVisible(true);
+  }
+
+  function handleUnavailableConfirmBack() {
+    const movieId = (
+      bookingUnavailableMovieId
+      || activeSession?.movieId
+      || movie?._id
+      || preview?.movie?._id
+      || ""
+    ).toString().trim();
+
+    setBookingUnavailableVisible(false);
+    clearBookingPipelineSession();
+    setBookingSession(null);
+
+    if (movieId) {
+      window.location.hash = `#movie-details/${movieId}`;
+      return;
+    }
+
+    window.location.hash = "#movies";
+  }
+
+  function renderBookingUnavailableModal() {
+    if (!bookingUnavailableVisible) return null;
+
+    return (
+      <div className="promotions-modal-backdrop" role="presentation">
+        <div className="promotions-modal" role="dialog" aria-modal="true" aria-labelledby="bookingUnavailableTitle">
+          <h3 id="bookingUnavailableTitle">Booking Unavailable</h3>
+          <p>Booking is currently no longer available.</p>
+          <div className="promotions-modal-actions">
+            <SeatSelectionButton variant="primary" onClick={handleUnavailableConfirmBack}>
+              Back
+            </SeatSelectionButton>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (!screeningId) {
@@ -425,6 +1047,15 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
         }
       } catch (loadError) {
         if (!isActive) return;
+        if (isScreeningUnavailableError(loadError)) {
+          handleBookingUnavailable(loadError);
+          setError("");
+          setPreview(null);
+          setMovie(null);
+          setPromotions([]);
+          setAddOns([]);
+          return;
+        }
         setError(loadError.message || "Failed to load booking flow details.");
         setPreview(null);
         setMovie(null);
@@ -473,18 +1104,100 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   const sessionContactCountryCode = (activeSession?.contactInfo?.countryCode || "+65").toString();
   const sessionContactMobile = (activeSession?.contactInfo?.mobile || "").toString();
   const sessionPaymentMethod = normalizePaymentMethod(activeSession?.paymentMethod);
+  const sessionHallPictureUrl = (activeSession?.hallPictureUrl || "").toString().trim();
+  const sessionHallName = (activeSession?.hallName || "").toString().trim();
+  const activeBookingId = (activeSession?.bookingId || "").toString().trim();
+
+  useEffect(() => {
+    if (!activeBookingId) return undefined;
+    if (sessionHallPictureUrl && sessionHallName) return undefined;
+
+    let isActive = true;
+
+    async function hydrateBookingVenueContext() {
+      try {
+        const response = await validateBookingTransition(activeBookingId);
+        if (!isActive) return;
+
+        const booking = response?.booking && typeof response.booking === "object"
+          ? response.booking
+          : null;
+        if (!booking) return;
+
+        const nextPatch = {};
+        const bookingHallPictureUrl = (booking.hallPictureUrl || "").toString().trim();
+        const bookingHallName = (booking.hallName || "").toString().trim();
+
+        if (!sessionHallPictureUrl && bookingHallPictureUrl) {
+          nextPatch.hallPictureUrl = bookingHallPictureUrl;
+        }
+        if (!sessionHallName && bookingHallName) {
+          nextPatch.hallName = bookingHallName;
+        }
+
+        if (!Object.keys(nextPatch).length) return;
+        persistSessionPatch(nextPatch);
+      } catch (hydrateError) {
+        if (!isActive) return;
+        if (isScreeningUnavailableError(hydrateError)) {
+          handleBookingUnavailable(hydrateError);
+        }
+      }
+    }
+
+    hydrateBookingVenueContext();
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    activeBookingId,
+    sessionHallPictureUrl,
+    sessionHallName
+  ]);
 
   useEffect(() => {
     if (!isPaymentStage) return;
 
-    setContactForm({
+    const normalizedSessionContact = {
       name: sessionContactName,
       email: sessionContactEmail,
       countryCode: sessionContactCountryCode || "+65",
       mobile: sessionContactMobile
+    };
+    const userContact = parseContactToPaymentForm(user?.contact);
+    const fallbackAccountContact = {
+      name: isAuthenticated ? (user?.name || "").toString() : "",
+      email: isAuthenticated ? (user?.email || "").toString() : "",
+      countryCode: userContact.countryCode,
+      mobile: userContact.mobile
+    };
+    const nextPrefill = hasContactFormDetails(normalizedSessionContact)
+      ? {
+        ...normalizedSessionContact,
+        mobile: formatMobileDisplay(normalizedSessionContact.mobile)
+      }
+      : fallbackAccountContact;
+    if (hasContactFormDetails(contactForm)) return;
+    if (!hasContactFormDetails(nextPrefill)) {
+      setIsContactPrefilledLocked(false);
+      return;
+    }
+
+    setContactForm({
+      name: nextPrefill.name,
+      email: nextPrefill.email,
+      countryCode: nextPrefill.countryCode || "+65",
+      mobile: nextPrefill.mobile
     });
+    setIsContactPrefilledLocked(true);
   }, [
     isPaymentStage,
+    isAuthenticated,
+    user?.name,
+    user?.email,
+    user?.contact,
+    contactForm,
     sessionContactName,
     sessionContactEmail,
     sessionContactCountryCode,
@@ -573,6 +1286,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
     }),
     [promotions, hallPromotionType]
   );
+  const activePromotionDetailsId = (promotionId || "").toString().trim();
 
   const sessionAddOns = useMemo(
     () => normalizeSessionAddOns(activeSession?.addons),
@@ -602,29 +1316,152 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   const bookingFeeRaw = Number(activeSession?.bookingFee);
   const bookingFee = Number.isFinite(bookingFeeRaw) && bookingFeeRaw >= 0 ? bookingFeeRaw : BOOKING_FEE_DEFAULT;
   const subtotalBeforeDiscount = seatsAmount + addOnsAmount + bookingFee;
+  const screeningDayOfWeek = useMemo(() => {
+    const parsed = preview?.startDateTime ? new Date(preview.startDateTime) : null;
+    if (!parsed || Number.isNaN(parsed.getTime())) return "";
+    return parsed.toLocaleDateString("en-GB", { weekday: "long" }).toLowerCase();
+  }, [preview?.startDateTime]);
+  const promotionUserRole = useMemo(() => {
+    if (!isAuthenticated) return "guest";
+    const explicitRole = normalizePromotionUserRole(
+      user?.userRole || user?.role || user?.category || ""
+    );
+    if (explicitRole) return explicitRole;
+    return derivePromotionUserRoleFromAge(user?.age);
+  }, [isAuthenticated, user?.role, user?.userRole, user?.category, user?.age]);
+  const promotionEvaluationContext = useMemo(() => ({
+    subtotalBeforeDiscount,
+    seatsAmount,
+    seatQty,
+    ticketPrice,
+    addOnsAmount,
+    addOnItems: sessionAddOns,
+    bookingFee,
+    hallType: hallPromotionType,
+    dayOfWeek: screeningDayOfWeek,
+    paymentMethod: selectedPaymentMethod,
+    userRole: promotionUserRole
+  }), [
+    subtotalBeforeDiscount,
+    seatsAmount,
+    seatQty,
+    ticketPrice,
+    addOnsAmount,
+    sessionAddOns,
+    bookingFee,
+    hallPromotionType,
+    screeningDayOfWeek,
+    selectedPaymentMethod,
+    promotionUserRole
+  ]);
+  const promotionEligibilityById = useMemo(() => {
+    const map = new Map();
+    visiblePromotions.forEach((promotion) => {
+      const key = getPromotionReferenceId(promotion);
+      map.set(key, evaluatePromotionEligibility(promotion, promotionEvaluationContext));
+    });
+    return map;
+  }, [visiblePromotions, promotionEvaluationContext]);
 
   const promo = activeSession?.promo && typeof activeSession.promo === "object"
     ? activeSession.promo
     : null;
-  const promoDiscountAmount = resolvePromoDiscountAmount(promo, subtotalBeforeDiscount);
+  const appliedPromoBenefit = normalizePromotionBenefit(promo?.benefit, promo);
+  const selectedPromoId = getPromotionReferenceId(promo);
+  const appliedPromoEligibility = promo
+    ? evaluatePromotionEligibility(promo, promotionEvaluationContext)
+    : { eligible: true, reason: "" };
+  const promoDiscountAmount = resolvePromoDiscountAmount(promo, promotionEvaluationContext);
   const grandTotal = Math.max(subtotalBeforeDiscount - promoDiscountAmount, 0);
 
   const requiresCardDetails = selectedPaymentMethod === PAYMENT_METHOD_VISA_MASTERCARD
     || selectedPaymentMethod === PAYMENT_METHOD_AMEX;
   const venueName = (
-    preview?.cinema?.name
-    || preview?.hall?.cinemaName
+    activeSession?.hallName
     || preview?.hall?.name
+    || preview?.cinema?.name
     || "CineVillage"
   ).toString();
   const venueImageUrl = resolveMoviePictureUrl(
-    preview?.hall?.pictureUrl || preview?.cinema?.pictureUrl || ""
+    activeSession?.hallPictureUrl || preview?.hall?.pictureUrl || preview?.cinema?.pictureUrl || ""
   );
+
+  useEffect(() => {
+    if (!isPromotionsStage) return;
+
+    if (!activePromotionDetailsId) {
+      setPromotionDetails(null);
+      setPromotionDetailsLoading(false);
+      setPromotionDetailsError("");
+      return;
+    }
+
+    const visiblePromotion = visiblePromotions.find((promotion) => (
+      (promotion?._id || promotion?.id || "").toString().trim() === activePromotionDetailsId
+    ));
+    if (visiblePromotion) {
+      setPromotionDetails(visiblePromotion);
+      setPromotionDetailsLoading(false);
+      setPromotionDetailsError("");
+      return;
+    }
+
+    let isActive = true;
+
+    async function loadPromotionDetails() {
+      try {
+        setPromotionDetailsLoading(true);
+        setPromotionDetailsError("");
+        const item = await fetchPromotionById(activePromotionDetailsId);
+        if (!isActive) return;
+        setPromotionDetails(item || null);
+      } catch (detailsError) {
+        if (!isActive) return;
+        setPromotionDetails(null);
+        setPromotionDetailsError(detailsError?.message || "Failed to load promotion details.");
+      } finally {
+        if (isActive) {
+          setPromotionDetailsLoading(false);
+        }
+      }
+    }
+
+    loadPromotionDetails();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isPromotionsStage, activePromotionDetailsId, visiblePromotions]);
 
   function persistSessionPatch(patch) {
     const nextSession = updateBookingPipelineSession(patch);
     if (nextSession) setBookingSession(nextSession);
     return nextSession;
+  }
+
+  async function ensureBookingStillAvailable() {
+    if (!activeSession?.bookingId) {
+      setExpiredVisible(true);
+      return false;
+    }
+
+    try {
+      await validateBookingTransition(activeSession.bookingId);
+      return true;
+    } catch (validationError) {
+      if (isScreeningUnavailableError(validationError)) {
+        handleBookingUnavailable(validationError);
+        return false;
+      }
+
+      if (validationError?.status === 404 || validationError?.status === 409) {
+        handleBookingUnavailable(validationError);
+        return false;
+      }
+
+      setCodeMessage(validationError?.message || "Unable to continue right now.");
+      return false;
+    }
   }
 
   function navigateToHash(targetStage, options = {}) {
@@ -669,8 +1506,87 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
       setCodeMessage("Please enter a promo code.");
       return;
     }
+    const matchedPromotion = visiblePromotions.find((promotion) => {
+      const code = (promotion?.code || "").toString().trim().toLowerCase();
+      return Boolean(code) && code === normalized.toLowerCase();
+    });
 
-    setCodeMessage(`Code \"${normalized}\" captured. Validation flow will be added next.`);
+    if (!matchedPromotion) {
+      setCodeMessage(`Code "${normalized}" is invalid for this hall or date.`);
+      return;
+    }
+
+    handleApplyPromotion(matchedPromotion);
+  }
+
+  function handleApplyPromotion(promotion) {
+    const promotionId = getPromotionReferenceId(promotion);
+    if (!promotionId) return;
+
+    const eligibility = evaluatePromotionEligibility(promotion, promotionEvaluationContext);
+    if (!eligibility.eligible) {
+      const promoName = (promotion?.name || "This promotion").toString();
+      setCodeMessage(`${promoName} is not eligible. ${eligibility.reason}`);
+      return;
+    }
+
+    const normalizedPromotion = normalizePromotionForSession(promotion);
+    if (!normalizedPromotion) {
+      setCodeMessage("Unable to apply this promotion.");
+      return;
+    }
+
+    persistSessionPatch({ promo: normalizedPromotion });
+    setCodeMessage(`${normalizedPromotion.name} applied.`);
+    setPromoCode(normalizedPromotion.code || "");
+  }
+
+  function handleClearAppliedPromotion() {
+    persistSessionPatch({ promo: null });
+    setCodeMessage("Promotion removed.");
+    setPromoCode("");
+  }
+
+  function handleOpenPromotionDetails(promotion) {
+    if (!promotion) return;
+    setPromotionDetails(promotion);
+    setPromotionDetailsLoading(false);
+    setPromotionDetailsError("");
+  }
+
+  function handleClosePromotionDetails() {
+    if (activePromotionDetailsId) {
+      const targetScreeningId = (preview?.screeningId || screeningId || "").toString().trim();
+      if (!targetScreeningId) return;
+      window.location.hash = `#promotions/${targetScreeningId}`;
+      return;
+    }
+
+    setPromotionDetails(null);
+    setPromotionDetailsLoading(false);
+    setPromotionDetailsError("");
+  }
+
+  function handleConfirmPromotionSelection() {
+    if (!promotionDetails) return;
+
+    const detailPromotionId = getPromotionReferenceId(promotionDetails);
+    const isDetailSelected = selectedPromoId && selectedPromoId === detailPromotionId;
+
+    if (isDetailSelected) {
+      handleClearAppliedPromotion();
+      handleClosePromotionDetails();
+      return;
+    }
+
+    const detailEligibility = evaluatePromotionEligibility(
+      promotionDetails,
+      promotionEvaluationContext
+    );
+    if (!detailEligibility.eligible) return;
+
+    handleApplyPromotion(promotionDetails);
+    handleClosePromotionDetails();
   }
 
   function handleOpenAddOnModal(addOn) {
@@ -711,6 +1627,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
   }
 
   function handleContactFieldChange(field, value) {
+    if (isContactPrefilledLocked) return;
     setContactForm((previous) => ({
       ...previous,
       [field]: value
@@ -847,6 +1764,9 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
       return;
     }
 
+    const canProceed = await ensureBookingStillAvailable();
+    if (!canProceed) return;
+
     const validation = validatePaymentStageForm();
     if (!validation.isValid) return;
 
@@ -901,6 +1821,10 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
       });
       window.location.hash = `#payment-success/${preview?.screeningId || screeningId}`;
     } catch (invoiceError) {
+      if (isScreeningUnavailableError(invoiceError)) {
+        handleBookingUnavailable(invoiceError);
+        return;
+      }
       setPayMessage(invoiceError?.message || "Unable to send invoice email right now.");
     } finally {
       setIsPaying(false);
@@ -983,14 +1907,26 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
           </div>
 
           {promo ? (
-            <div className="promotions-summary-total-row promotions-summary-total-row-discount">
-              <span>Promo Discount{promo?.name ? ` (${promo.name})` : promo?.code ? ` (${promo.code})` : ""}</span>
-              <strong>
-                {promoDiscountAmount > 0
-                  ? `-${formatCurrency(promoDiscountAmount)}`
-                  : formatCurrency(0)}
-              </strong>
-            </div>
+            <>
+              <div className="promotions-summary-total-row promotions-summary-total-row-discount">
+                <span>Promo Discount{promo?.name ? ` (${promo.name})` : promo?.code ? ` (${promo.code})` : ""}</span>
+                <strong>
+                  {promoDiscountAmount > 0
+                    ? `-${formatCurrency(promoDiscountAmount)}`
+                    : formatCurrency(0)}
+                </strong>
+              </div>
+              {promoDiscountAmount <= 0 && !appliedPromoEligibility.eligible ? (
+                <p className="promotions-card-hint">
+                  Promotion currently not applicable: {appliedPromoEligibility.reason}
+                </p>
+              ) : null}
+              {promoDiscountAmount <= 0 && appliedPromoEligibility.eligible && appliedPromoBenefit?.type === PROMOTION_BENEFIT_BUNDLE_PRICE ? (
+                <p className="promotions-card-hint">
+                  Bundle requirements not met yet. Add the required bundle item(s) to activate this promo.
+                </p>
+              ) : null}
+            </>
           ) : null}
 
           <div className="promotions-summary-total-row promotions-summary-total-row-grand">
@@ -1025,13 +1961,16 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
 
   if (error || !preview) {
     return (
-      <section className="promotions-status promotions-status-error">
-        <p>{error || "Booking flow data is unavailable."}</p>
-      </section>
+      <>
+        <section className="promotions-status promotions-status-error">
+          <p>{error || "Booking flow data is unavailable."}</p>
+        </section>
+        {renderBookingUnavailableModal()}
+      </>
     );
   }
 
-  const showExpiredModal = expiredVisible || !activeSession;
+  const showExpiredModal = !bookingUnavailableVisible && expiredVisible;
 
   async function handleExtendSession() {
     if (!activeSession?.bookingId || isExtending) return;
@@ -1052,6 +1991,10 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
       setBookingSession(nextSession);
       setWarningVisible(false);
     } catch (_error) {
+      if (isScreeningUnavailableError(_error)) {
+        handleBookingUnavailable(_error);
+        return;
+      }
       setCodeMessage("Unable to extend reservation at the moment.");
     } finally {
       setIsExtending(false);
@@ -1132,32 +2075,71 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                       setPromoCode(event.target.value);
                       setCodeMessage("");
                     }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleApplyPromoCode();
+                      }
+                    }}
                     placeholder="ePromoCode"
                   />
-                  <SeatSelectionButton
-                    variant="primary"
-                    onClick={handleApplyPromoCode}
-                  >
-                    APPLY
-                  </SeatSelectionButton>
                 </div>
                 {codeMessage ? <p className="promotions-code-message">{codeMessage}</p> : null}
+                {promo ? (
+                  <div className="promotions-applied-row">
+                    <div>
+                      <p>
+                        Applied Promotion:{" "}
+                        <strong>{promo.name || promo.code || "Promotion"}</strong>
+                      </p>
+                      {!appliedPromoEligibility.eligible ? (
+                        <p className="promotions-card-hint">
+                          Not currently applicable: {appliedPromoEligibility.reason}
+                        </p>
+                      ) : null}
+                    </div>
+                    <SeatSelectionButton variant="secondary" size="sm" onClick={handleClearAppliedPromotion}>
+                      REMOVE
+                    </SeatSelectionButton>
+                  </div>
+                ) : null}
               </section>
 
               <section className="promotions-panel">
                 <h2>Promotions</h2>
                 <div className="promotions-list">
                   {visiblePromotions.length ? (
-                    visiblePromotions.map((promotion) => (
-                      <article key={promotion._id} className="promotions-card">
-                        <img
-                          src={resolveMoviePictureUrl(promotion.pictureUrl)}
-                          alt={promotion.name || "Promotion"}
-                        />
-                        <h3>{promotion.name || "Promotion"}</h3>
-                        <a href="#" onClick={(event) => event.preventDefault()}>Terms &amp; Conditions</a>
-                      </article>
-                    ))
+                    visiblePromotions.map((promotion) => {
+                      const cardId = getPromotionReferenceId(promotion);
+                      const eligibility = promotionEligibilityById.get(cardId) || { eligible: false, reason: "Not eligible." };
+                      const isSelected = selectedPromoId && selectedPromoId === cardId;
+
+                      return (
+                        <article
+                          key={cardId || promotion.name}
+                          className={`promotions-card promotions-card-clickable${isSelected ? " promotions-card-selected" : ""}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleOpenPromotionDetails(promotion)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              handleOpenPromotionDetails(promotion);
+                            }
+                          }}
+                        >
+                          <img
+                            src={resolveMoviePictureUrl(promotion.pictureUrl)}
+                            alt={promotion.name || "Promotion"}
+                          />
+                          <h3>{promotion.name || "Promotion"}</h3>
+                          {isSelected ? <p className="promotions-card-selected-label">Applied</p> : null}
+                          {!eligibility.eligible ? (
+                            <p className="promotions-card-hint">{eligibility.reason}</p>
+                          ) : null}
+                        </article>
+                      );
+                    })
                   ) : (
                     <p className="promotions-empty">No promotions available for this hall type.</p>
                   )}
@@ -1168,7 +2150,9 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                 backLabel: "BACK TO SEATS",
                 onBack: () => navigateToHash("seat-selection"),
                 continueLabel: "CONTINUE",
-                onContinue: () => {
+                onContinue: async () => {
+                  const canContinue = await ensureBookingStillAvailable();
+                  if (!canContinue) return;
                   persistSessionPatch({ stage: "addons" });
                   navigateToHash("addons", { bypassUnlock: true });
                 },
@@ -1225,7 +2209,9 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                 backLabel: "BACK TO PROMOS",
                 onBack: () => navigateToHash("promotions"),
                 continueLabel: "CONTINUE",
-                onContinue: () => {
+                onContinue: async () => {
+                  const canContinue = await ensureBookingStillAvailable();
+                  if (!canContinue) return;
                   persistSessionPatch({ stage: "payment" });
                   navigateToHash("payment", { bypassUnlock: true });
                 }
@@ -1249,6 +2235,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                       onChange={(event) => handleContactFieldChange("name", event.target.value)}
                       placeholder="Name"
                       autoComplete="name"
+                      readOnly={isContactPrefilledLocked}
                     />
                     {contactErrors.name ? <p className="promotions-payment-error">{contactErrors.name}</p> : null}
                   </div>
@@ -1260,6 +2247,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                       onChange={(event) => handleContactFieldChange("email", event.target.value)}
                       placeholder="Email"
                       autoComplete="email"
+                      readOnly={isContactPrefilledLocked}
                     />
                     {contactErrors.email ? <p className="promotions-payment-error">{contactErrors.email}</p> : null}
                   </div>
@@ -1270,6 +2258,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                         value={contactForm.countryCode}
                         onChange={(event) => handleContactFieldChange("countryCode", event.target.value)}
                         aria-label="Country code"
+                        disabled={isContactPrefilledLocked}
                       >
                         <option value="+65">+65</option>
                         <option value="+60">+60</option>
@@ -1286,6 +2275,7 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
                         onChange={(event) => handleContactFieldChange("mobile", event.target.value)}
                         placeholder="Mobile Number"
                         autoComplete="tel"
+                        readOnly={isContactPrefilledLocked}
                       />
                       {contactErrors.mobile ? <p className="promotions-payment-error">{contactErrors.mobile}</p> : null}
                     </div>
@@ -1423,6 +2413,105 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
         </div>
       </div>
 
+      {isPromotionsStage && (promotionDetailsLoading || promotionDetailsError || promotionDetails) ? (
+        <div className="promotions-modal-backdrop promotions-addon-modal-backdrop" role="presentation">
+          <div className="promotions-addon-modal" role="dialog" aria-modal="true" aria-labelledby="selectPromotionTitle">
+            <div className="promotions-addon-modal-top">
+              <h3 id="selectPromotionTitle">Select Promotion</h3>
+              <button
+                type="button"
+                className="promotions-addon-modal-close"
+                aria-label="Close dialog"
+                onClick={handleClosePromotionDetails}
+              >
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+
+            {promotionDetailsLoading ? (
+              <p className="promotions-empty">Loading promotion details...</p>
+            ) : promotionDetailsError ? (
+              <p className="promotions-empty promotions-empty-error">{promotionDetailsError}</p>
+            ) : promotionDetails ? (
+              <>
+                <div className="promotions-addon-modal-main">
+                  <div className="promotions-addon-modal-image-wrap">
+                    <img
+                      src={resolveMoviePictureUrl(promotionDetails.pictureUrl)}
+                      alt={promotionDetails.name || "Promotion"}
+                    />
+                  </div>
+
+                  <div className="promotions-addon-modal-content">
+                    <h4>{promotionDetails.name || "Promotion"}</h4>
+                    <p className="promotions-addon-modal-description">
+                      {(promotionDetails.description || "").toString().trim() || "No description available."}
+                    </p>
+
+                    <div className="promotions-detail-meta">
+                      <p>
+                        <strong>Code:</strong> {(promotionDetails.code || "N/A").toString()}
+                      </p>
+                      <p>
+                        <strong>Validity:</strong>{" "}
+                        {formatDisplayDate(
+                          promotionDetails?.validity?.startDate || promotionDetails?.promotionStartDate
+                        )}{" "}
+                        -{" "}
+                        {formatDisplayDate(
+                          promotionDetails?.validity?.endDate || promotionDetails?.promotionEndDate
+                        )}
+                      </p>
+                    </div>
+
+                    {(() => {
+                      const detailPromotionId = getPromotionReferenceId(promotionDetails);
+                      const detailEligibility = evaluatePromotionEligibility(
+                        promotionDetails,
+                        promotionEvaluationContext
+                      );
+                      const isDetailSelected = selectedPromoId && selectedPromoId === detailPromotionId;
+
+                      return !detailEligibility.eligible && !isDetailSelected ? (
+                        <p className="promotions-empty promotions-empty-error">{detailEligibility.reason}</p>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+
+                <div className="promotions-addon-modal-actions">
+                  <SeatSelectionButton
+                    variant="secondary"
+                    onClick={handleClosePromotionDetails}
+                  >
+                    BACK
+                  </SeatSelectionButton>
+
+                  {(() => {
+                    const detailPromotionId = getPromotionReferenceId(promotionDetails);
+                    const detailEligibility = evaluatePromotionEligibility(
+                      promotionDetails,
+                      promotionEvaluationContext
+                    );
+                    const isDetailSelected = selectedPromoId && selectedPromoId === detailPromotionId;
+
+                    return (
+                      <SeatSelectionButton
+                        variant="primary"
+                        onClick={handleConfirmPromotionSelection}
+                        disabled={!detailEligibility.eligible && !isDetailSelected}
+                      >
+                        {isDetailSelected ? "REMOVE PROMOTION" : "APPLY PROMOTION"}
+                      </SeatSelectionButton>
+                    );
+                  })()}
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {modalAddOn ? (
         <div className="promotions-modal-backdrop promotions-addon-modal-backdrop" role="presentation">
           <div className="promotions-addon-modal" role="dialog" aria-modal="true" aria-labelledby="selectAddOnTitle">
@@ -1533,6 +2622,8 @@ export default function BookingFlowStage({ screeningId = "", flowStage = "promot
           </div>
         </div>
       ) : null}
+
+      {renderBookingUnavailableModal()}
     </section>
   );
 }

@@ -1,5 +1,4 @@
 import "./Sidebar.css";
-import { useAccount } from "../context/AccountContext";
 
 const primaryNav = [
   { label: "Home", icon: "bi-grid-1x2", href: "#" },
@@ -29,8 +28,7 @@ const accountNav = [
 
 const serviceNav = [
   { label: "Promotions", icon: "bi-gift", href: "#promotions-list", matchPrefixes: ["promotions-list"] },
-  { label: "Add Ons", icon: "bi-cup-straw", href: "#addons-list", matchPrefixes: ["addons-list"] },
-  { label: "Help Centre", icon: "bi-shield-lock", href: "#" }
+  { label: "Add Ons", icon: "bi-cup-straw", href: "#addons-list", matchPrefixes: ["addons-list"] }
 ];
 
 const navSections = [
@@ -71,21 +69,29 @@ function SidebarSection({ title, items, activeHash }) {
 }
 
 export default function Sidebar({ menuOpen }) {
-  const { isAuthenticated, logoutCustomer } = useAccount();
   const activeHash = (window.location.hash || "")
     .replace(/^#/, "")
     .replace(/^\/+/, "")
     .split("?")[0]
     .trim();
 
+  function goHome() {
+    window.location.hash = "";
+  }
+
   return (
     <aside className={`client-sidebar${menuOpen ? " open" : ""}`}>
       <div className="sidebar-zone sidebar-zone-primary">
-        <button className="sidebar-brand d-flex align-items-center gap-3 w-100 text-start" type="button">
+        <button
+          className="sidebar-brand d-flex align-items-center gap-3 w-100 text-start"
+          type="button"
+          onClick={goHome}
+          aria-label="Go to home page"
+        >
           <img src="/CVLogo2.png" alt="CineVillage logo" className="sidebar-brand-logo flex-shrink-0" />
           <div className="sidebar-brand-copy d-flex flex-column justify-content-center">
-            <strong className="sidebar-title fw-bold">CineVillage</strong>
-            <p className="sidebar-subtitle">Customer Console</p>
+            <strong className="sidebar-title">CineVillage</strong>
+          
           </div>
         </button>
 
@@ -103,20 +109,6 @@ export default function Sidebar({ menuOpen }) {
 
       <div className="sidebar-zone sidebar-zone-secondary">
         <SidebarSection title="Services" items={serviceNav} activeHash={activeHash} />
-
-        <a
-          className="sidebar-logout-btn"
-          href="#login"
-          onClick={(event) => {
-            if (!isAuthenticated) return;
-            event.preventDefault();
-            void logoutCustomer();
-            window.location.hash = "#login";
-          }}
-        >
-          <i className="bi bi-box-arrow-right" aria-hidden="true"></i>
-          <span>{isAuthenticated ? "Sign Out" : "Sign In"}</span>
-        </a>
       </div>
     </aside>
   );

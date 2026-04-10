@@ -10,6 +10,7 @@ const STATUS_FILTERS = [
   { key: "Promotions", label: "Promotions", icon: "bi-megaphone" }
 ];
 const HALL_TYPE_SLUGS = new Set(["standard", "imax", "vip"]);
+const PAGE_SIZE = 20;
 
 function toMovieTimestamp(movie) {
   const releaseTimestamp = Date.parse(movie.releaseDate || "");
@@ -114,6 +115,7 @@ export default function Movies({ selectedHallType = "" }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeFilter, setActiveFilter] = useState("Now Showing");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     let isActive = true;
@@ -149,8 +151,22 @@ export default function Movies({ selectedHallType = "" }) {
     () => getFilteredMovies(movies, activeFilter, hallTypeContext.label),
     [movies, activeFilter, hallTypeContext.label]
   );
-  const visibleMovies = useMemo(() => filteredMovies.slice(0, 20), [filteredMovies]);
+  const totalPages = Math.max(1, Math.ceil(filteredMovies.length / PAGE_SIZE));
+  const visibleMovies = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredMovies.slice(start, start + PAGE_SIZE);
+  }, [currentPage, filteredMovies]);
   const isPromotionsFilter = activeFilter === "Promotions";
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter, hallTypeContext.slug]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <div className="movies-page">
@@ -201,23 +217,51 @@ export default function Movies({ selectedHallType = "" }) {
       ) : null}
 
       {!loading && !error && !isPromotionsFilter ? (
-        <section className="movies-list" aria-live="polite">
-          {visibleMovies.length > 0 ? (
-            visibleMovies.map((movie) => {
-              const cardMovie = mapMovieToCard(movie);
+        <>
+          <section className="movies-list" aria-live="polite">
+            {visibleMovies.length > 0 ? (
+              visibleMovies.map((movie) => {
+                const cardMovie = mapMovieToCard(movie);
 
-              return (
-                <div key={movie._id || movie.name} className="movies-grid-card">
-                  <ElementCard movie={cardMovie} />
-                </div>
-              );
-            })
-          ) : (
-            <div className="movies-empty-state">
-              No movies available in this category yet.
+                return (
+                  <div key={movie._id || movie.name} className="movies-grid-card">
+                    <ElementCard movie={cardMovie} />
+                  </div>
+                );
+              })
+            ) : (
+              <div className="movies-empty-state">
+                No movies available in this category yet.
+              </div>
+            )}
+          </section>
+
+          {filteredMovies.length > 0 ? (
+            <div className="movies-pagination">
+              <button
+                type="button"
+                className="movies-pagination-btn"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+              >
+                Prev
+              </button>
+
+              <span className="movies-pagination-label">
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                type="button"
+                className="movies-pagination-btn"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
             </div>
-          )}
-        </section>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

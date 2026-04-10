@@ -80,6 +80,17 @@ export async function fetchPromotions(params = {}) {
   return payload.items || [];
 }
 
+export async function fetchPromotionById(id, params = {}) {
+  const promotionId = (id || "").toString().trim();
+  if (!promotionId) {
+    throw new ApiError("Promotion ID is required.");
+  }
+
+  const response = await fetch(`${PROMOTION_API_PATH}/${promotionId}${toQueryString(params)}`);
+  const payload = await parseJsonResponse(response, "Failed to fetch promotion");
+  return payload.item || null;
+}
+
 export async function fetchAddOns(params = {}) {
   const response = await fetch(`${ADD_ON_API_PATH}${toQueryString(params)}`);
   const payload = await parseJsonResponse(response, "Failed to fetch add-ons");
@@ -151,6 +162,18 @@ export async function extendBookingHold(bookingId) {
   });
 
   return parseJsonResponse(response, "Failed to extend booking hold");
+}
+
+export async function validateBookingTransition(bookingId) {
+  const response = await fetch(`${BOOKING_API_PATH}/${bookingId}/validate-transition`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+
+  return parseJsonResponse(response, "Failed to validate booking session");
 }
 
 export async function sendBookingInvoice(bookingId, payload = {}) {
