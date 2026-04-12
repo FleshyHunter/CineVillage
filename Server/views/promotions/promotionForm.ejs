@@ -514,11 +514,21 @@
       if (!bundleGroupRows) return;
 
       const row = document.createElement("div");
-      row.className = "form-row bundle-group-row";
-      row.style.alignItems = "center";
+      row.className = "bundle-group-row";
+      row.style.display = "flex";
+      row.style.flexDirection = "column";
+      row.style.gap = "8px";
+
+      const mainRow = document.createElement("div");
+      mainRow.className = "form-row bundle-group-main-row";
+      mainRow.style.alignItems = "center";
+      mainRow.style.flexWrap = "nowrap";
+      mainRow.style.columnGap = "10px";
 
       const nameGroup = document.createElement("div");
       nameGroup.className = "form-group";
+      nameGroup.style.flex = "0.5";
+      nameGroup.style.minWidth = "0";
       const nameInput = document.createElement("input");
       nameInput.type = "text";
       nameInput.className = "form-control bundle-group-name";
@@ -528,6 +538,8 @@
 
       const typeGroup = document.createElement("div");
       typeGroup.className = "form-group";
+      typeGroup.style.flex = "0.5";
+      typeGroup.style.minWidth = "0";
       const typeSelect = document.createElement("select");
       typeSelect.className = "form-control bundle-group-type";
       createSelectOptions(typeSelect, [
@@ -538,6 +550,8 @@
 
       const itemsGroup = document.createElement("div");
       itemsGroup.className = "form-group";
+      itemsGroup.style.flex = "1.5";
+      itemsGroup.style.minWidth = "0";
       itemsGroup.style.display = "grid";
       itemsGroup.style.gap = "8px";
 
@@ -564,20 +578,22 @@
       itemPickerRow.appendChild(appendItemBtn);
       itemsGroup.appendChild(itemPickerRow);
 
-      const selectedItemsWrap = document.createElement("div");
-      selectedItemsWrap.className = "bundle-group-items-selected";
-      selectedItemsWrap.style.display = "flex";
-      selectedItemsWrap.style.flexWrap = "wrap";
-      selectedItemsWrap.style.gap = "6px";
-      itemsGroup.appendChild(selectedItemsWrap);
-
       const itemsJsonInput = document.createElement("input");
       itemsJsonInput.type = "hidden";
       itemsJsonInput.className = "bundle-group-items-json";
       itemsGroup.appendChild(itemsJsonInput);
 
+      const selectedItemsWrap = document.createElement("div");
+      selectedItemsWrap.className = "bundle-group-items-selected";
+      selectedItemsWrap.style.display = "flex";
+      selectedItemsWrap.style.flexDirection = "column";
+      selectedItemsWrap.style.gap = "6px";
+      selectedItemsWrap.style.width = "100%";
+
       const quantityGroup = document.createElement("div");
       quantityGroup.className = "form-group";
+      quantityGroup.style.flex = "0.5";
+      quantityGroup.style.minWidth = "0";
       const quantityInput = document.createElement("input");
       quantityInput.type = "number";
       quantityInput.min = "1";
@@ -590,6 +606,7 @@
 
       const actionGroup = document.createElement("div");
       actionGroup.className = "form-group";
+      actionGroup.style.flex = "0 0 110px";
       actionGroup.style.display = "flex";
       actionGroup.style.justifyContent = "flex-end";
       actionGroup.style.alignItems = "flex-end";
@@ -597,14 +614,18 @@
       removeBtn.type = "button";
       removeBtn.className = "btn btn-danger";
       removeBtn.textContent = "Remove";
+      removeBtn.style.whiteSpace = "nowrap";
+      removeBtn.style.width = "100%";
       removeBtn.addEventListener("click", () => row.remove());
       actionGroup.appendChild(removeBtn);
 
-      row.appendChild(nameGroup);
-      row.appendChild(typeGroup);
-      row.appendChild(itemsGroup);
-      row.appendChild(quantityGroup);
-      row.appendChild(actionGroup);
+      mainRow.appendChild(nameGroup);
+      mainRow.appendChild(typeGroup);
+      mainRow.appendChild(itemsGroup);
+      mainRow.appendChild(quantityGroup);
+      mainRow.appendChild(actionGroup);
+      row.appendChild(mainRow);
+      row.appendChild(selectedItemsWrap);
       bundleGroupRows.appendChild(row);
 
       function normalizeItemsList(value) {
@@ -633,22 +654,27 @@
           const emptyTag = document.createElement("span");
           emptyTag.style.opacity = "0.75";
           emptyTag.style.fontSize = "0.85rem";
+          emptyTag.style.padding = "4px 0";
           emptyTag.textContent = "No items selected";
           selectedItemsWrap.appendChild(emptyTag);
           return;
         }
 
         items.forEach((value) => {
-          const chip = document.createElement("span");
-          chip.style.display = "inline-flex";
+          const chip = document.createElement("div");
+          chip.style.display = "flex";
           chip.style.alignItems = "center";
+          chip.style.justifyContent = "space-between";
           chip.style.gap = "6px";
-          chip.style.padding = "4px 8px";
-          chip.style.borderRadius = "999px";
+          chip.style.padding = "6px 10px";
+          chip.style.borderRadius = "10px";
           chip.style.border = "1px solid rgba(148, 163, 184, 0.45)";
           chip.style.background = "rgba(15, 23, 42, 0.45)";
-          chip.style.fontSize = "0.8rem";
-          chip.textContent = bundleItemLabelByValue.get(value) || value;
+          chip.style.fontSize = "0.85rem";
+
+          const chipLabel = document.createElement("span");
+          chipLabel.textContent = bundleItemLabelByValue.get(value) || value;
+          chip.appendChild(chipLabel);
 
           const removeBtn = document.createElement("button");
           removeBtn.type = "button";

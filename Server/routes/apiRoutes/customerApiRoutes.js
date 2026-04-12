@@ -4,6 +4,9 @@ const path = require("path");
 const {
   registerCustomer,
   loginCustomer,
+  requestCustomerPasswordReset,
+  validateCustomerResetToken,
+  resetCustomerPasswordWithToken,
   getCurrentCustomer,
   updateCurrentCustomer,
   logoutCustomer,
@@ -24,6 +27,9 @@ const upload = multer({ storage });
 
 router.post("/register", registerCustomer);
 router.post("/login", loginCustomer);
+router.post("/forgot-password", requestCustomerPasswordReset);
+router.get("/reset-password/:token/validate", validateCustomerResetToken);
+router.post("/reset-password/:token", resetCustomerPasswordWithToken);
 router.get("/me", requireCustomerAuth, getCurrentCustomer);
 router.patch("/me", requireCustomerAuth, updateCurrentCustomer);
 router.post("/me/photo", requireCustomerAuth, upload.single("picture"), uploadCurrentCustomerPhoto);
