@@ -6,8 +6,7 @@ import "./Movies.css";
 const STATUS_FILTERS = [
   { key: "Now Showing", label: "Now Showing", icon: "bi-play-circle" },
   { key: "Coming Soon", label: "Coming Soon", icon: "bi-clock-history" },
-  { key: "Advance Sales", label: "Advance Sales", icon: "bi-ticket-perforated" },
-  { key: "Promotions", label: "Promotions", icon: "bi-megaphone" }
+  { key: "Advance Sales", label: "Advance Sales", icon: "bi-ticket-perforated" }
 ];
 const HALL_TYPE_SLUGS = new Set(["standard", "imax", "vip"]);
 const PAGE_SIZE = 20;
@@ -101,7 +100,6 @@ function movieMatchesHallType(movie, targetHallTypeLabel) {
 
 function getFilteredMovies(movies, activeFilter, hallTypeLabel) {
   const sorted = [...movies].sort(compareNewestFirst);
-  if (activeFilter === "Promotions") return [];
 
   return sorted.filter((movie) => {
     const movieStatus = (movie.status || "").toString().trim().toLowerCase();
@@ -156,7 +154,6 @@ export default function Movies({ selectedHallType = "" }) {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filteredMovies.slice(start, start + PAGE_SIZE);
   }, [currentPage, filteredMovies]);
-  const isPromotionsFilter = activeFilter === "Promotions";
 
   useEffect(() => {
     setCurrentPage(1);
@@ -210,13 +207,7 @@ export default function Movies({ selectedHallType = "" }) {
         </section>
       ) : null}
 
-      {!loading && !error && isPromotionsFilter ? (
-        <section className="movies-status-panel">
-          <p>Promotions cards are on hold for now.</p>
-        </section>
-      ) : null}
-
-      {!loading && !error && !isPromotionsFilter ? (
+      {!loading && !error ? (
         <>
           <section className="movies-list" aria-live="polite">
             {visibleMovies.length > 0 ? (

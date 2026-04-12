@@ -119,6 +119,13 @@ export default function Login() {
             </a>
           </p>
 
+          <p className="auth-client-help">
+            Forgot your password?{" "}
+            <a href="#forgot-password">
+              Reset here
+            </a>
+          </p>
+
           <div className="auth-client-actions">
             <SeatSelectionButton variant="secondary" onClick={() => { window.location.hash = "#"; }}>
               BACK TO HOME

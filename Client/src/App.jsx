@@ -17,18 +17,20 @@ import AddOns from "./pages/AddOns";
 import AddOn from "./pages/AddOn";
 import BookingDetails from "./pages/BookingDetails";
 import CreateAccount from "./pages/CreateAccount";
+import ForgotPassword from "./pages/ForgotPassword";
 import Login from "./pages/Login";
 import Payment from "./pages/Payment";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import Profile from "./pages/Profile";
 import Promotions from "./pages/Promotions";
 import PromotionsList from "./pages/PromotionsList";
+import ResetPassword from "./pages/ResetPassword";
 import SeatSelection from "./pages/SeatSelection";
 import Tickets from "./pages/Tickets";
 
 const FLOW_GUARD_PAGES = new Set(["promotions", "addons", "payment"]);
 const ACCOUNT_GUARD_PAGES = new Set(["profile", "my-tickets", "ticket-details"]);
-const SIDEBAR_HIDDEN_PAGES = new Set(["login", "create-account"]);
+const SIDEBAR_HIDDEN_PAGES = new Set(["login", "create-account", "forgot-password", "reset-password"]);
 const BOOKING_REFRESH_RECOVERY_KEY = "cinevillage_booking_refresh_recovery";
 const BOOKING_REFRESH_MOVIE_ID_KEY = "cinevillage_booking_refresh_movie_id";
 const MOVIE_HALL_TYPE_SLUGS = new Set(["standard", "imax", "vip"]);
@@ -177,12 +179,31 @@ function readClientViewFromHash() {
     };
   }
 
+  if (hash === "forgot-password") {
+    return {
+      page: "forgot-password",
+      movieId: "",
+      screeningId: ""
+    };
+  }
+
+  if (hash.startsWith("reset-password")) {
+    const [, resetToken = ""] = hash.split("/");
+    return {
+      page: "reset-password",
+      movieId: "",
+      screeningId: "",
+      resetToken
+    };
+  }
+
   return {
     page: "home",
     movieId: "",
     screeningId: "",
     bookingId: "",
-    hallType: ""
+    hallType: "",
+    resetToken: ""
   };
 }
 
@@ -228,6 +249,8 @@ export default function App() {
     if (view.page === "profile") return "#profile";
     if (view.page === "login") return "#login";
     if (view.page === "create-account") return "#create-account";
+    if (view.page === "forgot-password") return "#forgot-password";
+    if (view.page === "reset-password") return `#reset-password/${view.resetToken || ""}`;
     if (view.page === "promotions-list") return "#promotions-list";
     if (view.page === "addons-list") return "#addons-list";
     if (view.page === "movies") {
@@ -430,6 +453,10 @@ export default function App() {
             <Login />
           ) : clientView.page === "create-account" ? (
             <CreateAccount />
+          ) : clientView.page === "forgot-password" ? (
+            <ForgotPassword />
+          ) : clientView.page === "reset-password" ? (
+            <ResetPassword resetToken={clientView.resetToken || ""} />
           ) : clientView.page === "movie-details" ? (
             <MovieDetails movieId={clientView.movieId} />
           ) : clientView.page === "movies" ? (

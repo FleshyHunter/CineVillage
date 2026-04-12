@@ -246,6 +246,50 @@ export async function loginCustomerAccount(payload = {}) {
   return body.item || null;
 }
 
+export async function requestCustomerPasswordReset(payload = {}) {
+  const response = await fetch(`${CUSTOMER_API_PATH}/forgot-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  return parseJsonResponse(response, "Failed to request password reset");
+}
+
+export async function validateCustomerResetToken(token) {
+  const safeToken = (token || "").toString().trim();
+  if (!safeToken) {
+    throw new ApiError("Reset token is required.");
+  }
+
+  const response = await fetch(`${CUSTOMER_API_PATH}/reset-password/${encodeURIComponent(safeToken)}/validate`, {
+    credentials: "include"
+  });
+
+  return parseJsonResponse(response, "Failed to validate reset token");
+}
+
+export async function resetCustomerPasswordWithToken(token, payload = {}) {
+  const safeToken = (token || "").toString().trim();
+  if (!safeToken) {
+    throw new ApiError("Reset token is required.");
+  }
+
+  const response = await fetch(`${CUSTOMER_API_PATH}/reset-password/${encodeURIComponent(safeToken)}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  return parseJsonResponse(response, "Failed to reset password");
+}
+
 export async function fetchCurrentCustomerAccount() {
   const response = await fetch(`${CUSTOMER_API_PATH}/me`, {
     credentials: "include"
